@@ -1,103 +1,272 @@
 # AI Worker
 
-A server-side automation service that watches GitHub issues across multiple repositories, runs the Cursor Agent to implement them, and opens pull requests for human review.
+Server-side automation that watches **GitHub** and **GitLab** issues, runs the Cursor Agent to implement them, and opens pull/merge requests for human review.
 
-Label an issue with `ai` and the worker picks it up, implements the change in an isolated branch, commits, pushes, and creates a PR. It never merges automatically.
+Label an issue with `ai` → worker implements it on a branch → opens a PR (GitHub) or MR (GitLab). It never merges automatically.
+
+---
+
+## How to run this app
+
+### One-time setup
+
+```bash
+cd /home/ubuntu/ai-worker
+
+# 1) GitHub auth (skip if you only use GitLab)
+gh auth login
+
+# 2) GitLab auth (skip if you only use GitHub)
+cp .env.example .env
+nano .env
+# Set:
+#   GITLAB_HOST=git.dctm.dev
+#   GITLAB_TOKEN=<personal access token with api scope>
+
+# 3) Register local clones (see sections below)
+nano projects.conf
+nano gitlab-projects.conf
+
+# 4) Create ai / ai-working / ai-pr / ai-failed labels on all registered repos
+./setup-labels.sh
+```
+
+### Run in the foreground (manual / debug)
+
+```bash
+cd /home/ubuntu/ai-worker
+./worker.sh
+```
+
+- Logs: `logs/worker.log`
+- Lock: `state/worker.lock` (only one worker at a time)
+- Stop: `Ctrl+C`
+
+### Run a single issue (without the poll loop)
+
+```bash
+# GitHub
+./run-issue.sh <project-name> <issue-number>
+
+# GitLab
+./run-gitlab-issue.sh <project-name> <issue-iid>
+```
+
+Examples:
+
+```bash
+./run-issue.sh insta2site-api 1
+./run-gitlab-issue.sh bale-service 12
+```
+
+### Queue work
+
+On any registered repo, open an issue and add the **`ai`** label. Within about 60 seconds the worker should pick it up.
+
+---
+
+## Add as a Linux systemd service
+
+Use this so the worker starts on boot and restarts after failures.
+
+### 1. Install the unit file
+
+A unit file lives in this repo as [`ai-worker.service`](ai-worker.service).
+
+```bash
+sudo cp /home/ubuntu/ai-worker/ai-worker.service /etc/systemd/system/ai-worker.service
+sudo systemctl daemon-reload
+sudo systemctl enable ai-worker
+sudo systemctl start ai-worker
+```
+
+### 2. Check status and logs
+
+```bash
+sudo systemctl status ai-worker
+sudo journalctl -u ai-worker -f
+tail -f /home/ubuntu/ai-worker/logs/worker.log
+```
+
+### 3. Common service commands
+
+```bash
+sudo systemctl stop ai-worker
+sudo systemctl start ai-worker
+sudo systemctl restart ai-worker
+sudo systemctl disable ai-worker   # stop starting on boot
+```
+
+### 4. After you change scripts or config
+
+```bash
+# Config / scripts under /home/ubuntu/ai-worker — restart the service
+sudo systemctl restart ai-worker
+
+# Only if you edited /etc/systemd/system/ai-worker.service
+sudo systemctl daemon-reload
+sudo systemctl restart ai-worker
+```
+
+### Unit file contents (reference)
+
+```ini
+[Unit]
+Description=Cursor AI Issue Worker (GitHub + GitLab)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/ai-worker
+Environment=HOME=/home/ubuntu
+Environment=PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cursor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/ubuntu/ai-worker/worker.sh
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=60
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Notes:
+
+- `PATH` must include the Cursor CLI (`agent` / `cursor-agent`), usually under `~/.local/bin`.
+- The service runs as user `ubuntu` so it can use that user’s `gh` auth, SSH keys, and `.env`.
+- Do **not** run `./worker.sh` manually while the systemd unit is active (the lock file will block the second process).
+
+---
+
+## Add a GitHub project
+
+1. Clone the repo locally (if needed):
+
+   ```bash
+   git clone git@github.com:ORG/REPO.git /home/ubuntu/dev/my-app
+   ```
+
+2. Ensure `origin` points at GitHub and default branch is `main`.
+
+3. Add one line to [`projects.conf`](projects.conf):
+
+   ```conf
+   my-app=/home/ubuntu/dev/my-app
+   ```
+
+4. Create labels on that repo:
+
+   ```bash
+   cd /home/ubuntu/ai-worker
+   ./setup-labels.sh
+   ```
+
+5. Restart the worker if it is running under systemd:
+
+   ```bash
+   sudo systemctl restart ai-worker
+   ```
+
+6. On GitHub: open an issue → add label **`ai`**.
+
+Requirements: `gh` authenticated with access to the repo (`gh auth login`, `gh auth status`).
+
+---
+
+## Add a GitLab project
+
+1. Clone from your company GitLab host:
+
+   ```bash
+   git clone git@git.dctm.dev:group/subgroup/my-service.git /home/ubuntu/dev/my-service
+   ```
+
+2. Ensure `origin` is the GitLab remote and default branch is `main`.
+
+3. Add one line to [`gitlab-projects.conf`](gitlab-projects.conf) (**not** `projects.conf`):
+
+   ```conf
+   my-service=/home/ubuntu/dev/my-service
+   ```
+
+4. Configure token (once):
+
+   ```bash
+   cd /home/ubuntu/ai-worker
+   cp -n .env.example .env
+   nano .env
+   ```
+
+   ```bash
+   GITLAB_HOST=git.dctm.dev
+   GITLAB_TOKEN=glpat-xxxxxxxx
+   ```
+
+   Token needs **`api`** scope (read/write issues, labels, merge requests). Git push still uses your SSH key / git credentials.
+
+5. Create labels:
+
+   ```bash
+   ./setup-gitlab-labels.sh
+   # or for both forges:
+   ./setup-labels.sh
+   ```
+
+6. Restart the service:
+
+   ```bash
+   sudo systemctl restart ai-worker
+   ```
+
+7. On GitLab: open an issue → add label **`ai`**.
+
+Without `GITLAB_TOKEN`, GitHub still works; GitLab projects are skipped with a warning.
+
+---
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[Issue labeled ai] --> B[worker.sh polls]
-    B --> C[Label: ai-working]
-    C --> D[run-issue.sh]
-    D --> E[Cursor Agent implements]
-    E --> F[Commit + push + PR]
-    F --> G{Success?}
-    G -->|Yes| H[Label: ai-pr]
-    G -->|No| I[Label: ai-failed]
+  A[Issue labeled ai] --> B[worker.sh polls]
+  B --> C[Label: ai-working]
+  C --> D{Forge}
+  D -->|GitHub| E[run-issue.sh]
+  D -->|GitLab| F[run-gitlab-issue.sh]
+  E --> G[Cursor Agent]
+  F --> G
+  G --> H[Commit + push]
+  H --> I{Forge}
+  I -->|GitHub| J[PR via gh]
+  I -->|GitLab| K[MR via API]
+  J --> L{Success?}
+  K --> L
+  L -->|Yes| M[Label: ai-pr]
+  L -->|No| N[Label: ai-failed]
 ```
 
-1. **`worker.sh`** polls every 60 seconds, reading registered projects from `projects.conf`.
-2. For each project, it finds the oldest open issue with the `ai` label.
-3. The label is changed to `ai-working` so the issue is not picked up again.
-4. **`run-issue.sh`** runs the full pipeline for that issue:
-   - Ensures the repo is clean and `main` is up to date
-   - Creates a branch (`ai/issue-N` or `ai/issue-N-timestamp` if the branch already exists)
-   - Builds a prompt from the issue title and body
-   - Runs the Cursor Agent (`agent` or `cursor-agent`) in the project workspace
-   - Stages changes, blocks commits that include secrets, commits, pushes, and opens a PR
-   - Cleans up: returns the local repo to `main` and removes the local task branch
-5. On success, the issue label becomes `ai-pr`. On failure, it becomes `ai-failed` (not automatically re-queued).
+1. **`worker.sh`** polls every 60 seconds.
+2. Reads GitHub from `projects.conf`, then GitLab from `gitlab-projects.conf` (one issue per cycle; GitHub first).
+3. Label becomes `ai-working`.
+4. Runner implements with Cursor, then opens a PR/MR.
+5. Success → `ai-pr`. Failure → `ai-failed` (not auto-retried).
 
 ## Prerequisites
 
 | Requirement | Notes |
 |-------------|-------|
-| **Git** | Repos must use `main` as the default branch |
-| **GitHub CLI** (`gh`) | Authenticated with access to the target repos |
-| **jq** | JSON parsing for issue metadata |
-| **flock** | Prevents multiple worker processes |
+| **Git** | Default branch `main` |
+| **GitHub CLI** (`gh`) | For GitHub projects |
+| **curl** + **jq** | GitLab REST API |
+| **flock** | Single worker process |
 | **Cursor CLI** | `agent` or `cursor-agent` on `PATH` |
-
-```bash
-gh auth login
-```
-
-## Quick start
-
-### 1. Register projects
-
-Edit `projects.conf` — one project name and local path per line:
-
-```conf
-insta2site-api=/home/ubuntu/dev/insta2site-api
-insta2site-laravel=/home/ubuntu/dev/insta2site-laravel
-insta2site-ui=/home/ubuntu/dev/insta2site-ui
-```
-
-Each path must be a Git repository whose `origin` remote points to GitHub (`gh repo view` is used to resolve the repo).
-
-### 2. Create GitHub labels
-
-```bash
-./setup-labels.sh
-```
-
-This creates four labels in every registered repository:
-
-| Label | Color | Meaning |
-|-------|-------|---------|
-| `ai` | Green | Queue this issue for the worker |
-| `ai-working` | Yellow | Worker is processing this issue |
-| `ai-pr` | Blue | Worker finished and opened a PR |
-| `ai-failed` | Red | Worker failed — review logs before retrying |
-
-### 3. Start the worker
-
-```bash
-./worker.sh
-```
-
-The worker logs to `logs/worker.log` and uses `state/worker.lock` to ensure only one instance runs.
-
-### 4. Queue work
-
-Add the `ai` label to any open GitHub issue in a registered repository.
-
-## Manual run (single issue)
-
-To run one issue without the polling loop:
-
-```bash
-./run-issue.sh <project> <issue-number>
-```
-
-Example:
-
-```bash
-./run-issue.sh insta2site-api 1
-```
+| **GITLAB_TOKEN** | `api` scope; GitLab only |
 
 ## Label lifecycle
 
@@ -106,57 +275,47 @@ ai  →  ai-working  →  ai-pr      (success)
                  ↘  ai-failed   (failure)
 ```
 
-- **Success:** `ai` is removed, `ai-working` is removed, `ai-pr` is added.
-- **Failure:** `ai` is removed, `ai-working` is removed, `ai-failed` is added.
-- **Retry:** After reviewing logs, manually add the `ai` label again. The worker removes `ai-failed` when it picks up the issue.
-
-Failed issues are **not** automatically re-queued, which avoids infinite retry loops.
+| Label | Meaning |
+|-------|---------|
+| `ai` | Queue for the worker |
+| `ai-working` | Currently processing |
+| `ai-pr` | Finished; PR/MR opened |
+| `ai-failed` | Failed — review logs, then add `ai` again to retry |
 
 ## What Cursor does vs. what the scripts do
 
-The Cursor Agent is instructed to implement the issue, run tests, and leave **uncommitted** changes in the working tree. It must **not** run Git or GitHub commands.
+Cursor implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands.
 
-`run-issue.sh` handles everything after the agent finishes:
-
-- `git add`, `git commit`, `git push`
-- Pull request creation via `gh pr create`
-- Branch cleanup and checkout back to `main`
+The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
 
 ## Safety
 
-- **Clean repo required** — Tasks refuse to start if the working tree is dirty.
-- **Secret blocking** — Staged files matching `.env`, `*.pem`, `*.key`, `id_rsa`, or `id_ed25519` cause the run to abort before commit.
-- **No auto-merge** — PRs are always opened for human review.
-- **Single worker** — File lock prevents concurrent worker processes.
-- **Single issue per cycle** — Only one issue is processed per polling interval.
-- **Cleanup on exit** — Local task branches are deleted and `main` is restored even after failures.
+- Clean repo required before start
+- Blocks staging `.env`, `*.pem`, `*.key`, `id_rsa`, `id_ed25519`
+- No auto-merge
+- Single worker via file lock
+- One issue per polling interval
+- Local task branch deleted after push; remote branch kept for the PR/MR
 
 ## Directory layout
 
 ```
 ai-worker/
-├── worker.sh          # Main polling loop
-├── run-issue.sh       # Full pipeline for one issue
-├── setup-labels.sh    # Create labels in all registered repos
-├── projects.conf      # Project name → local path mapping
-├── logs/              # Per-run logs (gitignored)
-│   ├── worker.log
-│   └── <project>-issue-<n>-<timestamp>.*
-└── state/             # Runtime state (gitignored)
-    ├── worker.lock
-    └── <project>-issue-<n>.*
+├── worker.sh               # Poll loop (GitHub + GitLab)
+├── run-issue.sh            # GitHub pipeline
+├── run-gitlab-issue.sh     # GitLab pipeline
+├── setup-labels.sh         # Labels on GitHub + GitLab
+├── setup-gitlab-labels.sh  # GitLab labels only
+├── ai-worker.service       # systemd unit (copy to /etc/systemd/system/)
+├── projects.conf           # GitHub name → local path
+├── gitlab-projects.conf    # GitLab name → local path
+├── .env.example            # GITLAB_HOST / GITLAB_TOKEN template
+├── lib/
+│   ├── common.sh
+│   └── gitlab.sh
+├── logs/
+└── state/
 ```
-
-### Log files per run
-
-| File | Contents |
-|------|----------|
-| `*.log` | Main script output |
-| `*.prompt.txt` | Prompt sent to Cursor |
-| `*.cursor.ndjson` | Cursor Agent stream output |
-| `*.cursor.stderr.log` | Cursor stderr |
-| `*.result.txt` | Success summary (branch, commit, PR URL) |
-| `*-pr.md` | Pull request body used for `gh pr create` |
 
 ## Configuration
 
@@ -164,17 +323,20 @@ ai-worker/
 |---------|----------|---------|
 | Poll interval | `worker.sh` → `CHECK_INTERVAL` | 60 seconds |
 | Base directory | Scripts → `BASE_DIR` | `/home/ubuntu/ai-worker` |
-| Branch naming | `run-issue.sh` | `ai/issue-<number>` |
+| GitLab host | `.env` → `GITLAB_HOST` | `git.dctm.dev` |
+| GitLab token | `.env` → `GITLAB_TOKEN` | required for GitLab |
+| Branch naming | runners | `ai/issue-<number>` |
 
 ## Troubleshooting
 
 | Problem | What to check |
 |---------|----------------|
-| Issue not picked up | Open issue? Has `ai` label? Repo in `projects.conf`? |
-| `ai-failed` on issue | `logs/<project>-issue-<n>-*.log` and `*.cursor.ndjson` |
-| Worker not starting | Another instance may be running (`state/worker.lock`) |
-| Cursor CLI missing | Install Cursor CLI; ensure `agent` or `cursor-agent` is on `PATH` |
-| PR not created | Check `gh` auth and repo permissions in the main log |
+| Issue not picked up | Open? Has `ai`? Correct conf file? Service running? |
+| GitLab skipped | `.env` has `GITLAB_TOKEN`? Restart service after editing `.env` |
+| `ai-failed` | `logs/<project>-*-issue-<n>-*.log` and `*.cursor.ndjson` |
+| Worker not starting | `systemctl status ai-worker` or lock `state/worker.lock` |
+| `agent: command not found` | PATH in the unit file must include `~/.local/bin` |
+| PR/MR not created | `gh auth status` (GitHub) or token scopes / SSH push (GitLab) |
 
 ## License
 
