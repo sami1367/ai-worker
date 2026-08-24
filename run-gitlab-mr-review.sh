@@ -77,6 +77,7 @@ PROMPT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.prompt.txt"
 RESULT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.result.txt"
 REVIEW_FILE="$PROJECT_DIR/.ai-mr-review.md"
 DIFF_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.diff.txt"
+ISSUES_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.issues.txt"
 STATE_FILE="$STATE_DIR/${PROJECT}-gitlab-mr-${MR_IID}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -260,6 +261,82 @@ gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
     >/dev/null 2>&1 || true
 
 # ============================================================
+# Linked issues from MR description (Closes/Fixes/Related to #N)
+# ============================================================
+
+echo
+echo "Looking for linked issues in MR title/description..."
+
+: > "$ISSUES_FILE"
+LINKED_ISSUE_COUNT=0
+
+mapfile -t LINKED_ISSUE_IIDS < <(
+    gitlab_extract_linked_issue_iids "${MR_TITLE}"$'\n'"${MR_BODY}"
+)
+
+if [[ ${#LINKED_ISSUE_IIDS[@]} -eq 0 ]]; then
+    echo "No linked issues found (no Closes/Fixes/Related to #N refs)."
+    cat >> "$ISSUES_FILE" <<EOF
+No linked GitLab issues were found in the MR title or description.
+
+Review the merge request on its own merits from the title, description, and diff.
+EOF
+else
+    echo "Found linked issue(s): $(printf '#%s ' "${LINKED_ISSUE_IIDS[@]}")"
+
+    for issue_iid in "${LINKED_ISSUE_IIDS[@]}"; do
+        echo "Fetching issue #${issue_iid}..."
+
+        if ! ISSUE_JSON="$(gitlab_get_issue "$REPO_PATH" "$issue_iid" 2>/dev/null)"; then
+            echo "WARNING: Could not fetch issue #${issue_iid}."
+            cat >> "$ISSUES_FILE" <<EOF
+------------------------------------------------------------
+ISSUE #${issue_iid}
+------------------------------------------------------------
+
+(Could not fetch this issue from the GitLab API.)
+
+EOF
+            continue
+        fi
+
+        LINKED_ISSUE_COUNT=$((LINKED_ISSUE_COUNT + 1))
+
+        ISSUE_TITLE="$(jq -r '.title // ""' <<<"$ISSUE_JSON")"
+        ISSUE_STATE="$(jq -r '.state // ""' <<<"$ISSUE_JSON")"
+        ISSUE_URL="$(jq -r '.web_url // ""' <<<"$ISSUE_JSON")"
+        ISSUE_AUTHOR="$(jq -r '.author.username // .author.name // "unknown"' <<<"$ISSUE_JSON")"
+        ISSUE_LABELS="$(jq -r '[.labels[]?] | join(", ")' <<<"$ISSUE_JSON")"
+        ISSUE_BODY="$(jq -r '.description // ""' <<<"$ISSUE_JSON")"
+
+        # Cap very long issue bodies so the prompt stays usable.
+        ISSUE_BODY_BYTES="$(printf '%s' "$ISSUE_BODY" | wc -c | tr -d ' ')"
+        if [[ "$ISSUE_BODY_BYTES" -gt 20000 ]]; then
+            ISSUE_BODY="$(printf '%s' "$ISSUE_BODY" | head -c 20000)
+... [issue description truncated] ..."
+        fi
+
+        echo "  #$issue_iid — $ISSUE_TITLE ($ISSUE_STATE)"
+
+        cat >> "$ISSUES_FILE" <<EOF
+------------------------------------------------------------
+ISSUE #${issue_iid}
+------------------------------------------------------------
+
+Title:  $ISSUE_TITLE
+State:  $ISSUE_STATE
+Author: $ISSUE_AUTHOR
+Labels: ${ISSUE_LABELS:-none}
+URL:    $ISSUE_URL
+
+Description:
+$ISSUE_BODY
+
+EOF
+    done
+fi
+
+# ============================================================
 # Fetch MR changes / diff summary
 # ============================================================
 
@@ -355,6 +432,14 @@ MR DESCRIPTION
 $MR_BODY
 
 ============================================================
+LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
+============================================================
+
+EOF
+    cat "$ISSUES_FILE"
+    cat <<EOF
+
+============================================================
 MR DIFF (from GitLab API; may be truncated)
 ============================================================
 
@@ -373,6 +458,12 @@ You are running unattended.
 Do not ask questions.
 Do not ask for confirmation.
 Do not wait for user approval.
+
+IMPORTANT — linked issues:
+- If one or more linked issues/tasks are listed above, read them first and treat them as the acceptance criteria for this MR.
+- Judge whether the diff fulfills the linked issue(s): scope, requirements, edge cases, and any explicit non-goals.
+- Call out missing requirements from the issue even if the code quality is otherwise fine.
+- If no linked issues were found, review from the MR title, description, and diff alone.
 
 You MAY:
 
@@ -417,6 +508,9 @@ Structure the Markdown review like this:
 ## Summary
 Brief overall assessment (what the MR does and whether it looks ready).
 
+## Issue / task alignment
+If linked issues were provided: for each issue, say whether the MR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
+
 ## Strengths
 What looks good.
 
@@ -427,12 +521,14 @@ For each issue include:
 - what is wrong
 - why it matters
 - a concrete suggestion
+Include unmet acceptance criteria from linked issues as findings when applicable.
 
 ## Testing
 Gaps or risks in test coverage, and what you would verify before merge.
 
 ## Verdict
 One of: Approve / Request changes / Needs discussion — with one short sentence why.
+If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
 
 Be specific and technical. Prefer fewer high-signal findings over vague advice.
 If the diff is truncated, say so and review what you can see plus the branch contents.
@@ -454,6 +550,8 @@ echo "Branch:        $SOURCE_BRANCH"
 echo "Workspace:     $PROJECT_DIR"
 echo "Prompt file:   $PROMPT_FILE"
 echo "Review file:   $REVIEW_FILE"
+echo "Linked issues: $LINKED_ISSUE_COUNT"
+echo "Issues file:   $ISSUES_FILE"
 echo "Cursor log:    $CURSOR_LOG"
 echo "Cursor stderr: $CURSOR_ERR_LOG"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
@@ -587,6 +685,7 @@ target_branch=$TARGET_BRANCH
 note_id=$NOTE_ID
 note_url=$NOTE_URL
 labels=ai-reviewed
+linked_issues=$LINKED_ISSUE_COUNT
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
 cursor_log=$CURSOR_LOG
@@ -599,6 +698,7 @@ echo "Project:       $PROJECT"
 echo "Merge request: !$MR_IID"
 echo "MR URL:        $MR_URL"
 echo "Note id:       $NOTE_ID"
+echo "Linked issues: $LINKED_ISSUE_COUNT"
 echo "Labels:        ai-reviewed"
 echo "Main log:      $LOG_FILE"
 echo "Cursor log:    $CURSOR_LOG"

@@ -101,6 +101,35 @@ gitlab_get_issue() {
     gitlab_api GET "/projects/${encoded}/issues/${issue_iid}"
 }
 
+# Extract unique issue IIDs linked from MR title/description text.
+# Recognizes GitLab-style refs, e.g.:
+#   Closes #1
+#   Fixes #123
+#   Related to #45
+#   Resolves #7
+# Prints one IID per line (sorted, unique). Empty if none.
+gitlab_extract_linked_issue_iids() {
+    local text="$1"
+    local matches
+
+    if [[ -z "$(printf '%s' "$text" | tr -d '[:space:]')" ]]; then
+        return 0
+    fi
+
+    matches="$(
+        printf '%s\n' "$text" \
+            | grep -oiE \
+                '(closes?|closed|closing|fixes?|fixed|fixing|resolves?|resolved|resolving|implements?|implemented|implementing|related[[:space:]]+to|relates[[:space:]]+to)[[:space:]]+#[[:digit:]]+' \
+            || true
+    )"
+
+    if [[ -z "$matches" ]]; then
+        return 0
+    fi
+
+    printf '%s\n' "$matches" | grep -oE '[[:digit:]]+' | sort -n -u
+}
+
 # Print oldest open issue iid with label "ai", or empty.
 gitlab_find_ai_issue() {
     local project_path="$1"

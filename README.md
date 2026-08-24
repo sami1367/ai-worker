@@ -318,6 +318,7 @@ Multiple MRs can carry `ai-review` at once. The worker always takes the **oldest
 | Step | Labels |
 |------|--------|
 | You queue a review | Add `ai-review` on an **open** merge request |
+| Optional: link issues | In the MR description, add `Closes #N`, `Fixes #N`, and/or `Related to #N` so the review uses those issues as acceptance criteria |
 | Worker starts | Removes `ai-review`, adds `ai-reviewing` |
 | Success | Removes `ai-reviewing`, adds `ai-reviewed`, posts MR note |
 | Failure | Removes `ai-reviewing`, adds `ai-review-failed` |
@@ -389,7 +390,7 @@ If labels are missing on a repo, the worker cannot find or update the item — r
 
 **Issue runs:** Cursor implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
 
-**MR review runs:** Cursor inspects the MR branch/diff and writes a Markdown review to `.ai-mr-review.md`. The runner posts that text as a GitLab MR note, then discards the file and returns to `main`. Cursor must not change product code or call the GitLab API.
+**MR review runs:** Cursor inspects the MR branch/diff and writes a Markdown review to `.ai-mr-review.md`. If the MR title/description links issues (`Closes #1`, `Fixes #123`, `Related to #45`, etc.), the runner fetches those issues first and includes them as acceptance criteria in the prompt. The runner posts the review as a GitLab MR note, then discards the file and returns to `main`. Cursor must not change product code or call the GitLab API.
 
 ## Safety
 
