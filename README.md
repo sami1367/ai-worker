@@ -1,8 +1,8 @@
 # AI Worker
 
-Server-side automation that watches **GitHub** and **GitLab** issues, runs the Cursor Agent to implement them, and opens pull/merge requests for human review.
+Server-side automation that watches **GitHub** and **GitLab** issues, runs the Cursor Agent to implement them, and opens pull/merge requests for human review. On GitLab it can also **AI-review merge requests** when you add a label.
 
-Label an issue with `ai` → worker implements it on a branch → opens a PR (GitHub) or MR (GitLab). It never merges automatically.
+Label an issue with `ai` → worker implements it on a branch → opens a PR (GitHub) or MR (GitLab). Label a GitLab MR with `ai-review` → worker reviews the diff and posts an MR comment. It never merges automatically.
 
 ---
 
@@ -27,7 +27,7 @@ nano .env
 nano projects.conf
 nano gitlab-projects.conf
 
-# 4) Create ai / ai-working / ai-pr / ai-failed labels on all registered repos
+# 4) Create issue + MR-review labels on all registered repos
 ./setup-labels.sh
 ```
 
@@ -42,14 +42,17 @@ cd /home/ubuntu/ai-worker
 - Lock: `state/worker.lock` (only one worker at a time)
 - Stop: `Ctrl+C`
 
-### Run a single issue (without the poll loop)
+### Run a single issue or MR review (without the poll loop)
 
 ```bash
-# GitHub
+# GitHub issue
 ./run-issue.sh <project-name> <issue-number>
 
-# GitLab
+# GitLab issue
 ./run-gitlab-issue.sh <project-name> <issue-iid>
+
+# GitLab MR AI review
+./run-gitlab-mr-review.sh <project-name> <merge-request-iid>
 ```
 
 Examples:
@@ -57,11 +60,15 @@ Examples:
 ```bash
 ./run-issue.sh insta2site-api 1
 ./run-gitlab-issue.sh bale-service 12
+./run-gitlab-mr-review.sh bale-service 34
 ```
 
 ### Queue work
 
-On any registered repo, open an issue and add the **`ai`** label. Within about 60 seconds the worker should pick it up.
+- **Implement an issue:** on any registered repo, open an issue and add the **`ai`** label.
+- **Review a GitLab MR:** open (or edit) a merge request and add the **`ai-review`** label.
+
+Within about 60 seconds the worker should pick it up.
 
 ---
 
@@ -252,10 +259,9 @@ flowchart LR
 ```
 
 1. **`worker.sh`** polls every 60 seconds.
-2. Reads GitHub from `projects.conf`, then GitLab from `gitlab-projects.conf` (one issue per cycle; GitHub first).
-3. Label becomes `ai-working`.
-4. Runner implements with Cursor, then opens a PR/MR.
-5. Success → `ai-pr`. Failure → `ai-failed` (not auto-retried).
+2. Priority per cycle (one task only): GitHub issues → GitLab issues → GitLab MR reviews.
+3. Issue path: label becomes `ai-working` → Cursor implements → opens a PR/MR → `ai-pr` or `ai-failed`.
+4. MR review path: label becomes `ai-reviewing` → Cursor reviews → posts an MR comment → `ai-reviewed` or `ai-review-failed`.
 
 ## Prerequisites
 
@@ -268,11 +274,11 @@ flowchart LR
 | **Cursor CLI** | `agent` or `cursor-agent` on `PATH` |
 | **GITLAB_TOKEN** | `api` scope; GitLab only |
 
-## Labels (GitHub and GitLab)
+## Labels
 
-The worker uses the **same four label names** on both GitHub and GitLab. You must create them on every registered repository before queuing issues.
+### Issue labels (GitHub and GitLab)
 
-### What each label means
+Create these on every registered repository before queuing issues.
 
 | Label | Color | Who sets it | Meaning |
 |-------|-------|-------------|---------|
@@ -281,24 +287,38 @@ The worker uses the **same four label names** on both GitHub and GitLab. You mus
 | `ai-pr` | Blue (`1D76DB`) | Worker | Finished successfully; a PR (GitHub) or MR (GitLab) was opened |
 | `ai-failed` | Red (`D73A4A`) | Worker | Run failed — check logs before retrying |
 
-Only **`ai`** is applied by hand. The worker moves labels through the lifecycle; do not set `ai-working` / `ai-pr` / `ai-failed` yourself unless you are cleaning up a stuck issue.
-
-### Label lifecycle
+Only **`ai`** is applied by hand for issues.
 
 ```
 ai  →  ai-working  →  ai-pr      (success — PR/MR created)
                  ↘  ai-failed   (failure — not auto-retried)
 ```
 
+### GitLab MR review labels
+
+These are **GitLab-only** and apply to **merge requests** (not issues).
+
+| Label | Color | Who sets it | Meaning |
+|-------|-------|-------------|---------|
+| `ai-review` | Purple (`7057FF`) | **You** (manually) | Queue this open MR for an AI review comment |
+| `ai-reviewing` | Yellow (`FBCA04`) | Worker | MR is being reviewed right now |
+| `ai-reviewed` | Green (`0E8A16`) | Worker | Review comment was posted |
+| `ai-review-failed` | Red (`D73A4A`) | Worker | Review run failed — check logs before retrying |
+
+```
+ai-review  →  ai-reviewing  →  ai-reviewed        (success — comment posted)
+                           ↘  ai-review-failed   (failure — not auto-retried)
+```
+
 | Step | Labels |
 |------|--------|
-| You queue work | Add `ai` on an **open** issue |
-| Worker starts | Removes `ai`, adds `ai-working` (also removes `ai-failed` if retrying) |
-| Success | Removes `ai-working`, adds `ai-pr` |
-| Failure | Removes `ai-working`, adds `ai-failed` |
-| Retry after failure | Review logs, then add `ai` again |
+| You queue a review | Add `ai-review` on an **open** merge request |
+| Worker starts | Removes `ai-review`, adds `ai-reviewing` |
+| Success | Removes `ai-reviewing`, adds `ai-reviewed`, posts MR note |
+| Failure | Removes `ai-reviewing`, adds `ai-review-failed` |
+| Retry | Check logs, then add `ai-review` again |
 
-Failed issues are **not** re-queued automatically (avoids infinite loops).
+Failed issues/reviews are **not** re-queued automatically (avoids infinite loops).
 
 ### Create labels on all registered repos
 
@@ -344,18 +364,27 @@ Or create them manually in GitLab: **Project → Manage → Labels → New label
 
 ### How to use labels day to day
 
+**Issues (implement):**
+
 1. Open (or create) an issue on a registered GitHub or GitLab project.
 2. Add the **`ai`** label only.
-3. Wait for the poll cycle (~60s). The label should become **`ai-working`**, then **`ai-pr`** or **`ai-failed`**.
-4. On success, review the PR/MR. On failure, inspect `logs/` and add **`ai`** again when ready to retry.
+3. Wait (~60s). Labels become **`ai-working`**, then **`ai-pr`** or **`ai-failed`**.
+4. On success, review the PR/MR. On failure, inspect `logs/` and add **`ai`** again to retry.
 
-If labels are missing on a repo, the worker cannot find or update the issue — run the setup script again after registering a new project.
+**GitLab merge requests (AI review):**
+
+1. Open an MR on a registered GitLab project.
+2. Add the **`ai-review`** label.
+3. Wait (~60s). Labels become **`ai-reviewing`**, then **`ai-reviewed`** or **`ai-review-failed`**.
+4. On success, read the AI comment on the MR. On failure, inspect `logs/` and add **`ai-review`** again to retry.
+
+If labels are missing on a repo, the worker cannot find or update the item — run the setup script again after registering a new project.
 
 ## What Cursor does vs. what the scripts do
 
-Cursor implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands.
+**Issue runs:** Cursor implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
 
-The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
+**MR review runs:** Cursor inspects the MR branch/diff and writes a Markdown review to `.ai-mr-review.md`. The runner posts that text as a GitLab MR note, then discards the file and returns to `main`. Cursor must not change product code or call the GitLab API.
 
 ## Safety
 
@@ -370,15 +399,16 @@ The runners handle staging, secret checks, commit, push, PR/MR creation, and cle
 
 ```
 ai-worker/
-├── worker.sh               # Poll loop (GitHub + GitLab)
-├── run-issue.sh            # GitHub pipeline
-├── run-gitlab-issue.sh     # GitLab pipeline
-├── setup-labels.sh         # Labels on GitHub + GitLab
-├── setup-gitlab-labels.sh  # GitLab labels only
-├── ai-worker.service       # systemd unit (copy to /etc/systemd/system/)
-├── projects.conf           # GitHub name → local path
-├── gitlab-projects.conf    # GitLab name → local path
-├── .env.example            # GITLAB_HOST / GITLAB_TOKEN template
+├── worker.sh                 # Poll loop (GitHub + GitLab issues + GitLab MR reviews)
+├── run-issue.sh              # GitHub issue pipeline
+├── run-gitlab-issue.sh       # GitLab issue pipeline
+├── run-gitlab-mr-review.sh   # GitLab MR AI review + comment
+├── setup-labels.sh           # Labels on GitHub + GitLab
+├── setup-gitlab-labels.sh    # GitLab labels only (issues + MR review)
+├── ai-worker.service         # systemd unit (copy to /etc/systemd/system/)
+├── projects.conf             # GitHub name → local path
+├── gitlab-projects.conf      # GitLab name → local path
+├── .env.example              # GITLAB_HOST / GITLAB_TOKEN template
 ├── lib/
 │   ├── common.sh
 │   └── gitlab.sh
@@ -401,11 +431,14 @@ ai-worker/
 | Problem | What to check |
 |---------|----------------|
 | Issue not picked up | Open? Has `ai`? Correct conf file? Service running? |
+| MR review not picked up | MR open? Has `ai-review`? Labels created via `./setup-gitlab-labels.sh`? |
 | GitLab skipped | `.env` has `GITLAB_TOKEN`? Restart service after editing `.env` |
 | `ai-failed` | `logs/<project>-*-issue-<n>-*.log` and `*.cursor.ndjson` |
+| `ai-review-failed` | `logs/<project>-gitlab-mr-<iid>-*.log` and `*.cursor.ndjson` |
 | Worker not starting | `systemctl status ai-worker` or lock `state/worker.lock` |
 | `agent: command not found` | PATH in the unit file must include `~/.local/bin` |
 | PR/MR not created | `gh auth status` (GitHub) or token scopes / SSH push (GitLab) |
+| Review comment missing | Token `api` scope; check runner log for note posting errors |
 
 ## License
 

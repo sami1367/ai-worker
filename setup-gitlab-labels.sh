@@ -58,6 +58,18 @@ setup_one() {
     gitlab_create_label "$REPO_PATH" "ai-failed" "D73A4A" \
         "AI worker failed; review logs before retrying"
 
+    gitlab_create_label "$REPO_PATH" "ai-review" "7057FF" \
+        "Queue this merge request for an AI code review"
+
+    gitlab_create_label "$REPO_PATH" "ai-reviewing" "FBCA04" \
+        "AI worker is currently reviewing this merge request"
+
+    gitlab_create_label "$REPO_PATH" "ai-reviewed" "0E8A16" \
+        "AI worker posted a review comment on this merge request"
+
+    gitlab_create_label "$REPO_PATH" "ai-review-failed" "D73A4A" \
+        "AI MR review failed; check logs before retrying"
+
     return 0
 }
 

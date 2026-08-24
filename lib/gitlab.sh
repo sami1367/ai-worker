@@ -257,3 +257,102 @@ gitlab_create_issue_note() {
     payload="$(jq -n --arg body "$body" '{body: $body}')"
     gitlab_api POST "/projects/${encoded}/issues/${issue_iid}/notes" -d "$payload"
 }
+
+gitlab_get_mr() {
+    local project_path="$1"
+    local mr_iid="$2"
+    local encoded
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    gitlab_api GET "/projects/${encoded}/merge_requests/${mr_iid}"
+}
+
+# Print oldest open MR iid with label "ai-review", or empty.
+gitlab_find_ai_review_mr() {
+    local project_path="$1"
+    local encoded body iid
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/merge_requests?labels=ai-review&state=opened&order_by=created_at&sort=asc&per_page=1"
+    )" || return 1
+
+    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    printf '%s' "$iid"
+}
+
+# MR diffs/changes payload (includes diffs array).
+gitlab_get_mr_changes() {
+    local project_path="$1"
+    local mr_iid="$2"
+    local encoded
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    gitlab_api GET "/projects/${encoded}/merge_requests/${mr_iid}/changes"
+}
+
+# Add and/or remove labels on a merge request.
+# Usage: gitlab_edit_mr_labels <project_path> <iid> [--add L] [--remove L] ...
+gitlab_edit_mr_labels() {
+    local project_path="$1"
+    local mr_iid="$2"
+    shift 2
+
+    local add_labels="" remove_labels=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --add)
+                if [[ -n "$add_labels" ]]; then
+                    add_labels+=","
+                fi
+                add_labels+="$2"
+                shift 2
+                ;;
+            --remove)
+                if [[ -n "$remove_labels" ]]; then
+                    remove_labels+=","
+                fi
+                remove_labels+="$2"
+                shift 2
+                ;;
+            *)
+                echo "ERROR: Unknown argument to gitlab_edit_mr_labels: $1" >&2
+                return 1
+                ;;
+        esac
+    done
+
+    local encoded payload
+    encoded="$(gitlab_encode_path "$project_path")"
+
+    if [[ -z "$add_labels" && -z "$remove_labels" ]]; then
+        return 0
+    fi
+
+    payload="$(
+        jq -n \
+            --arg add "$add_labels" \
+            --arg remove "$remove_labels" \
+            '
+            (if $add == "" then {} else {add_labels: $add} end)
+            +
+            (if $remove == "" then {} else {remove_labels: $remove} end)
+            '
+    )"
+
+    gitlab_api PUT "/projects/${encoded}/merge_requests/${mr_iid}" \
+        -d "$payload" >/dev/null
+}
+
+# Post a note/comment on a merge request.
+gitlab_create_mr_note() {
+    local project_path="$1"
+    local mr_iid="$2"
+    local body="$3"
+    local encoded payload
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    payload="$(jq -n --arg body "$body" '{body: $body}')"
+    gitlab_api POST "/projects/${encoded}/merge_requests/${mr_iid}/notes" -d "$payload"
+}

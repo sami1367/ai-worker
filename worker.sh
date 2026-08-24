@@ -284,6 +284,108 @@ process_gitlab_project() {
 }
 
 # ============================================================
+# Process one GitLab merge-request review
+# ============================================================
+
+process_gitlab_mr_review() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO_PATH MR_IID
+
+    if ! gitlab_configured; then
+        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
+            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
+            GITLAB_WARNED=1
+        fi
+        return 0
+    fi
+
+    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+
+    if [[ -z "$REPO_PATH" ]]; then
+        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
+        return 0
+    fi
+
+    MR_IID="$(gitlab_find_ai_review_mr "$REPO_PATH" 2>/dev/null || true)"
+
+    if [[ -z "$MR_IID" ]]; then
+        return 0
+    fi
+
+    FOUND_TASK=1
+
+    ai_log_banner "FOUND AI MR REVIEW"
+    echo "Forge:          gitlab"
+    echo "Project:        $PROJECT"
+    echo "Repository:     $REPO_PATH"
+    echo "Merge request:  !$MR_IID"
+    echo "Time:           $(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo "============================================================"
+
+    echo
+    echo "Changing labels: ai-review -> ai-reviewing"
+
+    if ! gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+        --add "ai-reviewing" \
+        --remove "ai-review"; then
+
+        echo
+        echo "ERROR: Could not mark MR as ai-reviewing. Skipping it."
+        return 1
+    fi
+
+    gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+        --remove "ai-review-failed" \
+        >/dev/null 2>&1 || true
+
+    set +e
+    "$BASE_DIR/run-gitlab-mr-review.sh" "$PROJECT" "$MR_IID"
+    EXIT_CODE=$?
+    set -e
+
+    if [[ "$EXIT_CODE" -eq 0 ]]; then
+
+        ai_log_banner "AI MR REVIEW COMPLETED"
+        echo "Forge:         gitlab"
+        echo "Project:       $PROJECT"
+        echo "Merge request: !$MR_IID"
+        echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "============================================================"
+
+        gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+            --add "ai-reviewed" \
+            --remove "ai-reviewing" \
+            >/dev/null 2>&1 || true
+
+        gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+            --remove "ai-review-failed" \
+            >/dev/null 2>&1 || true
+
+    else
+
+        ai_log_banner "AI MR REVIEW FAILED"
+        echo "Forge:         gitlab"
+        echo "Project:       $PROJECT"
+        echo "Merge request: !$MR_IID"
+        echo "Exit code:     $EXIT_CODE"
+        echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "============================================================"
+
+        gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+            --add "ai-review-failed" \
+            --remove "ai-reviewing" \
+            >/dev/null 2>&1 || true
+
+        echo
+        echo "The merge request was NOT automatically re-reviewed."
+        echo "Review the logs first. When ready, add label: ai-review"
+    fi
+
+    return 1
+}
+
+# ============================================================
 # Main loop
 # ============================================================
 
@@ -291,8 +393,8 @@ while true; do
 
     FOUND_TASK=0
 
-    # GitHub first, then GitLab. Callbacks return 1 after handling
-    # one issue so ai_foreach_project stops scanning.
+    # GitHub issues, then GitLab issues, then GitLab MR reviews.
+    # Callbacks return 1 after handling one task so scanning stops.
     if [[ -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_project || true
     fi
@@ -301,8 +403,12 @@ while true; do
         ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_project || true
     fi
 
+    if [[ "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
+        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review || true
+    fi
+
     if [[ "$FOUND_TASK" -eq 0 ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or MR reviews."
     fi
 
     sleep "$CHECK_INTERVAL"
