@@ -268,19 +268,88 @@ flowchart LR
 | **Cursor CLI** | `agent` or `cursor-agent` on `PATH` |
 | **GITLAB_TOKEN** | `api` scope; GitLab only |
 
-## Label lifecycle
+## Labels (GitHub and GitLab)
+
+The worker uses the **same four label names** on both GitHub and GitLab. You must create them on every registered repository before queuing issues.
+
+### What each label means
+
+| Label | Color | Who sets it | Meaning |
+|-------|-------|-------------|---------|
+| `ai` | Green (`0E8A16`) | **You** (manually) | Queue this open issue for the worker |
+| `ai-working` | Yellow (`FBCA04`) | Worker | Issue is being processed right now |
+| `ai-pr` | Blue (`1D76DB`) | Worker | Finished successfully; a PR (GitHub) or MR (GitLab) was opened |
+| `ai-failed` | Red (`D73A4A`) | Worker | Run failed — check logs before retrying |
+
+Only **`ai`** is applied by hand. The worker moves labels through the lifecycle; do not set `ai-working` / `ai-pr` / `ai-failed` yourself unless you are cleaning up a stuck issue.
+
+### Label lifecycle
 
 ```
-ai  →  ai-working  →  ai-pr      (success)
-                 ↘  ai-failed   (failure)
+ai  →  ai-working  →  ai-pr      (success — PR/MR created)
+                 ↘  ai-failed   (failure — not auto-retried)
 ```
 
-| Label | Meaning |
-|-------|---------|
-| `ai` | Queue for the worker |
-| `ai-working` | Currently processing |
-| `ai-pr` | Finished; PR/MR opened |
-| `ai-failed` | Failed — review logs, then add `ai` again to retry |
+| Step | Labels |
+|------|--------|
+| You queue work | Add `ai` on an **open** issue |
+| Worker starts | Removes `ai`, adds `ai-working` (also removes `ai-failed` if retrying) |
+| Success | Removes `ai-working`, adds `ai-pr` |
+| Failure | Removes `ai-working`, adds `ai-failed` |
+| Retry after failure | Review logs, then add `ai` again |
+
+Failed issues are **not** re-queued automatically (avoids infinite loops).
+
+### Create labels on all registered repos
+
+From the worker directory, after `projects.conf` / `gitlab-projects.conf` (and `.env` for GitLab) are configured:
+
+```bash
+cd /home/ubuntu/ai-worker
+
+# Both GitHub and GitLab (recommended)
+./setup-labels.sh
+```
+
+What that does:
+
+- **GitHub:** uses `gh label create ... --force` for every path in `projects.conf`
+- **GitLab:** calls `./setup-gitlab-labels.sh`, which creates or updates labels via the GitLab API for every path in `gitlab-projects.conf`
+
+### Create labels on GitHub only
+
+Requirements: `gh` installed and authenticated (`gh auth login`).
+
+```bash
+cd /home/ubuntu/ai-worker
+# Ensure the repo is listed in projects.conf, then:
+./setup-labels.sh
+```
+
+Or create them manually in the GitHub UI: **Issues → Labels → New label**, using the names and colors in the table above.
+
+### Create labels on GitLab only
+
+Requirements: `.env` with `GITLAB_HOST` and `GITLAB_TOKEN` (`api` scope).
+
+```bash
+cd /home/ubuntu/ai-worker
+cp -n .env.example .env
+# Edit .env and set GITLAB_TOKEN
+
+./setup-gitlab-labels.sh
+```
+
+Or create them manually in GitLab: **Project → Manage → Labels → New label**, using the same names and colors.
+
+### How to use labels day to day
+
+1. Open (or create) an issue on a registered GitHub or GitLab project.
+2. Add the **`ai`** label only.
+3. Wait for the poll cycle (~60s). The label should become **`ai-working`**, then **`ai-pr`** or **`ai-failed`**.
+4. On success, review the PR/MR. On failure, inspect `logs/` and add **`ai`** again when ready to retry.
+
+If labels are missing on a repo, the worker cannot find or update the issue — run the setup script again after registering a new project.
 
 ## What Cursor does vs. what the scripts do
 
