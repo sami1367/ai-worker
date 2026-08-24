@@ -613,8 +613,6 @@ echo "Review file bytes: $(wc -c < "$REVIEW_FILE" | tr -d ' ')"
 COMMENT_BODY="$(
     {
         cat <<EOF
-## AI Code Review
-
 _Automated review by the Cursor AI worker for merge request !${MR_IID}._
 
 EOF
