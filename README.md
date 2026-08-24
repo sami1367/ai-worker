@@ -68,7 +68,9 @@ Examples:
 - **Implement an issue:** on any registered repo, open an issue and add the **`ai`** label.
 - **Review a GitLab MR:** open (or edit) a merge request and add the **`ai-review`** label.
 
-Within about 60 seconds the worker should pick it up.
+The worker must be running (`./worker.sh` or the systemd service). It polls every ~60s when idle. When anything is queued, it processes items **one at a time, back-to-back** (no wait between jobs), across all registered projects, until the queue is empty.
+
+**MR review queue example:** label three open MRs with `ai-review` → worker reviews the oldest first → updates labels → immediately picks the next `ai-review` MR → and so on.
 
 ---
 
@@ -258,10 +260,11 @@ flowchart LR
   L -->|No| N[Label: ai-failed]
 ```
 
-1. **`worker.sh`** polls every 60 seconds.
+1. **`worker.sh`** polls every 60 seconds while idle.
 2. Priority per cycle (one task only): GitHub issues → GitLab issues → GitLab MR reviews.
-3. Issue path: label becomes `ai-working` → Cursor implements → opens a PR/MR → `ai-pr` or `ai-failed`.
-4. MR review path: label becomes `ai-reviewing` → Cursor reviews → posts an MR comment → `ai-reviewed` or `ai-review-failed`.
+3. After each finished task, the worker **immediately** looks for the next queued item (drains the queue back-to-back). It only sleeps when nothing is left.
+4. Issue path: label becomes `ai-working` → Cursor implements → opens a PR/MR → `ai-pr` or `ai-failed`.
+5. MR review path: label becomes `ai-reviewing` → Cursor reviews → posts an MR comment → `ai-reviewed` or `ai-review-failed`.
 
 ## Prerequisites
 
@@ -309,6 +312,8 @@ These are **GitLab-only** and apply to **merge requests** (not issues).
 ai-review  →  ai-reviewing  →  ai-reviewed        (success — comment posted)
                            ↘  ai-review-failed   (failure — not auto-retried)
 ```
+
+Multiple MRs can carry `ai-review` at once. The worker always takes the **oldest** open MR with that label (per project scan order), finishes it, updates labels, then takes the next — never in parallel.
 
 | Step | Labels |
 |------|--------|

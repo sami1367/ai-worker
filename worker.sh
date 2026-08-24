@@ -387,13 +387,18 @@ process_gitlab_mr_review() {
 
 # ============================================================
 # Main loop
+#
+# Each cycle handles at most one task (issue or MR review).
+# When work was found, loop again immediately so a queue of
+# `ai-review` / `ai` items is drained one-by-one with no delay.
+# Sleep only when nothing is queued.
 # ============================================================
 
 while true; do
 
     FOUND_TASK=0
 
-    # GitHub issues, then GitLab issues, then GitLab MR reviews.
+    # Priority: GitHub issues → GitLab issues → GitLab MR reviews.
     # Callbacks return 1 after handling one task so scanning stops.
     if [[ -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_project || true
@@ -407,10 +412,13 @@ while true; do
         ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review || true
     fi
 
-    if [[ "$FOUND_TASK" -eq 0 ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or MR reviews."
+    if [[ "$FOUND_TASK" -eq 1 ]]; then
+        echo
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Task finished; checking for next queued item..."
+        continue
     fi
 
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or MR reviews. Sleeping ${CHECK_INTERVAL}s."
     sleep "$CHECK_INTERVAL"
 
 done

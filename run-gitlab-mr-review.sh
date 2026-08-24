@@ -86,6 +86,8 @@ MR_TITLE=""
 MR_URL=""
 SOURCE_BRANCH=""
 TARGET_BRANCH=""
+LABELS_CLAIMED=0
+LABELS_FINALIZED=0
 
 # ============================================================
 # Cleanup
@@ -99,6 +101,15 @@ cleanup() {
 
     ai_log_banner "CLEANUP"
     echo "Exit code: $rc"
+
+    # If we claimed the MR for review but never finished successfully, mark failed.
+    if [[ "$LABELS_CLAIMED" -eq 1 && "$LABELS_FINALIZED" -eq 0 && "$rc" -ne 0 && -n "$REPO_PATH" ]]; then
+        echo "Updating labels: ai-reviewing -> ai-review-failed"
+        gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+            --add "ai-review-failed" \
+            --remove "ai-reviewing" \
+            || echo "WARNING: Could not set ai-review-failed label."
+    fi
 
     rm -f "$REVIEW_FILE"
 
@@ -222,6 +233,31 @@ if [[ "$MR_STATE" != "opened" ]]; then
     echo "Nothing to do."
     exit 0
 fi
+
+# ============================================================
+# Claim MR review labels
+# ============================================================
+
+echo
+echo "Updating labels: ai-review -> ai-reviewing"
+
+if gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+    --add "ai-reviewing" \
+    --remove "ai-review"; then
+    LABELS_CLAIMED=1
+else
+    echo "WARNING: Could not set ai-reviewing (continuing review anyway)."
+    # Still treat as claimed so cleanup can set ai-review-failed on errors.
+    LABELS_CLAIMED=1
+fi
+
+gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+    --remove "ai-review-failed" \
+    >/dev/null 2>&1 || true
+
+gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+    --remove "ai-reviewed" \
+    >/dev/null 2>&1 || true
 
 # ============================================================
 # Fetch MR changes / diff summary
@@ -517,6 +553,26 @@ if [[ -n "$NOTE_URL" ]]; then
 fi
 
 # ============================================================
+# Finalize MR review labels
+# ============================================================
+
+echo
+echo "Updating labels: ai-reviewing -> ai-reviewed"
+
+if gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+    --add "ai-reviewed" \
+    --remove "ai-reviewing"; then
+    LABELS_FINALIZED=1
+else
+    echo "ERROR: Could not set ai-reviewed label."
+    exit 41
+fi
+
+gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
+    --remove "ai-review-failed" \
+    >/dev/null 2>&1 || true
+
+# ============================================================
 # Save result
 # ============================================================
 
@@ -530,6 +586,7 @@ source_branch=$SOURCE_BRANCH
 target_branch=$TARGET_BRANCH
 note_id=$NOTE_ID
 note_url=$NOTE_URL
+labels=ai-reviewed
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
 cursor_log=$CURSOR_LOG
@@ -542,6 +599,7 @@ echo "Project:       $PROJECT"
 echo "Merge request: !$MR_IID"
 echo "MR URL:        $MR_URL"
 echo "Note id:       $NOTE_ID"
+echo "Labels:        ai-reviewed"
 echo "Main log:      $LOG_FILE"
 echo "Cursor log:    $CURSOR_LOG"
 echo "Result file:   $RESULT_FILE"
