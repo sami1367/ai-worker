@@ -284,6 +284,117 @@ process_gitlab_project() {
 }
 
 # ============================================================
+# Process one GitHub pull-request review
+# ============================================================
+
+process_github_pr_review() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO PR_NUMBER
+
+    REPO="$(
+        cd "$PROJECT_DIR"
+        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
+    )"
+
+    if [[ -z "$REPO" ]]; then
+        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
+        return 0
+    fi
+
+    PR_NUMBER="$(
+        gh pr list \
+            --repo "$REPO" \
+            --label "ai-review" \
+            --state open \
+            --limit 100 \
+            --json number,createdAt \
+            --jq 'sort_by(.createdAt) | .[0].number // empty' \
+            2>/dev/null || true
+    )"
+
+    if [[ -z "$PR_NUMBER" ]]; then
+        return 0
+    fi
+
+    FOUND_TASK=1
+
+    ai_log_banner "FOUND AI PR REVIEW"
+    echo "Forge:         github"
+    echo "Project:       $PROJECT"
+    echo "Repository:    $REPO"
+    echo "Pull request:  #$PR_NUMBER"
+    echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo "============================================================"
+
+    echo
+    echo "Changing labels: ai-review -> ai-reviewing"
+
+    if ! gh pr edit "$PR_NUMBER" \
+        --repo "$REPO" \
+        --add-label "ai-reviewing" \
+        --remove-label "ai-review"; then
+
+        echo
+        echo "ERROR: Could not mark PR as ai-reviewing. Skipping it."
+        return 1
+    fi
+
+    gh pr edit "$PR_NUMBER" \
+        --repo "$REPO" \
+        --remove-label "ai-review-failed" \
+        >/dev/null 2>&1 || true
+
+    set +e
+    "$BASE_DIR/run-github-pr-review.sh" "$PROJECT" "$PR_NUMBER"
+    EXIT_CODE=$?
+    set -e
+
+    if [[ "$EXIT_CODE" -eq 0 ]]; then
+
+        ai_log_banner "AI PR REVIEW COMPLETED"
+        echo "Forge:         github"
+        echo "Project:       $PROJECT"
+        echo "Pull request:  #$PR_NUMBER"
+        echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "============================================================"
+
+        gh pr edit "$PR_NUMBER" \
+            --repo "$REPO" \
+            --add-label "ai-reviewed" \
+            --remove-label "ai-reviewing" \
+            >/dev/null 2>&1 || true
+
+        gh pr edit "$PR_NUMBER" \
+            --repo "$REPO" \
+            --remove-label "ai-review-failed" \
+            >/dev/null 2>&1 || true
+
+    else
+
+        ai_log_banner "AI PR REVIEW FAILED"
+        echo "Forge:         github"
+        echo "Project:       $PROJECT"
+        echo "Pull request:  #$PR_NUMBER"
+        echo "Exit code:     $EXIT_CODE"
+        echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "============================================================"
+
+        gh pr edit "$PR_NUMBER" \
+            --repo "$REPO" \
+            --add-label "ai-review-failed" \
+            --remove-label "ai-reviewing" \
+            >/dev/null 2>&1 || true
+
+        echo
+        echo "The pull request was NOT automatically re-reviewed."
+        echo "Review the logs first. When ready, add label: ai-review"
+    fi
+
+    return 1
+}
+
+# ============================================================
 # Process one GitLab merge-request review
 # ============================================================
 
@@ -398,10 +509,14 @@ while true; do
 
     FOUND_TASK=0
 
-    # Priority: GitHub issues → GitLab issues → GitLab MR reviews.
+    # Priority: GitHub issues → GitHub PR reviews → GitLab issues → GitLab MR reviews.
     # Callbacks return 1 after handling one task so scanning stops.
     if [[ -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_project || true
+    fi
+
+    if [[ "$FOUND_TASK" -eq 0 && -f "$PROJECTS_FILE" ]]; then
+        ai_foreach_project "$PROJECTS_FILE" process_github_pr_review || true
     fi
 
     if [[ "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
@@ -418,7 +533,7 @@ while true; do
         continue
     fi
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or MR reviews. Sleeping ${CHECK_INTERVAL}s."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s."
     sleep "$CHECK_INTERVAL"
 
 done

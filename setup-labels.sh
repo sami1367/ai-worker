@@ -67,6 +67,30 @@ else
             --description "AI worker failed; review logs before retrying" \
             --force
 
+        gh label create "ai-review" \
+            --repo "$REPO" \
+            --color "7057FF" \
+            --description "Queue this open pull request for an AI review comment" \
+            --force
+
+        gh label create "ai-reviewing" \
+            --repo "$REPO" \
+            --color "FBCA04" \
+            --description "AI worker is currently reviewing this pull request" \
+            --force
+
+        gh label create "ai-reviewed" \
+            --repo "$REPO" \
+            --color "0E8A16" \
+            --description "AI review comment was posted on this pull request" \
+            --force
+
+        gh label create "ai-review-failed" \
+            --repo "$REPO" \
+            --color "D73A4A" \
+            --description "AI PR review failed; review logs before retrying" \
+            --force
+
         return 0
     }
 
