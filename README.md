@@ -63,24 +63,71 @@ Examples:
 ./run-gitlab-mr-review.sh bale-service 34
 ```
 
-### Queue work
+### Queue work (automatic mode)
 
-- **Implement an issue:** on any registered repo, open an issue and add the **`ai`** label.
-- **Review a GitLab MR:** open (or edit) a merge request and add the **`ai-review`** label.
+With the worker running as a systemd service (recommended), you only touch GitLab/GitHub labels — no manual scripts.
 
-The worker must be running (`./worker.sh` or the systemd service). It polls every ~60s when idle. When anything is queued, it processes items **one at a time, back-to-back** (no wait between jobs), across all registered projects, until the queue is empty.
+| What you want | Where | What you do | What the worker does |
+|---------------|-------|-------------|----------------------|
+| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed` |
+| AI-review an MR | GitLab project in `gitlab-projects.conf` | Add label **`ai-review`** on an open MR | Reviews diff → posts MR comment → `ai-reviewed` / `ai-review-failed` |
 
-**MR review queue example:** label three open MRs with `ai-review` → worker reviews the oldest first → updates labels → immediately picks the next `ai-review` MR → and so on.
+**GitLab MR automation (end-to-end):**
+
+1. List each project once in [`gitlab-projects.conf`](gitlab-projects.conf) (name → local clone path).
+2. Ensure labels exist (`./setup-gitlab-labels.sh`) and `.env` has `GITLAB_TOKEN`.
+3. Keep `ai-worker` running under systemd.
+4. On any open MR in those projects, add **`ai-review`**.
+5. Within ~60s the worker claims it (`ai-reviewing`), runs the review, posts a comment, then sets `ai-reviewed`.
+
+It polls every ~60s when idle. When anything is queued, it processes items **one at a time, back-to-back** across all registered projects until the queue is empty.
+
+**MR review queue example:** label three open MRs with `ai-review` → worker reviews the oldest first → updates labels → immediately picks the next → and so on.
+
+Idle log line (healthy):
+
+```text
+[YYYY-MM-DD HH:MM:SS UTC] No queued AI issues or MR reviews. Sleeping 60s.
+```
 
 ---
 
 ## Add as a Linux systemd service
 
-Use this so the worker starts on boot and restarts after failures.
+Use this so the worker starts on boot, keeps polling forever, and restarts after failures. Follow the same steps when you **move to a new server**.
+
+### 0. On a new server — prerequisites first
+
+Do this **before** installing the unit (paths assume user `ubuntu` and install dir `/home/ubuntu/ai-worker`):
+
+```bash
+# Clone this repo
+sudo -u ubuntu git clone <THIS-REPO-URL> /home/ubuntu/ai-worker
+cd /home/ubuntu/ai-worker
+
+# Cursor CLI must be on PATH for user ubuntu (agent / cursor-agent)
+# typically installed under ~/.local/bin or ~/.cursor/bin
+
+# GitHub (optional)
+sudo -u ubuntu gh auth login
+
+# GitLab
+sudo -u ubuntu cp .env.example .env
+sudo -u ubuntu nano .env   # GITLAB_HOST + GITLAB_TOKEN
+
+# Register clones
+sudo -u ubuntu nano projects.conf
+sudo -u ubuntu nano gitlab-projects.conf
+
+# Create labels on all registered repos
+sudo -u ubuntu ./setup-labels.sh
+```
+
+If your username or install path differs, edit `User` / `Group` / `WorkingDirectory` / `ExecStart` / `HOME` / `PATH` in the unit file below.
 
 ### 1. Install the unit file
 
-A unit file lives in this repo as [`ai-worker.service`](ai-worker.service).
+Repo unit: [`ai-worker.service`](ai-worker.service).
 
 ```bash
 sudo cp /home/ubuntu/ai-worker/ai-worker.service /etc/systemd/system/ai-worker.service
@@ -89,12 +136,50 @@ sudo systemctl enable ai-worker
 sudo systemctl start ai-worker
 ```
 
+Or create/edit the unit by hand:
+
+```bash
+sudo nano /etc/systemd/system/ai-worker.service
+# paste the unit contents from the section below, then:
+sudo systemctl daemon-reload
+sudo systemctl enable --now ai-worker
+```
+
 ### 2. Check status and logs
 
 ```bash
 sudo systemctl status ai-worker
 sudo journalctl -u ai-worker -f
 tail -f /home/ubuntu/ai-worker/logs/worker.log
+```
+
+Healthy service looks like:
+
+```text
+● ai-worker.service - Cursor AI Issue Worker (GitHub + GitLab)
+     Loaded: loaded (/etc/systemd/system/ai-worker.service; enabled; ...)
+     Active: active (running)
+   Main PID: ... (bash)
+     CGroup: /system.slice/ai-worker.service
+             ├─ ... bash /home/ubuntu/ai-worker/worker.sh
+             ├─ ... tee -a /home/ubuntu/ai-worker/logs/worker.log
+             └─ ... sleep 60
+```
+
+Inspect what systemd is actually running:
+
+```bash
+sudo systemctl cat ai-worker
+
+sudo systemctl show ai-worker \
+  -p User \
+  -p Group \
+  -p WorkingDirectory \
+  -p ExecStart \
+  -p Environment \
+  -p Restart \
+  -p RestartSec \
+  -p MainPID
 ```
 
 ### 3. Common service commands
@@ -117,7 +202,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart ai-worker
 ```
 
-### Unit file contents (reference)
+### 5. Unit file contents (copy this on a new server)
 
 ```ini
 [Unit]
@@ -127,17 +212,25 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+
 User=ubuntu
 Group=ubuntu
+
 WorkingDirectory=/home/ubuntu/ai-worker
+
 Environment=HOME=/home/ubuntu
 Environment=PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cursor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 ExecStart=/home/ubuntu/ai-worker/worker.sh
+
 Restart=on-failure
 RestartSec=10
+
 KillMode=control-group
 TimeoutStopSec=60
+
 UMask=0077
+
 StandardOutput=journal
 StandardError=journal
 
@@ -147,9 +240,10 @@ WantedBy=multi-user.target
 
 Notes:
 
-- `PATH` must include the Cursor CLI (`agent` / `cursor-agent`), usually under `~/.local/bin`.
+- `PATH` must include the Cursor CLI (`agent` / `cursor-agent`), usually under `~/.local/bin` and/or `~/.cursor/bin`.
 - The service runs as user `ubuntu` so it can use that user’s `gh` auth, SSH keys, and `.env`.
 - Do **not** run `./worker.sh` manually while the systemd unit is active (the lock file will block the second process).
+- On a new host: copy the repo, restore `.env` + conf files + clone paths, then reinstall this unit as above.
 
 ---
 
@@ -233,7 +327,10 @@ Requirements: `gh` authenticated with access to the repo (`gh auth login`, `gh a
    sudo systemctl restart ai-worker
    ```
 
-7. On GitLab: open an issue → add label **`ai`**.
+7. Queue work on GitLab (automatic while the service is running):
+
+   - **Implement:** open an issue → add label **`ai`**.
+   - **Review an MR:** open a merge request → add label **`ai-review`**.
 
 Without `GITLAB_TOKEN`, GitHub still works; GitLab projects are skipped with a warning.
 
