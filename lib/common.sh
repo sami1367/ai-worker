@@ -152,6 +152,230 @@ IMPORTANT — comments are the primary instructions:
 EOF
 }
 
+# Follow-up review instructions (re-added ai-review after prior AI/human discussion).
+ai_prompt_followup_review_instructions() {
+    cat <<'EOF'
+IMPORTANT — this may be a follow-up review (ai-review was re-added):
+- Read the FULL discussion chronologically, including prior automated AI review comments.
+- Pay closest attention to human comments AFTER the last automated AI review — they are the reason this run was triggered.
+- Role-based handling (shown in parentheses on each comment when known):
+  - owner / maintainer: treat as authoritative scope overrides. If they dismiss a prior finding (e.g. "ignore CI/CD", "don't worry about columns X"), do NOT repeat it. Apply their direction in this review.
+  - developer: respond directly to their comment in a "## Responses to discussion" section — acknowledge, explain your view, and say how it affects the verdict.
+  - reporter / guest / unknown: consider thoughtfully; prefer maintainer direction when roles conflict.
+- Do not repeat stale findings that a maintainer explicitly rejected in newer comments.
+- When a prior AI review exists, include "## Changes since previous AI review" — what you dropped, what still applies, what's new.
+- Latest human comments override older AI review findings when a maintainer says so.
+EOF
+}
+
+# True when a comment body looks like an automated ai-review post.
+ai_is_automation_review_comment() {
+    local body="$1"
+    [[ "$body" == *"Label \`ai-review\` was processed automatically"* ]] \
+        || [[ "$body" == *"Label 'ai-review' was processed automatically"* ]]
+}
+
+# Map GitHub collaborator permission to a review role label.
+ai_github_permission_to_role() {
+    case "${1:-}" in
+        admin) printf 'maintainer' ;;
+        maintain) printf 'maintainer' ;;
+        write) printf 'developer' ;;
+        triage) printf 'developer' ;;
+        read) printf 'reporter' ;;
+        *) printf 'unknown' ;;
+    esac
+}
+
+# Resolve a user's repo role for review context. Empty on failure.
+ai_github_get_user_repo_role() {
+    local repo="$1"
+    local username="$2"
+    local permission
+
+    if [[ -z "$username" ]]; then
+        return 1
+    fi
+
+    permission="$(
+        gh api \
+            "repos/${repo}/collaborators/${username}/permission" \
+            --jq '.permission // empty' \
+            2>/dev/null || true
+    )"
+
+    if [[ -z "$permission" ]]; then
+        return 1
+    fi
+
+    ai_github_permission_to_role "$permission"
+}
+
+# Format a normalized discussion item array [{kind, author, role, created_at, body, is_ai_review}].
+ai_format_discussion_items_text() {
+    local items_json="$1"
+    local max_bytes="${2:-30000}"
+
+    if [[ -z "$items_json" || "$items_json" == "[]" || "$items_json" == "null" ]]; then
+        printf '%s' "(no comments)"
+        return 0
+    fi
+
+    ai_trim_text "$(
+        jq -r '
+            if length == 0 then "(no comments)"
+            else map(
+                if (.role // "") != "" and .role != "unknown" then
+                    if .is_ai_review then
+                        "--- \(.kind // "comment") by \(.author) (automated AI review) at \(.created_at) ---\n\(.body // "")\n"
+                    else
+                        "--- \(.kind // "comment") by \(.author) (\(.role)) at \(.created_at) ---\n\(.body // "")\n"
+                    end
+                elif .is_ai_review then
+                    "--- \(.kind // "comment") by \(.author) (automated AI review) at \(.created_at) ---\n\(.body // "")\n"
+                else
+                    "--- \(.kind // "comment") by \(.author) at \(.created_at) ---\n\(.body // "")\n"
+                end
+            ) | join("\n")
+            end
+        ' <<<"$items_json"
+    )" "$max_bytes"
+}
+
+# Split normalized discussion items into full thread and items after last AI review.
+# Prints: full_text, newline, since_text, newline, ai_rounds (to stdout via multiple printf lines).
+ai_split_discussion_items_since_last_ai() {
+    local items_json="$1"
+    local full_text since_text since_items ai_rounds
+
+    if [[ -z "$items_json" || "$items_json" == "[]" || "$items_json" == "null" ]]; then
+        printf '%s\n%s\n0' "(no comments)" "(no new comments since the last AI review)"
+        return 0
+    fi
+
+    ai_rounds="$(jq '[.[] | select(.is_ai_review == true)] | length' <<<"$items_json")"
+
+    since_items="$(
+        jq '
+            [to_entries[] | select(.value.is_ai_review == true) | .key] as $ai_idxs |
+            if ($ai_idxs | length) == 0 then []
+            else .[($ai_idxs | max + 1):]
+            end
+        ' <<<"$items_json"
+    )"
+
+    full_text="$(ai_format_discussion_items_text "$items_json" 30000)"
+    since_text="$(ai_format_discussion_items_text "$since_items" 15000)"
+
+    if [[ "$since_text" == "(no comments)" ]]; then
+        since_text="(no new comments since the last AI review)"
+    fi
+
+    printf '%s\n%s\n%s' "$full_text" "$since_text" "$ai_rounds"
+}
+
+# Build normalized discussion items from GitLab MR/issue notes.
+ai_gitlab_discussion_items_from_notes() {
+    local project_path="$1"
+    local notes_json="$2"
+
+    if [[ -n "$project_path" ]]; then
+        notes_json="$(gitlab_enrich_notes_with_roles "$project_path" "$notes_json")"
+    fi
+
+    jq '
+        map({
+            kind: "comment",
+            author: (.author.username // .author.name // "unknown"),
+            role: (.review_role // "unknown"),
+            created_at: .created_at,
+            body: .body // "",
+            is_ai_review: (
+                (.body // "") | (contains("was processed automatically") and contains("ai-review"))
+            )
+        })
+    ' <<<"${notes_json:-[]}"
+}
+
+# Enrich GitHub issue/PR comments with repo roles.
+ai_enrich_github_comments_with_roles() {
+    local repo="$1"
+    local comments_json="$2"
+    local username role role_map="{}"
+
+    if [[ -z "$comments_json" || "$comments_json" == "[]" || "$comments_json" == "null" ]]; then
+        printf '[]'
+        return 0
+    fi
+
+    while IFS= read -r username; do
+        [[ -z "$username" ]] && continue
+        role="$(ai_github_get_user_repo_role "$repo" "$username" 2>/dev/null || true)"
+        if [[ -n "$role" ]]; then
+            role_map="$(jq -c --arg u "$username" --arg role "$role" '. + {($u): $role}' <<<"$role_map")"
+        fi
+    done < <(jq -r '.[].user.login // empty' <<<"$comments_json" | sort -u)
+
+    jq --argjson roles "$role_map" '
+        map(
+            . + {
+                review_role: (
+                    if (.user.login // "") as $u | $roles | has($u) then $roles[$u]
+                    else "unknown" end
+                )
+            }
+        )
+    ' <<<"$comments_json"
+}
+
+# Build normalized discussion items for a GitHub pull request.
+ai_github_discussion_items_from_pr() {
+    local repo="$1"
+    local pr_number="$2"
+    local issue_comments review_comments reviews
+
+    issue_comments="$(ai_enrich_github_comments_with_roles "$repo" "$(ai_github_fetch_issue_comments "$repo" "$pr_number")")"
+    review_comments="$(ai_enrich_github_comments_with_roles "$repo" "$(ai_github_fetch_pr_review_comments "$repo" "$pr_number")")"
+    reviews="$(ai_enrich_github_comments_with_roles "$repo" "$(ai_github_fetch_pr_reviews "$repo" "$pr_number")")"
+
+    jq -n \
+        --argjson issue "$issue_comments" \
+        --argjson inline "$review_comments" \
+        --argjson reviews "$reviews" \
+        '
+        [
+            ($issue | map({
+                kind: "comment",
+                author: (.user.login // "unknown"),
+                role: (.review_role // "unknown"),
+                created_at: .created_at,
+                body: .body // "",
+                is_ai_review: ((.body // "") | (contains("was processed automatically") and contains("ai-review")))
+            })),
+            ($inline | map({
+                kind: "inline",
+                author: (.user.login // "unknown"),
+                role: (.review_role // "unknown"),
+                created_at: .created_at,
+                body: (
+                    "On " + (.path // "unknown") +
+                    (if .line then " line " + (.line|tostring) else "" end) +
+                    ": " + (.body // "")
+                ),
+                is_ai_review: false
+            })),
+            ($reviews | map(select(.body != null and .body != "")) | map({
+                kind: "review",
+                author: (.user.login // "unknown"),
+                role: (.review_role // "unknown"),
+                created_at: .submitted_at,
+                body: (.state // "commented") + ": " + (.body // ""),
+                is_ai_review: ((.body // "") | (contains("was processed automatically") and contains("ai-review")))
+            }))
+        ] | add | sort_by(.created_at)
+        '
+}
+
 # Extract unique issue numbers linked from title/description (GitHub).
 ai_extract_github_linked_issue_numbers() {
     local text="$1"
@@ -229,7 +453,7 @@ EOF
         issue_comments_text="(no comments)"
 
         if issue_comments_json="$(ai_github_fetch_issue_comments "$repo" "$issue_number" 2>/dev/null)"; then
-            issue_comments_text="$(ai_format_github_comments "$issue_comments_json" 10000)"
+            issue_comments_text="$(ai_format_github_comments "$issue_comments_json" 10000 "$repo")"
         fi
 
         issue_body="$(ai_trim_text "$issue_body" 20000)"
@@ -304,7 +528,7 @@ EOF
         issue_comments_text="(no comments)"
 
         if issue_notes_json="$(gitlab_list_issue_notes "$repo_path" "$issue_iid" 2>/dev/null)"; then
-            issue_comments_text="$(gitlab_format_notes "$issue_notes_json" 10000)"
+            issue_comments_text="$(gitlab_format_notes "$issue_notes_json" 10000 "$repo_path")"
         fi
 
         issue_body="$(ai_trim_text "$issue_body" 20000)"
@@ -334,6 +558,11 @@ EOF
 ai_format_github_comments() {
     local comments_json="$1"
     local max_bytes="${2:-30000}"
+    local repo="${3:-}"
+
+    if [[ -n "$repo" ]]; then
+        comments_json="$(ai_enrich_github_comments_with_roles "$repo" "$comments_json")"
+    fi
 
     if [[ -z "$comments_json" || "$comments_json" == "[]" || "$comments_json" == "null" ]]; then
         printf '%s' "(no comments)"
@@ -345,7 +574,11 @@ ai_format_github_comments() {
             sort_by(.created_at) |
             if length == 0 then "(no comments)"
             else map(
-                "--- Comment by \(.user.login // "unknown") at \(.created_at) ---\n\(.body // "")\n"
+                if (.review_role? // "") != "" and .review_role != "unknown" then
+                    "--- Comment by \(.user.login // "unknown") (\(.review_role)) at \(.created_at) ---\n\(.body // "")\n"
+                else
+                    "--- Comment by \(.user.login // "unknown") at \(.created_at) ---\n\(.body // "")\n"
+                end
             ) | join("\n")
             end
         ' <<<"$comments_json"

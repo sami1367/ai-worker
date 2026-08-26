@@ -312,16 +312,15 @@ gh pr edit "$PR_NUMBER" \
 echo
 echo "Fetching pull request comments..."
 
-PR_COMMENTS_TEXT="$(ai_github_format_pr_discussion "$REPO" "$PR_NUMBER")"
-PR_COMMENTS_COUNT="$(
-    jq -n \
-        --argjson issue "$(ai_github_fetch_issue_comments "$REPO" "$PR_NUMBER")" \
-        --argjson inline "$(ai_github_fetch_pr_review_comments "$REPO" "$PR_NUMBER")" \
-        --argjson reviews "$(ai_github_fetch_pr_reviews "$REPO" "$PR_NUMBER")" \
-        '($issue|length) + ($inline|length) + ([$reviews[] | select(.body != null and .body != "")] | length)'
-)"
+PR_DISCUSSION_ITEMS="$(ai_github_discussion_items_from_pr "$REPO" "$PR_NUMBER")"
+PR_COMMENTS_COUNT="$(jq 'length' <<<"$PR_DISCUSSION_ITEMS")"
+mapfile -t PR_DISC_PARTS < <(ai_split_discussion_items_since_last_ai "$PR_DISCUSSION_ITEMS")
+PR_COMMENTS_TEXT="${PR_DISC_PARTS[0]:-(no comments)}"
+PR_SINCE_AI_COMMENTS_TEXT="${PR_DISC_PARTS[1]:-(no new comments since the last AI review)}"
+AI_REVIEW_ROUNDS="${PR_DISC_PARTS[2]:-0}"
 
 echo "PR discussion items: $PR_COMMENTS_COUNT"
+echo "Prior AI review rounds in thread: $AI_REVIEW_ROUNDS"
 
 # ============================================================
 # Linked issues from PR description (Closes/Fixes/Related to #N)
@@ -379,7 +378,7 @@ EOF
 
         ISSUE_COMMENTS_TEXT="(no comments)"
         if ISSUE_COMMENTS_JSON="$(ai_github_fetch_issue_comments "$REPO" "$issue_number" 2>/dev/null)"; then
-            ISSUE_COMMENTS_TEXT="$(ai_format_github_comments "$ISSUE_COMMENTS_JSON" 10000)"
+            ISSUE_COMMENTS_TEXT="$(ai_format_github_comments "$ISSUE_COMMENTS_JSON" 10000 "$REPO")"
         fi
 
         # Cap very long issue bodies so the prompt stays usable.
@@ -503,6 +502,14 @@ $PR_COMMENTS_TEXT
 
 $(ai_prompt_comments_priority_instructions)
 
+$(ai_prompt_followup_review_instructions)
+
+============================================================
+COMMENTS SINCE LAST AI REVIEW (highest priority on follow-up runs)
+============================================================
+
+$PR_SINCE_AI_COMMENTS_TEXT
+
 ============================================================
 LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
 ============================================================
@@ -538,6 +545,7 @@ IMPORTANT — linked issues:
 - Call out missing requirements from the issue (including comment feedback) even if the code quality is otherwise fine.
 - If no linked issues were found, review from the PR title, description, comments, and diff alone.
 - PR comments override the PR title and description when they conflict; later comments override earlier ones.
+- Maintainer/owner comments override prior AI review findings; developer comments should get direct responses.
 
 You MAY:
 
@@ -585,6 +593,12 @@ Brief overall assessment (what the PR does and whether it looks ready).
 ## Issue / task alignment
 If linked issues were provided: for each issue, say whether the PR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
 
+## Responses to discussion
+Required when developers commented after a prior AI review: answer each recent developer comment directly (acknowledge, reasoning, impact on verdict). Required when maintainers commented: confirm how you applied their override (e.g. dropped CI/CD findings).
+
+## Changes since previous AI review
+Required when a prior automated AI review appears in the thread: what you dropped from the previous review, what still applies, what's new.
+
 ## Strengths
 What looks good.
 
@@ -626,6 +640,7 @@ echo "Prompt file:   $PROMPT_FILE"
 echo "Review file:   $REVIEW_FILE"
 echo "Linked issues: $LINKED_ISSUE_COUNT"
 echo "PR discussion: $PR_COMMENTS_COUNT"
+echo "AI review rounds: $AI_REVIEW_ROUNDS"
 echo "Issues file:   $ISSUES_FILE"
 echo "Agent log:     $AGENT_LOG"
 echo "Agent stderr:  $AGENT_ERR_LOG"

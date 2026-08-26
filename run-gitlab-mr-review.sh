@@ -273,10 +273,15 @@ echo
 echo "Fetching merge request comments..."
 
 MR_NOTES_JSON="$(gitlab_list_mr_notes "$REPO_PATH" "$MR_IID")"
-MR_COMMENTS_COUNT="$(jq 'length' <<<"$MR_NOTES_JSON")"
-MR_COMMENTS_TEXT="$(gitlab_format_notes "$MR_NOTES_JSON")"
+MR_DISCUSSION_ITEMS="$(ai_gitlab_discussion_items_from_notes "$REPO_PATH" "$MR_NOTES_JSON")"
+MR_COMMENTS_COUNT="$(jq 'length' <<<"$MR_DISCUSSION_ITEMS")"
+mapfile -t MR_DISC_PARTS < <(ai_split_discussion_items_since_last_ai "$MR_DISCUSSION_ITEMS")
+MR_COMMENTS_TEXT="${MR_DISC_PARTS[0]:-(no comments)}"
+MR_SINCE_AI_COMMENTS_TEXT="${MR_DISC_PARTS[1]:-(no new comments since the last AI review)}"
+AI_REVIEW_ROUNDS="${MR_DISC_PARTS[2]:-0}"
 
 echo "MR comments: $MR_COMMENTS_COUNT"
+echo "Prior AI review rounds in thread: $AI_REVIEW_ROUNDS"
 
 # ============================================================
 # Linked issues from MR description (Closes/Fixes/Related to #N)
@@ -329,7 +334,7 @@ EOF
 
         ISSUE_COMMENTS_TEXT="(no comments)"
         if ISSUE_NOTES_JSON="$(gitlab_list_issue_notes "$REPO_PATH" "$issue_iid" 2>/dev/null)"; then
-            ISSUE_COMMENTS_TEXT="$(gitlab_format_notes "$ISSUE_NOTES_JSON" 10000)"
+            ISSUE_COMMENTS_TEXT="$(gitlab_format_notes "$ISSUE_NOTES_JSON" 10000 "$REPO_PATH")"
         fi
 
         # Cap very long issue bodies so the prompt stays usable.
@@ -465,6 +470,14 @@ $MR_COMMENTS_TEXT
 
 $(ai_prompt_comments_priority_instructions)
 
+$(ai_prompt_followup_review_instructions)
+
+============================================================
+COMMENTS SINCE LAST AI REVIEW (highest priority on follow-up runs)
+============================================================
+
+$MR_SINCE_AI_COMMENTS_TEXT
+
 ============================================================
 LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
 ============================================================
@@ -500,6 +513,7 @@ IMPORTANT — linked issues:
 - Call out missing requirements from the issue (including comment feedback) even if the code quality is otherwise fine.
 - If no linked issues were found, review from the MR title, description, comments, and diff alone.
 - MR comments override the MR title and description when they conflict; later comments override earlier ones.
+- Maintainer/owner comments override prior AI review findings; developer comments should get direct responses.
 
 You MAY:
 
@@ -547,6 +561,12 @@ Brief overall assessment (what the MR does and whether it looks ready).
 ## Issue / task alignment
 If linked issues were provided: for each issue, say whether the MR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
 
+## Responses to discussion
+Required when developers commented after a prior AI review: answer each recent developer comment directly (acknowledge, reasoning, impact on verdict). Required when maintainers commented: confirm how you applied their override (e.g. dropped CI/CD findings).
+
+## Changes since previous AI review
+Required when a prior automated AI review appears in the thread: what you dropped from the previous review, what still applies, what's new.
+
 ## Strengths
 What looks good.
 
@@ -588,6 +608,7 @@ echo "Prompt file:   $PROMPT_FILE"
 echo "Review file:   $REVIEW_FILE"
 echo "Linked issues: $LINKED_ISSUE_COUNT"
 echo "MR comments:   $MR_COMMENTS_COUNT"
+echo "AI review rounds: $AI_REVIEW_ROUNDS"
 echo "Issues file:   $ISSUES_FILE"
 echo "Agent log:     $AGENT_LOG"
 echo "Agent stderr:  $AGENT_ERR_LOG"

@@ -327,10 +327,85 @@ gitlab_list_mr_notes() {
     jq '[.[] | select(.system != true)]' <<<"$combined"
 }
 
+# Map GitLab access_level to a review role label.
+gitlab_access_level_to_role() {
+    case "${1:-}" in
+        50) printf 'owner' ;;
+        40) printf 'maintainer' ;;
+        30) printf 'developer' ;;
+        20) printf 'reporter' ;;
+        10) printf 'guest' ;;
+        *) printf 'unknown' ;;
+    esac
+}
+
+# Resolve a user's project role (owner/maintainer/developer/...). Empty on failure.
+gitlab_get_user_project_role() {
+    local project_path="$1"
+    local user_id="$2"
+    local encoded body access_level
+
+    if [[ -z "$user_id" || "$user_id" == "null" ]]; then
+        return 1
+    fi
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET "/projects/${encoded}/members/all/${user_id}" 2>/dev/null || true
+    )"
+
+    if [[ -z "$body" ]]; then
+        return 1
+    fi
+
+    access_level="$(jq -r '.access_level // empty' <<<"$body")"
+    if [[ -z "$access_level" ]]; then
+        return 1
+    fi
+
+    gitlab_access_level_to_role "$access_level"
+}
+
+# Add .review_role to each note (lookup per unique author id).
+gitlab_enrich_notes_with_roles() {
+    local project_path="$1"
+    local notes_json="$2"
+    local user_id role role_map="{}"
+
+    if [[ -z "$notes_json" || "$notes_json" == "[]" || "$notes_json" == "null" ]]; then
+        printf '[]'
+        return 0
+    fi
+
+    while IFS= read -r user_id; do
+        [[ -z "$user_id" ]] && continue
+        role="$(gitlab_get_user_project_role "$project_path" "$user_id" 2>/dev/null || true)"
+        if [[ -n "$role" ]]; then
+            role_map="$(jq -c --arg id "$user_id" --arg role "$role" '. + {($id): $role}' <<<"$role_map")"
+        fi
+    done < <(jq -r '.[].author.id // empty' <<<"$notes_json" | sort -u)
+
+    jq --argjson roles "$role_map" '
+        map(
+            . + {
+                review_role: (
+                    if (.author.id|tostring) as $id | $roles | has($id) then $roles[$id]
+                    else "unknown" end
+                )
+            }
+        )
+    ' <<<"$notes_json"
+}
+
 # Format GitLab notes JSON into readable chronological text.
 gitlab_format_notes() {
     local notes_json="$1"
     local max_bytes="${2:-30000}"
+    local project_path="${3:-}"
+
+    if [[ -n "$project_path" ]]; then
+        notes_json="$(gitlab_enrich_notes_with_roles "$project_path" "$notes_json")"
+    fi
 
     if [[ -z "$notes_json" || "$notes_json" == "[]" || "$notes_json" == "null" ]]; then
         printf '%s' "(no comments)"
@@ -341,7 +416,11 @@ gitlab_format_notes() {
         jq -r '
             if length == 0 then "(no comments)"
             else map(
-                "--- Comment by \(.author.username // .author.name // "unknown") at \(.created_at) ---\n\(.body // "")\n"
+                if (.review_role? // "") != "" and .review_role != "unknown" then
+                    "--- Comment by \(.author.username // .author.name // "unknown") (\(.review_role)) at \(.created_at) ---\n\(.body // "")\n"
+                else
+                    "--- Comment by \(.author.username // .author.name // "unknown") at \(.created_at) ---\n\(.body // "")\n"
+                end
             ) | join("\n")
             end
         ' <<<"$notes_json"
