@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/ai.sh
+source "$BASE_DIR/lib/ai.sh"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR"
 ai_load_env "$BASE_DIR/.env"
@@ -44,7 +46,7 @@ if ! gh auth status >/dev/null 2>&1; then
     exit 1
 fi
 
-CURSOR_BIN="$(ai_detect_cursor)" || exit 1
+ai_init || exit 1
 
 # ============================================================
 # Resolve project
@@ -69,8 +71,8 @@ fi
 TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
 
 LOG_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.log"
-CURSOR_LOG="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.cursor.ndjson"
-CURSOR_ERR_LOG="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.cursor.stderr.log"
+AGENT_LOG="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.agent.ndjson"
+AGENT_ERR_LOG="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.agent.stderr.log"
 PROMPT_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.prompt.txt"
 RESULT_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.result.txt"
 REVIEW_FILE="$PROJECT_DIR/.ai-pr-review.md"
@@ -192,19 +194,22 @@ pull_request=$PR_NUMBER
 started=$(date '+%Y-%m-%d %H:%M:%S %Z')
 pid=$$
 log=$LOG_FILE
-cursor_log=$CURSOR_LOG
+ai_provider=$AI_PROVIDER
+agent_log=$AGENT_LOG
+agent_stderr=$AGENT_ERR_LOG
 EOF
 
-ai_log_banner "CURSOR AI GITHUB PR REVIEW"
+ai_log_banner "AI GITHUB PR REVIEW"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Forge:         github"
 echo "Project:       $PROJECT"
 echo "Pull request:  #$PR_NUMBER"
 echo "Project dir:   $PROJECT_DIR"
-echo "Cursor binary: $CURSOR_BIN"
+echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
+echo "AI binary:     $AI_PROVIDER_BIN"
 echo "Main log:      $LOG_FILE"
-echo "Cursor log:    $CURSOR_LOG"
-echo "Cursor stderr: $CURSOR_ERR_LOG"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "============================================================"
 
 # ============================================================
@@ -578,43 +583,25 @@ EOF
 # Run Cursor
 # ============================================================
 
-ai_log_banner "STARTING CURSOR AGENT (PR REVIEW)"
+ai_log_agent_start "STARTING AI AGENT (PR REVIEW)"
 echo "Branch:        $SOURCE_BRANCH"
 echo "Workspace:     $PROJECT_DIR"
 echo "Prompt file:   $PROMPT_FILE"
 echo "Review file:   $REVIEW_FILE"
 echo "Linked issues: $LINKED_ISSUE_COUNT"
 echo "Issues file:   $ISSUES_FILE"
-echo "Cursor log:    $CURSOR_LOG"
-echo "Cursor stderr: $CURSOR_ERR_LOG"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "============================================================"
 
-set +e
+ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" review
 
-"$CURSOR_BIN" \
-    --workspace "$PROJECT_DIR" \
-    --force \
-    --trust \
-    --print \
-    --output-format stream-json \
-    --stream-partial-output \
-    "$(cat "$PROMPT_FILE")" \
-    2> >(tee -a "$CURSOR_ERR_LOG" >&2) \
-    | tee -a "$CURSOR_LOG"
-
-AGENT_EXIT_CODE=${PIPESTATUS[0]}
-
-set -e
-
-ai_log_banner "CURSOR AGENT FINISHED"
-echo "Exit code: $AGENT_EXIT_CODE"
-echo "Finished:  $(date '+%Y-%m-%d %H:%M:%S %Z')"
-echo "============================================================"
+ai_log_agent_finish
 
 if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
     echo
-    echo "ERROR: Cursor Agent failed."
+    echo "ERROR: AI agent failed."
     exit "$AGENT_EXIT_CODE"
 fi
 
@@ -711,8 +698,9 @@ labels=ai-reviewed
 linked_issues=$LINKED_ISSUE_COUNT
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
-cursor_log=$CURSOR_LOG
-cursor_stderr=$CURSOR_ERR_LOG
+ai_provider=$AI_PROVIDER
+agent_log=$AGENT_LOG
+agent_stderr=$AGENT_ERR_LOG
 EOF
 
 ai_log_banner "PR REVIEW COMPLETE"
@@ -724,6 +712,6 @@ echo "Comment URL:   $COMMENT_URL"
 echo "Linked issues: $LINKED_ISSUE_COUNT"
 echo "Labels:        ai-reviewed"
 echo "Main log:      $LOG_FILE"
-echo "Cursor log:    $CURSOR_LOG"
+echo "Agent log:     $AGENT_LOG"
 echo "Result file:   $RESULT_FILE"
 echo "============================================================"

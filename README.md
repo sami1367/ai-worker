@@ -343,7 +343,67 @@ Without `GITLAB_TOKEN`, GitHub still works; GitLab projects are skipped with a w
 
 ---
 
-## How it works
+## AI providers
+
+The worker uses a modular AI interface (`lib/ai.sh`). Runners call `ai_run_agent` — they never invoke Cursor or Claude directly.
+
+| Provider | `AI_PROVIDER` | CLI | Config file |
+|----------|---------------|-----|-------------|
+| **Cursor** (default) | `cursor` | `agent` / `cursor-agent` | `lib/ai/cursor.sh` |
+| **Claude Code** | `claude` | `claude` | `lib/ai/claude.sh` |
+
+Set the provider in `.env`:
+
+```bash
+AI_PROVIDER=cursor   # default
+# AI_PROVIDER=claude
+```
+
+### Cursor (default)
+
+Non-interactive flags are encapsulated in `lib/ai/cursor.sh`:
+
+- `--force` — no interactive confirmations
+- `--trust` — trust workspace without prompting
+
+Optional:
+
+```bash
+# AI_CURSOR_MODEL=claude-sonnet-4
+# AI_CURSOR_EXTRA_ARGS=
+```
+
+### Claude Code
+
+Requires `claude` on `PATH` and auth via `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`.
+
+Headless settings in `lib/ai/claude.sh`:
+
+- `--bare` — skip local hooks/skills for reproducible runs
+- `--permission-mode acceptEdits` — auto-approve file edits (no approval prompts)
+
+Optional:
+
+```bash
+AI_PROVIDER=claude
+# AI_CLAUDE_MODEL=claude-sonnet-4-20250514
+# AI_CLAUDE_PERMISSION_MODE=acceptEdits
+# AI_CLAUDE_REVIEW_PERMISSION_MODE=acceptEdits
+# AI_CLAUDE_MAX_TURNS=50
+```
+
+### Adding another provider
+
+1. Create `lib/ai/<name>.sh` implementing:
+   - `ai_<name>_name` — display name
+   - `ai_<name>_detect` — find CLI binary
+   - `ai_<name>_run workspace prompt_file stdout_log stderr_log task_type`
+2. Add `<name>` to `AI_KNOWN_PROVIDERS` in `lib/ai.sh`
+3. Set `AI_PROVIDER=<name>` in `.env`
+
+Task types: `implement` (issue work) and `review` (PR/MR review).
+
+---
 
 ```mermaid
 flowchart LR
@@ -378,7 +438,9 @@ flowchart LR
 | **GitHub CLI** (`gh`) | For GitHub projects |
 | **curl** + **jq** | GitLab REST API |
 | **flock** | Single worker process |
-| **Cursor CLI** | `agent` or `cursor-agent` on `PATH` |
+| **AI provider** | `.env` → `AI_PROVIDER` (default: `cursor`) |
+| **Cursor CLI** | `agent` or `cursor-agent` on `PATH` (when `AI_PROVIDER=cursor`) |
+| **Claude Code CLI** | `claude` on `PATH` + API token (when `AI_PROVIDER=claude`) |
 | **GITLAB_TOKEN** | `api` scope; GitLab only |
 
 ## Labels
@@ -523,6 +585,10 @@ ai-worker/
 ├── .env.example              # GITLAB_HOST / GITLAB_TOKEN template
 ├── lib/
 │   ├── common.sh
+│   ├── ai.sh                 # Modular AI provider interface
+│   ├── ai/
+│   │   ├── cursor.sh         # Cursor CLI (--force, --trust, etc.)
+│   │   └── claude.sh         # Claude Code CLI (headless settings)
 │   └── gitlab.sh
 ├── logs/
 └── state/
@@ -534,6 +600,7 @@ ai-worker/
 |---------|----------|---------|
 | Poll interval | `worker.sh` → `CHECK_INTERVAL` | 60 seconds |
 | Base directory | Scripts → `BASE_DIR` | `/home/ubuntu/ai-worker` |
+| AI provider | `.env` → `AI_PROVIDER` | `cursor` |
 | GitLab host | `.env` → `GITLAB_HOST` | `git.dctm.dev` |
 | GitLab token | `.env` → `GITLAB_TOKEN` | required for GitLab |
 | Branch naming | runners | `ai/issue-<number>` |
@@ -546,8 +613,8 @@ ai-worker/
 | PR review not picked up | PR open? Has `ai-review`? Labels created via `./setup-labels.sh`? `gh auth status`? |
 | MR review not picked up | MR open? Has `ai-review`? Labels created via `./setup-gitlab-labels.sh`? |
 | GitLab skipped | `.env` has `GITLAB_TOKEN`? Restart service after editing `.env` |
-| `ai-failed` | `logs/<project>-*-issue-<n>-*.log` and `*.cursor.ndjson` |
-| `ai-review-failed` | `logs/<project>-github-pr-<n>-*.log` or `logs/<project>-gitlab-mr-<iid>-*.log` and `*.cursor.ndjson` |
+| `ai-failed` | `logs/<project>-*-issue-<n>-*.log` and `*.agent.ndjson` |
+| `ai-review-failed` | `logs/<project>-github-pr-<n>-*.log` or `logs/<project>-gitlab-mr-<iid>-*.log` and `*.agent.ndjson` |
 | Worker not starting | `systemctl status ai-worker` or lock `state/worker.lock` |
 | `agent: command not found` | PATH in the unit file must include `~/.local/bin` |
 | PR/MR not created | `gh auth status` (GitHub) or token scopes / SSH push (GitLab) |

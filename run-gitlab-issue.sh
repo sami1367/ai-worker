@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/ai.sh
+source "$BASE_DIR/lib/ai.sh"
 # shellcheck source=lib/gitlab.sh
 source "$BASE_DIR/lib/gitlab.sh"
 
@@ -46,7 +48,7 @@ fi
 
 ai_require_cmds git curl jq tee || exit 1
 
-CURSOR_BIN="$(ai_detect_cursor)" || exit 1
+ai_init || exit 1
 
 # ============================================================
 # Resolve project
@@ -71,8 +73,8 @@ fi
 TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
 
 LOG_FILE="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.log"
-CURSOR_LOG="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.cursor.ndjson"
-CURSOR_ERR_LOG="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.cursor.stderr.log"
+AGENT_LOG="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.agent.ndjson"
+AGENT_ERR_LOG="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.agent.stderr.log"
 PROMPT_FILE="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.prompt.txt"
 RESULT_FILE="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.result.txt"
 STATE_FILE="$STATE_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}.running"
@@ -163,20 +165,23 @@ issue=$ISSUE_NUMBER
 started=$(date '+%Y-%m-%d %H:%M:%S %Z')
 pid=$$
 log=$LOG_FILE
-cursor_log=$CURSOR_LOG
+ai_provider=$AI_PROVIDER
+agent_log=$AGENT_LOG
+agent_stderr=$AGENT_ERR_LOG
 EOF
 
-ai_log_banner "CURSOR AI GITLAB ISSUE WORKER"
+ai_log_banner "AI GITLAB ISSUE WORKER"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Forge:         gitlab"
 echo "Host:          $GITLAB_HOST"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
 echo "Project dir:   $PROJECT_DIR"
-echo "Cursor binary: $CURSOR_BIN"
+echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
+echo "AI binary:     $AI_PROVIDER_BIN"
 echo "Main log:      $LOG_FILE"
-echo "Cursor log:    $CURSOR_LOG"
-echo "Cursor stderr: $CURSOR_ERR_LOG"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "============================================================"
 
 # ============================================================
@@ -403,40 +408,22 @@ EOF
 # Run Cursor
 # ============================================================
 
-ai_log_banner "STARTING CURSOR AGENT"
+ai_log_agent_start "STARTING AI AGENT"
 echo "Branch:        $BRANCH"
 echo "Workspace:     $PROJECT_DIR"
 echo "Prompt file:   $PROMPT_FILE"
-echo "Cursor log:    $CURSOR_LOG"
-echo "Cursor stderr: $CURSOR_ERR_LOG"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "============================================================"
 
-set +e
+ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" implement
 
-"$CURSOR_BIN" \
-    --workspace "$PROJECT_DIR" \
-    --force \
-    --trust \
-    --print \
-    --output-format stream-json \
-    --stream-partial-output \
-    "$(cat "$PROMPT_FILE")" \
-    2> >(tee -a "$CURSOR_ERR_LOG" >&2) \
-    | tee -a "$CURSOR_LOG"
-
-AGENT_EXIT_CODE=${PIPESTATUS[0]}
-
-set -e
-
-ai_log_banner "CURSOR AGENT FINISHED"
-echo "Exit code: $AGENT_EXIT_CODE"
-echo "Finished:  $(date '+%Y-%m-%d %H:%M:%S %Z')"
-echo "============================================================"
+ai_log_agent_finish
 
 if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
     echo
-    echo "ERROR: Cursor Agent failed."
+    echo "ERROR: AI agent failed."
     exit "$AGENT_EXIT_CODE"
 fi
 
@@ -572,8 +559,9 @@ commit=$COMMIT_SHA
 merge_request=$MR_URL
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
-cursor_log=$CURSOR_LOG
-cursor_stderr=$CURSOR_ERR_LOG
+ai_provider=$AI_PROVIDER
+agent_log=$AGENT_LOG
+agent_stderr=$AGENT_ERR_LOG
 EOF
 
 ai_log_banner "ISSUE COMPLETE"
@@ -584,6 +572,6 @@ echo "Branch:        $BRANCH"
 echo "Commit:        $COMMIT_SHA"
 echo "Merge request: $MR_URL"
 echo "Main log:      $LOG_FILE"
-echo "Cursor log:    $CURSOR_LOG"
+echo "Agent log:     $AGENT_LOG"
 echo "Result file:   $RESULT_FILE"
 echo "============================================================"

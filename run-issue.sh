@@ -11,7 +11,13 @@ PROJECTS_FILE="$BASE_DIR/projects.conf"
 STATE_DIR="$BASE_DIR/state"
 LOG_DIR="$BASE_DIR/logs"
 
+# shellcheck source=lib/common.sh
+source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/ai.sh
+source "$BASE_DIR/lib/ai.sh"
+
 mkdir -p "$STATE_DIR" "$LOG_DIR"
+ai_load_env "$BASE_DIR/.env"
 
 # ============================================================
 # Validate input
@@ -36,21 +42,9 @@ fi
 # Required commands
 # ============================================================
 
-for cmd in git gh jq tee; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "ERROR: Required command not found: $cmd"
-        exit 1
-    fi
-done
+ai_require_cmds git gh jq tee || exit 1
 
-# Detect Cursor CLI.
-CURSOR_BIN="$(command -v agent || command -v cursor-agent || true)"
-
-if [[ -z "$CURSOR_BIN" ]]; then
-    echo "ERROR: Cursor CLI not found."
-    echo "Expected command: agent or cursor-agent"
-    exit 1
-fi
+ai_init || exit 1
 
 # ============================================================
 # Resolve project
@@ -95,9 +89,8 @@ TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
 
 LOG_FILE="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.log"
 
-CURSOR_LOG="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.cursor.ndjson"
-
-CURSOR_ERR_LOG="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.cursor.stderr.log"
+AGENT_LOG="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.agent.ndjson"
+AGENT_ERR_LOG="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.agent.stderr.log"
 
 PROMPT_FILE="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.prompt.txt"
 
@@ -218,25 +211,25 @@ issue=$ISSUE_NUMBER
 started=$(date '+%Y-%m-%d %H:%M:%S %Z')
 pid=$$
 log=$LOG_FILE
-cursor_log=$CURSOR_LOG
+ai_provider=$AI_PROVIDER
+agent_log=$AGENT_LOG
+agent_stderr=$AGENT_ERR_LOG
 EOF
 
 # ============================================================
 # Start information
 # ============================================================
 
-echo
-echo "============================================================"
-echo "              CURSOR AI ISSUE WORKER"
-echo "============================================================"
+ai_log_banner "AI GITHUB ISSUE WORKER"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
 echo "Project dir:   $PROJECT_DIR"
-echo "Cursor binary: $CURSOR_BIN"
+echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
+echo "AI binary:     $AI_PROVIDER_BIN"
 echo "Main log:      $LOG_FILE"
-echo "Cursor log:    $CURSOR_LOG"
-echo "Cursor stderr: $CURSOR_ERR_LOG"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "============================================================"
 
 # ============================================================
@@ -498,60 +491,36 @@ Problems or limitations:
 EOF
 
 # ============================================================
-# Run Cursor
+# Run AI agent
 # ============================================================
 
-echo
-echo "============================================================"
-echo "                STARTING CURSOR AGENT"
-echo "============================================================"
+ai_log_agent_start "STARTING AI AGENT"
 echo "Branch:        $BRANCH"
 echo "Workspace:     $PROJECT_DIR"
 echo "Prompt file:   $PROMPT_FILE"
-echo "Cursor log:    $CURSOR_LOG"
-echo "Cursor stderr: $CURSOR_ERR_LOG"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "============================================================"
 
-set +e
+ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" implement
 
-"$CURSOR_BIN" \
-    --workspace "$PROJECT_DIR" \
-    --force \
-    --trust \
-    --print \
-    --output-format stream-json \
-    --stream-partial-output \
-    "$(cat "$PROMPT_FILE")" \
-    2> >(tee -a "$CURSOR_ERR_LOG" >&2) \
-    | tee -a "$CURSOR_LOG"
-
-AGENT_EXIT_CODE=${PIPESTATUS[0]}
-
-set -e
-
-echo
-echo "============================================================"
-echo "                 CURSOR AGENT FINISHED"
-echo "============================================================"
-echo "Exit code: $AGENT_EXIT_CODE"
-echo "Finished:  $(date '+%Y-%m-%d %H:%M:%S %Z')"
-echo "============================================================"
+ai_log_agent_finish
 
 if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
 
     echo
-    echo "ERROR: Cursor Agent failed."
+    echo "ERROR: AI agent failed."
 
     exit "$AGENT_EXIT_CODE"
 fi
 
 # ============================================================
-# Verify Cursor changed something
+# Verify agent changed something
 # ============================================================
 
 echo
-echo "Git status after Cursor:"
+echo "Git status after AI agent:"
 
 git -C "$PROJECT_DIR" status --short
 
@@ -707,20 +676,18 @@ commit=$COMMIT_SHA
 pull_request=$PR_URL
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
-cursor_log=$CURSOR_LOG
-cursor_stderr=$CURSOR_ERR_LOG
+ai_provider=$AI_PROVIDER
+agent_log=$AGENT_LOG
+agent_stderr=$AGENT_ERR_LOG
 EOF
 
-echo
-echo "============================================================"
-echo "                    ISSUE COMPLETE"
-echo "============================================================"
+ai_log_banner "ISSUE COMPLETE"
 echo "Project:      $PROJECT"
 echo "Issue:        #$ISSUE_NUMBER"
 echo "Branch:       $BRANCH"
 echo "Commit:       $COMMIT_SHA"
 echo "Pull request: $PR_URL"
 echo "Main log:     $LOG_FILE"
-echo "Cursor log:   $CURSOR_LOG"
+echo "Agent log:    $AGENT_LOG"
 echo "Result file:  $RESULT_FILE"
 echo "============================================================"

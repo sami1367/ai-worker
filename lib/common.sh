@@ -25,15 +25,11 @@ ai_require_cmds() {
     done
 }
 
+# Deprecated: use ai_init from lib/ai.sh instead.
 ai_detect_cursor() {
-    local bin
-    bin="$(command -v agent || command -v cursor-agent || true)"
-    if [[ -z "$bin" ]]; then
-        echo "ERROR: Cursor CLI not found."
-        echo "Expected command: agent or cursor-agent"
-        return 1
-    fi
-    printf '%s\n' "$bin"
+    # shellcheck source=lib/ai/cursor.sh
+    source "$BASE_DIR/lib/ai/cursor.sh"
+    ai_cursor_detect
 }
 
 # Resolve project path from a conf file: name=path
