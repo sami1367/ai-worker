@@ -306,6 +306,24 @@ gh pr edit "$PR_NUMBER" \
     >/dev/null 2>&1 || true
 
 # ============================================================
+# PR comments / discussion
+# ============================================================
+
+echo
+echo "Fetching pull request comments..."
+
+PR_COMMENTS_TEXT="$(ai_github_format_pr_discussion "$REPO" "$PR_NUMBER")"
+PR_COMMENTS_COUNT="$(
+    jq -n \
+        --argjson issue "$(ai_github_fetch_issue_comments "$REPO" "$PR_NUMBER")" \
+        --argjson inline "$(ai_github_fetch_pr_review_comments "$REPO" "$PR_NUMBER")" \
+        --argjson reviews "$(ai_github_fetch_pr_reviews "$REPO" "$PR_NUMBER")" \
+        '($issue|length) + ($inline|length) + ([$reviews[] | select(.body != null and .body != "")] | length)'
+)"
+
+echo "PR discussion items: $PR_COMMENTS_COUNT"
+
+# ============================================================
 # Linked issues from PR description (Closes/Fixes/Related to #N)
 # ============================================================
 
@@ -359,6 +377,11 @@ EOF
         ISSUE_LABELS="$(jq -r '[.labels[].name] | join(", ")' <<<"$ISSUE_JSON")"
         ISSUE_BODY="$(jq -r '.body // ""' <<<"$ISSUE_JSON")"
 
+        ISSUE_COMMENTS_TEXT="(no comments)"
+        if ISSUE_COMMENTS_JSON="$(ai_github_fetch_issue_comments "$REPO" "$issue_number" 2>/dev/null)"; then
+            ISSUE_COMMENTS_TEXT="$(ai_format_github_comments "$ISSUE_COMMENTS_JSON" 10000)"
+        fi
+
         # Cap very long issue bodies so the prompt stays usable.
         ISSUE_BODY_BYTES="$(printf '%s' "$ISSUE_BODY" | wc -c | tr -d ' ')"
         if [[ "$ISSUE_BODY_BYTES" -gt 20000 ]]; then
@@ -381,6 +404,9 @@ URL:    $ISSUE_URL
 
 Description:
 $ISSUE_BODY
+
+Comments (override description when they conflict):
+$ISSUE_COMMENTS_TEXT
 
 EOF
     done
@@ -470,6 +496,14 @@ PR DESCRIPTION
 $PR_BODY
 
 ============================================================
+PR COMMENTS / DISCUSSION (read first — overrides title/description)
+============================================================
+
+$PR_COMMENTS_TEXT
+
+$(ai_prompt_comments_priority_instructions)
+
+============================================================
 LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
 ============================================================
 
@@ -499,9 +533,11 @@ Do not wait for user approval.
 
 IMPORTANT — linked issues:
 - If one or more linked issues/tasks are listed above, read them first and treat them as the acceptance criteria for this PR.
+- Include each linked issue's comments in acceptance criteria; issue comments override the issue description when they conflict.
 - Judge whether the diff fulfills the linked issue(s): scope, requirements, edge cases, and any explicit non-goals.
-- Call out missing requirements from the issue even if the code quality is otherwise fine.
-- If no linked issues were found, review from the PR title, description, and diff alone.
+- Call out missing requirements from the issue (including comment feedback) even if the code quality is otherwise fine.
+- If no linked issues were found, review from the PR title, description, comments, and diff alone.
+- PR comments override the PR title and description when they conflict; later comments override earlier ones.
 
 You MAY:
 
@@ -589,6 +625,7 @@ echo "Workspace:     $PROJECT_DIR"
 echo "Prompt file:   $PROMPT_FILE"
 echo "Review file:   $REVIEW_FILE"
 echo "Linked issues: $LINKED_ISSUE_COUNT"
+echo "PR discussion: $PR_COMMENTS_COUNT"
 echo "Issues file:   $ISSUES_FILE"
 echo "Agent log:     $AGENT_LOG"
 echo "Agent stderr:  $AGENT_ERR_LOG"

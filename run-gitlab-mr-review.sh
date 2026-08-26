@@ -266,6 +266,19 @@ gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
     >/dev/null 2>&1 || true
 
 # ============================================================
+# MR comments / discussion
+# ============================================================
+
+echo
+echo "Fetching merge request comments..."
+
+MR_NOTES_JSON="$(gitlab_list_mr_notes "$REPO_PATH" "$MR_IID")"
+MR_COMMENTS_COUNT="$(jq 'length' <<<"$MR_NOTES_JSON")"
+MR_COMMENTS_TEXT="$(gitlab_format_notes "$MR_NOTES_JSON")"
+
+echo "MR comments: $MR_COMMENTS_COUNT"
+
+# ============================================================
 # Linked issues from MR description (Closes/Fixes/Related to #N)
 # ============================================================
 
@@ -314,6 +327,11 @@ EOF
         ISSUE_LABELS="$(jq -r '[.labels[]?] | join(", ")' <<<"$ISSUE_JSON")"
         ISSUE_BODY="$(jq -r '.description // ""' <<<"$ISSUE_JSON")"
 
+        ISSUE_COMMENTS_TEXT="(no comments)"
+        if ISSUE_NOTES_JSON="$(gitlab_list_issue_notes "$REPO_PATH" "$issue_iid" 2>/dev/null)"; then
+            ISSUE_COMMENTS_TEXT="$(gitlab_format_notes "$ISSUE_NOTES_JSON" 10000)"
+        fi
+
         # Cap very long issue bodies so the prompt stays usable.
         ISSUE_BODY_BYTES="$(printf '%s' "$ISSUE_BODY" | wc -c | tr -d ' ')"
         if [[ "$ISSUE_BODY_BYTES" -gt 20000 ]]; then
@@ -336,6 +354,9 @@ URL:    $ISSUE_URL
 
 Description:
 $ISSUE_BODY
+
+Comments (override description when they conflict):
+$ISSUE_COMMENTS_TEXT
 
 EOF
     done
@@ -437,6 +458,14 @@ MR DESCRIPTION
 $MR_BODY
 
 ============================================================
+MR COMMENTS / DISCUSSION (read first — overrides title/description)
+============================================================
+
+$MR_COMMENTS_TEXT
+
+$(ai_prompt_comments_priority_instructions)
+
+============================================================
 LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
 ============================================================
 
@@ -466,9 +495,11 @@ Do not wait for user approval.
 
 IMPORTANT — linked issues:
 - If one or more linked issues/tasks are listed above, read them first and treat them as the acceptance criteria for this MR.
+- Include each linked issue's comments in acceptance criteria; issue comments override the issue description when they conflict.
 - Judge whether the diff fulfills the linked issue(s): scope, requirements, edge cases, and any explicit non-goals.
-- Call out missing requirements from the issue even if the code quality is otherwise fine.
-- If no linked issues were found, review from the MR title, description, and diff alone.
+- Call out missing requirements from the issue (including comment feedback) even if the code quality is otherwise fine.
+- If no linked issues were found, review from the MR title, description, comments, and diff alone.
+- MR comments override the MR title and description when they conflict; later comments override earlier ones.
 
 You MAY:
 
@@ -556,6 +587,7 @@ echo "Workspace:     $PROJECT_DIR"
 echo "Prompt file:   $PROMPT_FILE"
 echo "Review file:   $REVIEW_FILE"
 echo "Linked issues: $LINKED_ISSUE_COUNT"
+echo "MR comments:   $MR_COMMENTS_COUNT"
 echo "Issues file:   $ISSUES_FILE"
 echo "Agent log:     $AGENT_LOG"
 echo "Agent stderr:  $AGENT_ERR_LOG"

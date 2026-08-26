@@ -342,6 +342,19 @@ if [[ "$ISSUE_STATE" != "OPEN" ]]; then
 fi
 
 # ============================================================
+# Read issue comments
+# ============================================================
+
+echo
+echo "Fetching issue comments..."
+
+ISSUE_COMMENTS_JSON="$(ai_github_fetch_issue_comments "$REPO" "$ISSUE_NUMBER")"
+ISSUE_COMMENTS_COUNT="$(jq 'length' <<<"$ISSUE_COMMENTS_JSON")"
+ISSUE_COMMENTS_TEXT="$(ai_format_github_comments "$ISSUE_COMMENTS_JSON")"
+
+echo "Comments: $ISSUE_COMMENTS_COUNT"
+
+# ============================================================
 # Create branch
 # ============================================================
 
@@ -387,6 +400,14 @@ ISSUE DESCRIPTION
 ============================================================
 
 $ISSUE_BODY
+
+============================================================
+ISSUE COMMENTS / DISCUSSION (read first — overrides title/description)
+============================================================
+
+$ISSUE_COMMENTS_TEXT
+
+$(ai_prompt_comments_priority_instructions)
 
 ============================================================
 YOUR JOB

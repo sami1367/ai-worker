@@ -275,6 +275,79 @@ gitlab_create_mr() {
     gitlab_api POST "/projects/${encoded}/merge_requests" -d "$payload"
 }
 
+# List notes on an issue (non-system, chronological). Prints JSON array.
+gitlab_list_issue_notes() {
+    local project_path="$1"
+    local issue_iid="$2"
+    local encoded page=1 page_body count combined="[]"
+
+    encoded="$(gitlab_encode_path "$project_path")"
+
+    while true; do
+        page_body="$(
+            gitlab_api GET \
+                "/projects/${encoded}/issues/${issue_iid}/notes?per_page=100&page=${page}&sort=asc&order_by=created_at"
+        )" || return 1
+
+        count="$(jq 'length' <<<"$page_body")"
+        combined="$(jq -s 'add' <<<"$combined"$'\n'"$page_body")"
+
+        if [[ "$count" -lt 100 ]]; then
+            break
+        fi
+        page=$((page + 1))
+    done
+
+    jq '[.[] | select(.system != true)]' <<<"$combined"
+}
+
+# List notes on a merge request (non-system, chronological). Prints JSON array.
+gitlab_list_mr_notes() {
+    local project_path="$1"
+    local mr_iid="$2"
+    local encoded page=1 page_body count combined="[]"
+
+    encoded="$(gitlab_encode_path "$project_path")"
+
+    while true; do
+        page_body="$(
+            gitlab_api GET \
+                "/projects/${encoded}/merge_requests/${mr_iid}/notes?per_page=100&page=${page}&sort=asc&order_by=created_at"
+        )" || return 1
+
+        count="$(jq 'length' <<<"$page_body")"
+        combined="$(jq -s 'add' <<<"$combined"$'\n'"$page_body")"
+
+        if [[ "$count" -lt 100 ]]; then
+            break
+        fi
+        page=$((page + 1))
+    done
+
+    jq '[.[] | select(.system != true)]' <<<"$combined"
+}
+
+# Format GitLab notes JSON into readable chronological text.
+gitlab_format_notes() {
+    local notes_json="$1"
+    local max_bytes="${2:-30000}"
+
+    if [[ -z "$notes_json" || "$notes_json" == "[]" || "$notes_json" == "null" ]]; then
+        printf '%s' "(no comments)"
+        return 0
+    fi
+
+    ai_trim_text "$(
+        jq -r '
+            if length == 0 then "(no comments)"
+            else map(
+                "--- Comment by \(.author.username // .author.name // "unknown") at \(.created_at) ---\n\(.body // "")\n"
+            ) | join("\n")
+            end
+        ' <<<"$notes_json"
+    )" "$max_bytes"
+}
+
 # Post a note/comment on an issue (optional helper).
 gitlab_create_issue_note() {
     local project_path="$1"
@@ -294,6 +367,21 @@ gitlab_get_mr() {
 
     encoded="$(gitlab_encode_path "$project_path")"
     gitlab_api GET "/projects/${encoded}/merge_requests/${mr_iid}"
+}
+
+# Print oldest open MR iid with label "ai" (implement on branch), or empty.
+gitlab_find_ai_mr() {
+    local project_path="$1"
+    local encoded body iid
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/merge_requests?labels=ai&state=opened&order_by=created_at&sort=asc&per_page=1"
+    )" || return 1
+
+    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    printf '%s' "$iid"
 }
 
 # Print oldest open MR iid with label "ai-review", or empty.

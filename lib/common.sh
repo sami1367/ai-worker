@@ -124,3 +124,321 @@ ai_log_banner() {
     echo "                    $title"
     echo "============================================================"
 }
+
+# Truncate text to max bytes; append a marker when truncated.
+ai_trim_text() {
+    local text="$1"
+    local max_bytes="${2:-20000}"
+    local bytes
+
+    bytes="$(printf '%s' "$text" | wc -c | tr -d ' ')"
+    if [[ "$bytes" -le "$max_bytes" ]]; then
+        printf '%s' "$text"
+        return 0
+    fi
+
+    printf '%s' "$text" | head -c "$max_bytes"
+    printf '\n... [truncated] ...'
+}
+
+# Shared prompt block: comments override title/body; later comments win.
+ai_prompt_comments_priority_instructions() {
+    cat <<'EOF'
+IMPORTANT — comments are the primary instructions:
+- Read all discussion comments carefully before acting.
+- When comments conflict with the title or description, follow the comments.
+- When comments conflict with each other, follow the most recent comment on that topic.
+- Treat human feedback in comments as corrections or refinements to the original request.
+EOF
+}
+
+# Extract unique issue numbers linked from title/description (GitHub).
+ai_extract_github_linked_issue_numbers() {
+    local text="$1"
+    local matches
+
+    if [[ -z "$(printf '%s' "$text" | tr -d '[:space:]')" ]]; then
+        return 0
+    fi
+
+    matches="$(
+        printf '%s\n' "$text" \
+            | grep -oiE \
+                '(closes?|closed|closing|fixes?|fixed|fixing|resolves?|resolved|resolving|implements?|implemented|implementing|related[[:space:]]+to|relates[[:space:]]+to)[[:space:]]+#[[:digit:]]+' \
+            || true
+    )"
+
+    if [[ -z "$matches" ]]; then
+        return 0
+    fi
+
+    printf '%s\n' "$matches" | grep -oE '[[:digit:]]+' | sort -n -u
+}
+
+# Build linked-issues text file for GitHub PR/MR prompts.
+ai_build_github_linked_issues_file() {
+    local repo="$1"
+    local title="$2"
+    local body="$3"
+    local issues_file="$4"
+    local linked_count_var="$5"
+    local -n linked_count_ref="$linked_count_var"
+
+    : > "$issues_file"
+    linked_count_ref=0
+
+    mapfile -t linked_numbers < <(
+        ai_extract_github_linked_issue_numbers "${title}"$'\n'"${body}"
+    )
+
+    if [[ ${#linked_numbers[@]} -eq 0 ]]; then
+        cat >> "$issues_file" <<EOF
+No linked GitHub issues were found in the title or description.
+
+Use PR/MR comments and the diff as the primary source of requirements.
+EOF
+        return 0
+    fi
+
+    for issue_number in "${linked_numbers[@]}"; do
+        if ! issue_json="$(
+            gh issue view "$issue_number" \
+                --repo "$repo" \
+                --json title,body,url,state,author,labels \
+                2>/dev/null
+        )"; then
+            cat >> "$issues_file" <<EOF
+------------------------------------------------------------
+ISSUE #${issue_number}
+------------------------------------------------------------
+
+(Could not fetch this issue from the GitHub API.)
+
+EOF
+            continue
+        fi
+
+        linked_count_ref=$((linked_count_ref + 1))
+
+        issue_title="$(jq -r '.title // ""' <<<"$issue_json")"
+        issue_state="$(jq -r '.state // ""' <<<"$issue_json")"
+        issue_url="$(jq -r '.url // ""' <<<"$issue_json")"
+        issue_author="$(jq -r '.author.login // .author.name // "unknown"' <<<"$issue_json")"
+        issue_labels="$(jq -r '[.labels[].name] | join(", ")' <<<"$issue_json")"
+        issue_body="$(jq -r '.body // ""' <<<"$issue_json")"
+        issue_comments_text="(no comments)"
+
+        if issue_comments_json="$(ai_github_fetch_issue_comments "$repo" "$issue_number" 2>/dev/null)"; then
+            issue_comments_text="$(ai_format_github_comments "$issue_comments_json" 10000)"
+        fi
+
+        issue_body="$(ai_trim_text "$issue_body" 20000)"
+
+        cat >> "$issues_file" <<EOF
+------------------------------------------------------------
+ISSUE #${issue_number}
+------------------------------------------------------------
+
+Title:  $issue_title
+State:  $issue_state
+Author: $issue_author
+Labels: ${issue_labels:-none}
+URL:    $issue_url
+
+Description:
+$issue_body
+
+Comments (override description when they conflict):
+$issue_comments_text
+
+EOF
+    done
+}
+
+# Build linked-issues text file for GitLab MR prompts.
+ai_build_gitlab_linked_issues_file() {
+    local repo_path="$1"
+    local title="$2"
+    local body="$3"
+    local issues_file="$4"
+    local linked_count_var="$5"
+    local -n linked_count_ref="$linked_count_var"
+
+    : > "$issues_file"
+    linked_count_ref=0
+
+    mapfile -t linked_iids < <(
+        gitlab_extract_linked_issue_iids "${title}"$'\n'"${body}"
+    )
+
+    if [[ ${#linked_iids[@]} -eq 0 ]]; then
+        cat >> "$issues_file" <<EOF
+No linked GitLab issues were found in the title or description.
+
+Use MR comments and the diff as the primary source of requirements.
+EOF
+        return 0
+    fi
+
+    for issue_iid in "${linked_iids[@]}"; do
+        if ! issue_json="$(gitlab_get_issue "$repo_path" "$issue_iid" 2>/dev/null)"; then
+            cat >> "$issues_file" <<EOF
+------------------------------------------------------------
+ISSUE #${issue_iid}
+------------------------------------------------------------
+
+(Could not fetch this issue from the GitLab API.)
+
+EOF
+            continue
+        fi
+
+        linked_count_ref=$((linked_count_ref + 1))
+
+        issue_title="$(jq -r '.title // ""' <<<"$issue_json")"
+        issue_state="$(jq -r '.state // ""' <<<"$issue_json")"
+        issue_url="$(jq -r '.web_url // ""' <<<"$issue_json")"
+        issue_author="$(jq -r '.author.username // .author.name // "unknown"' <<<"$issue_json")"
+        issue_labels="$(jq -r '[.labels[]?] | join(", ")' <<<"$issue_json")"
+        issue_body="$(jq -r '.description // ""' <<<"$issue_json")"
+        issue_comments_text="(no comments)"
+
+        if issue_notes_json="$(gitlab_list_issue_notes "$repo_path" "$issue_iid" 2>/dev/null)"; then
+            issue_comments_text="$(gitlab_format_notes "$issue_notes_json" 10000)"
+        fi
+
+        issue_body="$(ai_trim_text "$issue_body" 20000)"
+
+        cat >> "$issues_file" <<EOF
+------------------------------------------------------------
+ISSUE #${issue_iid}
+------------------------------------------------------------
+
+Title:  $issue_title
+State:  $issue_state
+Author: $issue_author
+Labels: ${issue_labels:-none}
+URL:    $issue_url
+
+Description:
+$issue_body
+
+Comments (override description when they conflict):
+$issue_comments_text
+
+EOF
+    done
+}
+
+# Format GitHub issue/PR comment JSON (array) into readable chronological text.
+ai_format_github_comments() {
+    local comments_json="$1"
+    local max_bytes="${2:-30000}"
+
+    if [[ -z "$comments_json" || "$comments_json" == "[]" || "$comments_json" == "null" ]]; then
+        printf '%s' "(no comments)"
+        return 0
+    fi
+
+    ai_trim_text "$(
+        jq -r '
+            sort_by(.created_at) |
+            if length == 0 then "(no comments)"
+            else map(
+                "--- Comment by \(.user.login // "unknown") at \(.created_at) ---\n\(.body // "")\n"
+            ) | join("\n")
+            end
+        ' <<<"$comments_json"
+    )" "$max_bytes"
+}
+
+# Fetch all issue/PR discussion comments from GitHub (chronological).
+ai_github_fetch_issue_comments() {
+    local repo="$1"
+    local number="$2"
+
+    gh api \
+        --paginate \
+        "repos/${repo}/issues/${number}/comments" \
+        2>/dev/null \
+        | jq -s 'add // []' \
+        || printf '[]'
+}
+
+# Fetch inline review comments on a pull request.
+ai_github_fetch_pr_review_comments() {
+    local repo="$1"
+    local pr_number="$2"
+
+    gh api \
+        --paginate \
+        "repos/${repo}/pulls/${pr_number}/comments" \
+        2>/dev/null \
+        | jq -s 'add // []' \
+        || printf '[]'
+}
+
+# Fetch submitted PR reviews (approve/request changes summaries).
+ai_github_fetch_pr_reviews() {
+    local repo="$1"
+    local pr_number="$2"
+
+    gh api \
+        --paginate \
+        "repos/${repo}/pulls/${pr_number}/reviews" \
+        2>/dev/null \
+        | jq -s 'add // []' \
+        || printf '[]'
+}
+
+# Build one text block for all GitHub PR/MR discussion (issue comments + inline + reviews).
+ai_github_format_pr_discussion() {
+    local repo="$1"
+    local pr_number="$2"
+    local max_bytes="${3:-30000}"
+    local issue_comments review_comments reviews combined
+
+    issue_comments="$(ai_github_fetch_issue_comments "$repo" "$pr_number")"
+    review_comments="$(ai_github_fetch_pr_review_comments "$repo" "$pr_number")"
+    reviews="$(ai_github_fetch_pr_reviews "$repo" "$pr_number")"
+
+    combined="$(
+        jq -n \
+            --argjson issue "$issue_comments" \
+            --argjson inline "$review_comments" \
+            --argjson reviews "$reviews" \
+            '
+            [
+                ($issue | map({
+                    kind: "comment",
+                    created_at: .created_at,
+                    author: (.user.login // "unknown"),
+                    body: .body // ""
+                })),
+                ($inline | map({
+                    kind: "inline",
+                    created_at: .created_at,
+                    author: (.user.login // "unknown"),
+                    body: (
+                        "On " + (.path // "unknown") +
+                        (if .line then " line " + (.line|tostring) else "" end) +
+                        ": " + (.body // "")
+                    )
+                })),
+                ($reviews | map(select(.body != null and .body != "")) | map({
+                    kind: "review",
+                    created_at: .submitted_at,
+                    author: (.user.login // "unknown"),
+                    body: (.state // "commented") + ": " + (.body // "")
+                }))
+            ] | add | sort_by(.created_at) |
+            if length == 0 then "(no comments)"
+            else map(
+                "--- \(.kind) by \(.author) at \(.created_at) ---\n\(.body)\n"
+            ) | join("\n")
+            end
+            '
+    )"
+
+    ai_trim_text "$combined" "$max_bytes"
+}
