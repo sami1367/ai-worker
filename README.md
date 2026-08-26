@@ -1,6 +1,8 @@
 # AI Worker
 
-Server-side automation that watches **GitHub** and **GitLab** issues, runs the Cursor Agent to implement them, and opens pull/merge requests for human review. On GitLab it can also **AI-review merge requests** when you add a label.
+Server-side automation that watches **GitHub** and **GitLab** issues, runs an AI agent to implement them, and opens pull/merge requests for human review. On GitLab it can also **AI-review merge requests** when you add a label.
+
+Supported AI backends: **Cursor** (default) and **Claude Code**. Switch with one setting in `.env` — see [AI providers](#ai-providers).
 
 Label an issue with `ai` → worker implements it on a branch → opens a PR (GitHub) or MR (GitLab). Label a GitHub PR or GitLab MR with `ai-review` → worker reviews the diff (and linked issues) and posts a review comment. It never merges automatically.
 
@@ -27,7 +29,10 @@ nano .env
 nano projects.conf
 nano gitlab-projects.conf
 
-# 4) Create issue + MR-review labels on all registered repos
+# 4) Choose AI provider (see "AI providers" section below)
+#    Default is Cursor. To use Claude Code, set AI_PROVIDER=claude in .env
+
+# 5) Create issue + MR-review labels on all registered repos
 ./setup-labels.sh
 ```
 
@@ -245,7 +250,10 @@ WantedBy=multi-user.target
 
 Notes:
 
-- `PATH` must include the Cursor CLI (`agent` / `cursor-agent`), usually under `~/.local/bin` and/or `~/.cursor/bin`.
+- `PATH` must include the AI CLI for your provider:
+  - **Cursor:** `~/.local/bin` and/or `~/.cursor/bin` (`agent` / `cursor-agent`)
+  - **Claude Code:** `~/.local/bin` (`claude`)
+- Set `AI_PROVIDER` and auth in `.env` — see [AI providers](#ai-providers).
 - The service runs as user `ubuntu` so it can use that user’s `gh` auth, SSH keys, and `.env`.
 - Do **not** run `./worker.sh` manually while the systemd unit is active (the lock file will block the second process).
 - On a new host: copy the repo, restore `.env` + conf files + clone paths, then reinstall this unit as above.
@@ -345,52 +353,291 @@ Without `GITLAB_TOKEN`, GitHub still works; GitLab projects are skipped with a w
 
 ## AI providers
 
-The worker uses a modular AI interface (`lib/ai.sh`). Runners call `ai_run_agent` — they never invoke Cursor or Claude directly.
+The worker uses a modular AI interface (`lib/ai.sh`). All runners call `ai_run_agent` — they never talk to Cursor or Claude directly. Provider-specific settings (non-interactive mode, auto-approve edits, CLI flags) live in `lib/ai/cursor.sh` and `lib/ai/claude.sh`.
 
-| Provider | `AI_PROVIDER` | CLI | Config file |
-|----------|---------------|-----|-------------|
-| **Cursor** (default) | `cursor` | `agent` / `cursor-agent` | `lib/ai/cursor.sh` |
+| Provider | `AI_PROVIDER` value | CLI command | Settings file |
+|----------|---------------------|-------------|---------------|
+| **Cursor** (default) | `cursor` | `agent` or `cursor-agent` | `lib/ai/cursor.sh` |
 | **Claude Code** | `claude` | `claude` | `lib/ai/claude.sh` |
 
-Set the provider in `.env`:
+All configuration goes in `.env` (copy from `.env.example`):
 
 ```bash
-AI_PROVIDER=cursor   # default
-# AI_PROVIDER=claude
+cp .env.example .env
+nano .env
 ```
 
-### Cursor (default)
-
-Non-interactive flags are encapsulated in `lib/ai/cursor.sh`:
-
-- `--force` — no interactive confirmations
-- `--trust` — trust workspace without prompting
-
-Optional:
+After any change to `.env`, restart the worker:
 
 ```bash
-# AI_CURSOR_MODEL=claude-sonnet-4
-# AI_CURSOR_EXTRA_ARGS=
+sudo systemctl restart ai-worker
 ```
 
-### Claude Code
+---
 
-Requires `claude` on `PATH` and auth via `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`.
+### Switch from Cursor to Claude Code
 
-Headless settings in `lib/ai/claude.sh`:
+You only change `.env` and install the other CLI. No runner scripts need editing.
 
-- `--bare` — skip local hooks/skills for reproducible runs
-- `--permission-mode acceptEdits` — auto-approve file edits (no approval prompts)
+**Step 1 — Install Claude Code CLI** (as the same user that runs the worker, usually `ubuntu`):
 
-Optional:
+```bash
+# Official installer (see https://code.claude.com/docs/en/setup)
+curl -fsSL https://claude.ai/install.sh | bash
+
+# Verify
+command -v claude
+claude --version
+```
+
+**Step 2 — Authenticate** (pick one method):
+
+```bash
+# Option A: API key (recommended for servers)
+export ANTHROPIC_API_KEY=sk-ant-...
+# Add the same line to ~/.bashrc or pass it through systemd (see below)
+
+# Option B: OAuth token from an interactive login on another machine
+claude setup-token
+# Copy the token, then on the server:
+export CLAUDE_CODE_OAUTH_TOKEN=...
+```
+
+**Step 3 — Update `.env`:**
 
 ```bash
 AI_PROVIDER=claude
+
+# Optional tuning (see Claude Code config below)
+# AI_CLAUDE_MODEL=claude-sonnet-4-20250514
+# AI_CLAUDE_PERMISSION_MODE=acceptEdits
+```
+
+**Step 4 — Ensure `claude` is on PATH for systemd**
+
+The unit file [`ai-worker.service`](ai-worker.service) sets `PATH`. Claude is usually installed to `~/.local/bin` (already in PATH). If your install path differs, add it to the unit:
+
+```ini
+Environment=PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cursor/bin:...
+```
+
+Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ai-worker
+```
+
+**Step 5 — Smoke test** (before queuing real issues):
+
+```bash
+cd /home/ubuntu/ai-worker
+source .env
+./run-issue.sh <project-name> <issue-number>
+# Check logs/<project>-issue-*-*.log — first lines should show:
+#   AI provider:   Claude Code (claude)
+```
+
+**Switch back to Cursor:** set `AI_PROVIDER=cursor` (or remove the line — `cursor` is the default) and restart the service.
+
+---
+
+### Setup: Cursor (default)
+
+Cursor is used when `AI_PROVIDER` is unset or set to `cursor`.
+
+#### 1. Install Cursor CLI
+
+Install the Cursor CLI on the server as user `ubuntu`. The binary is usually named `agent` or `cursor-agent` and lives under:
+
+- `~/.local/bin/agent`
+- `~/.cursor/bin/agent`
+
+Verify:
+
+```bash
+command -v agent || command -v cursor-agent
+agent --version   # or cursor-agent --version
+```
+
+Sign in once if required (follow Cursor CLI docs for headless/server use).
+
+#### 2. Configure `.env`
+
+```bash
+AI_PROVIDER=cursor   # optional — this is the default
+
+# Optional: pin a model
+# AI_CURSOR_MODEL=claude-sonnet-4
+
+# Optional: extra CLI flags (space-separated)
+# AI_CURSOR_EXTRA_ARGS=
+```
+
+#### 3. systemd PATH
+
+The service unit already includes Cursor paths:
+
+```ini
+Environment=PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cursor/bin:...
+```
+
+If `agent: command not found` appears in logs, confirm the binary path and update the unit.
+
+#### 4. What Cursor settings are applied automatically
+
+These are set in `lib/ai/cursor.sh` so the worker runs **without asking you questions or waiting for approval**:
+
+| Flag | Purpose |
+|------|---------|
+| `--workspace` | Target project directory |
+| `--force` | Skip interactive confirmations |
+| `--trust` | Trust workspace without prompting |
+| `--print` | Non-interactive print mode |
+| `--output-format stream-json` | Structured logs in `*.agent.ndjson` |
+| `--stream-partial-output` | Stream partial responses to the log |
+
+You do not need to pass these in `.env` — they are always applied for automation.
+
+#### 5. Verify Cursor works
+
+```bash
+cd /home/ubuntu/ai-worker
+./run-issue.sh <project-name> <issue-number>
+```
+
+Log should show:
+
+```text
+AI provider:   Cursor (cursor)
+Binary:        /home/ubuntu/.local/bin/agent
+```
+
+---
+
+### Setup: Claude Code
+
+Use Claude when `AI_PROVIDER=claude` in `.env`.
+
+#### 1. Install Claude Code CLI
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+command -v claude
+```
+
+Docs: [Claude Code setup](https://code.claude.com/docs/en/setup)
+
+#### 2. Authenticate
+
+The worker runs headless — there is no terminal to answer login prompts. Use one of:
+
+| Method | Environment variable | Notes |
+|--------|---------------------|-------|
+| API key | `ANTHROPIC_API_KEY` | Best for servers; create at [console.anthropic.com](https://console.anthropic.com) |
+| OAuth token | `CLAUDE_CODE_OAUTH_TOKEN` | Run `claude setup-token` on a machine with a browser, copy token to server |
+
+Add to `.env` (or export in the systemd unit — see below):
+
+```bash
+AI_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**systemd:** `.env` is sourced by the worker scripts automatically. You can also add secrets to the unit file:
+
+```ini
+Environment=ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Then `daemon-reload` and restart.
+
+#### 3. Configure `.env`
+
+```bash
+AI_PROVIDER=claude
+
+# --- Required: auth (one of) ---
+ANTHROPIC_API_KEY=sk-ant-...
+# CLAUDE_CODE_OAUTH_TOKEN=...
+
+# --- Optional ---
 # AI_CLAUDE_MODEL=claude-sonnet-4-20250514
 # AI_CLAUDE_PERMISSION_MODE=acceptEdits
 # AI_CLAUDE_REVIEW_PERMISSION_MODE=acceptEdits
 # AI_CLAUDE_MAX_TURNS=50
+# AI_CLAUDE_ALLOWED_TOOLS=Read,Edit,Write,Bash
+# AI_CLAUDE_OUTPUT_FORMAT=stream-json
+# AI_CLAUDE_EXTRA_ARGS=
 ```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AI_CLAUDE_MODEL` | Claude default | Pin model for stable behavior |
+| `AI_CLAUDE_PERMISSION_MODE` | `acceptEdits` | Permission mode for issue runs (`implement`) |
+| `AI_CLAUDE_REVIEW_PERMISSION_MODE` | same as above | Override for PR/MR review runs |
+| `AI_CLAUDE_MAX_TURNS` | unlimited | Cap agent turns (cost guard) |
+| `AI_CLAUDE_ALLOWED_TOOLS` | — | Whitelist tools instead of permission mode |
+| `AI_CLAUDE_OUTPUT_FORMAT` | `stream-json` | Log format (`json`, `stream-json`, etc.) |
+| `AI_CLAUDE_EXTRA_ARGS` | — | Extra space-separated CLI flags |
+
+Permission modes (see [Claude permission modes](https://code.claude.com/docs/en/permission-modes)):
+
+- **`acceptEdits`** (default) — auto-approves file edits and common commands; no approval prompts. Best for issue implementation and reviews.
+- **`dontAsk`** — denies anything not explicitly allowed; stricter, may fail if the agent needs an unexpected tool.
+- **`bypassPermissions`** — skips all checks; only use in fully trusted sandboxes.
+
+#### 4. What Claude settings are applied automatically
+
+Set in `lib/ai/claude.sh` for unattended operation:
+
+| Flag | Purpose |
+|------|---------|
+| `--bare` | Skip local hooks/skills/MCP for reproducible server runs |
+| `-p` / `--print` | Headless (non-interactive) mode |
+| `--permission-mode acceptEdits` | Auto-approve edits — no approval prompts |
+| `--output-format stream-json` | Structured logs in `*.agent.ndjson` |
+
+The agent runs with `cd` into the project workspace (Claude uses the current directory as workspace).
+
+#### 5. Verify Claude works
+
+```bash
+cd /home/ubuntu/ai-worker
+source .env
+claude --bare -p "Reply with exactly: ok" --permission-mode dontAsk
+./run-gitlab-mr-review.sh <project-name> <mr-iid>
+```
+
+Log should show `AI provider: Claude Code (claude)`.
+
+---
+
+### Configuration reference (both providers)
+
+**`.env` example with GitLab + Cursor:**
+
+```bash
+GITLAB_HOST=git.dctm.dev
+GITLAB_TOKEN=glpat-...
+AI_PROVIDER=cursor
+# AI_CURSOR_MODEL=claude-sonnet-4
+```
+
+**`.env` example with GitLab + Claude Code:**
+
+```bash
+GITLAB_HOST=git.dctm.dev
+GITLAB_TOKEN=glpat-...
+AI_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-...
+AI_CLAUDE_MODEL=claude-sonnet-4-20250514
+AI_CLAUDE_MAX_TURNS=30
+```
+
+**Logs:** every run writes `logs/<task>-*.agent.ndjson` and `*.agent.stderr.log`. Result files include `ai_provider=cursor` or `ai_provider=claude`.
+
+---
 
 ### Adding another provider
 
@@ -401,7 +648,7 @@ AI_PROVIDER=claude
 2. Add `<name>` to `AI_KNOWN_PROVIDERS` in `lib/ai.sh`
 3. Set `AI_PROVIDER=<name>` in `.env`
 
-Task types: `implement` (issue work) and `review` (PR/MR review).
+Task types passed to providers: `implement` (issue work) and `review` (PR/MR review).
 
 ---
 
@@ -412,7 +659,7 @@ flowchart LR
   C --> D{Forge}
   D -->|GitHub| E[run-issue.sh]
   D -->|GitLab| F[run-gitlab-issue.sh]
-  E --> G[Cursor Agent]
+  E --> G[AI agent]
   F --> G
   G --> H[Commit + push]
   H --> I{Forge}
@@ -427,8 +674,8 @@ flowchart LR
 1. **`worker.sh`** polls every 60 seconds while idle.
 2. Priority per cycle (one task only): GitHub issues → GitHub PR reviews → GitLab issues → GitLab MR reviews.
 3. After each finished task, the worker **immediately** looks for the next queued item (drains the queue back-to-back). It only sleeps when nothing is left.
-4. Issue path: label becomes `ai-working` → Cursor implements → opens a PR/MR → `ai-pr` or `ai-failed`.
-5. PR/MR review path: label becomes `ai-reviewing` → Cursor reviews linked issues + diff → posts a comment → `ai-reviewed` or `ai-review-failed`.
+4. Issue path: label becomes `ai-working` → AI agent implements → opens a PR/MR → `ai-pr` or `ai-failed`.
+5. PR/MR review path: label becomes `ai-reviewing` → AI agent reviews linked issues + diff → posts a comment → `ai-reviewed` or `ai-review-failed`.
 
 ## Prerequisites
 
@@ -553,11 +800,11 @@ Or create them manually in GitLab: **Project → Manage → Labels → New label
 
 If labels are missing on a repo, the worker cannot find or update the item — run the setup script again after registering a new project.
 
-## What Cursor does vs. what the scripts do
+## What the AI agent does vs. what the scripts do
 
-**Issue runs:** Cursor implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
+**Issue runs:** The AI agent (Cursor or Claude Code) implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
 
-**PR/MR review runs:** Cursor inspects the branch/diff and writes a Markdown review to `.ai-pr-review.md` (GitHub) or `.ai-mr-review.md` (GitLab). If the title/description links issues (`Closes #1`, `Fixes #123`, `Related to #45`, etc.), the runner fetches those issues first and includes them as acceptance criteria in the prompt. The runner posts the review as a PR/MR comment, then discards the file and returns to `main`. Cursor must not change product code or call forge APIs.
+**PR/MR review runs:** The AI agent inspects the branch/diff and writes a Markdown review to `.ai-pr-review.md` (GitHub) or `.ai-mr-review.md` (GitLab). If the title/description links issues (`Closes #1`, `Fixes #123`, `Related to #45`, etc.), the runner fetches those issues first and includes them as acceptance criteria in the prompt. The runner posts the review as a PR/MR comment, then discards the file and returns to `main`. The agent must not change product code or call forge APIs.
 
 ## Safety
 
@@ -616,7 +863,9 @@ ai-worker/
 | `ai-failed` | `logs/<project>-*-issue-<n>-*.log` and `*.agent.ndjson` |
 | `ai-review-failed` | `logs/<project>-github-pr-<n>-*.log` or `logs/<project>-gitlab-mr-<iid>-*.log` and `*.agent.ndjson` |
 | Worker not starting | `systemctl status ai-worker` or lock `state/worker.lock` |
-| `agent: command not found` | PATH in the unit file must include `~/.local/bin` |
+| `agent: command not found` | Using Cursor? PATH in unit must include `~/.local/bin` and `~/.cursor/bin`. Using Claude? Ensure `claude` is installed and on PATH. |
+| `Claude Code CLI not found` | Install `claude`, add to PATH, restart service |
+| Wrong AI provider running | Check `AI_PROVIDER` in `.env`, restart `ai-worker` after edits |
 | PR/MR not created | `gh auth status` (GitHub) or token scopes / SSH push (GitLab) |
 | Review comment missing | `gh` auth (GitHub) or token `api` scope (GitLab); check runner log for comment posting errors |
 
