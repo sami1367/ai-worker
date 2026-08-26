@@ -419,18 +419,42 @@ ai_enrich_github_comments_with_roles() {
         return 0
     fi
 
+    if [[ -z "$enriched" ]]; then
+        printf '%s' "$comments_json"
+        return 0
+    fi
+
     printf '%s' "$enriched"
 }
 
 # Build normalized discussion items for a GitHub pull request.
+# Optional 3rd–5th args: pre-fetched issue / inline / review JSON (skips API calls).
 ai_github_discussion_items_from_pr() {
     local repo="$1"
     local pr_number="$2"
+    local issue_raw="${3:-}"
+    local inline_raw="${4:-}"
+    local reviews_raw="${5:-}"
     local issue_comments review_comments reviews
 
-    issue_comments="$(ai_enrich_github_comments_with_roles "$repo" "$(ai_github_fetch_issue_comments "$repo" "$pr_number")")"
-    review_comments="$(ai_enrich_github_comments_with_roles "$repo" "$(ai_github_fetch_pr_review_comments "$repo" "$pr_number")")"
-    reviews="$(ai_enrich_github_comments_with_roles "$repo" "$(ai_github_fetch_pr_reviews "$repo" "$pr_number")")"
+    if [[ -z "$issue_raw" ]]; then
+        issue_raw="$(ai_github_fetch_issue_comments "$repo" "$pr_number")"
+    fi
+    if [[ -z "$inline_raw" ]]; then
+        inline_raw="$(ai_github_fetch_pr_review_comments "$repo" "$pr_number")"
+    fi
+    if [[ -z "$reviews_raw" ]]; then
+        reviews_raw="$(ai_github_fetch_pr_reviews "$repo" "$pr_number")"
+    fi
+
+    issue_comments="$(ai_enrich_github_comments_with_roles "$repo" "$issue_raw")"
+    [[ -z "$issue_comments" ]] && issue_comments="$issue_raw"
+
+    review_comments="$(ai_enrich_github_comments_with_roles "$repo" "$inline_raw")"
+    [[ -z "$review_comments" ]] && review_comments="$inline_raw"
+
+    reviews="$(ai_enrich_github_comments_with_roles "$repo" "$reviews_raw")"
+    [[ -z "$reviews" ]] && reviews="$reviews_raw"
 
     jq -n \
         --argjson issue "$issue_comments" \
@@ -653,12 +677,16 @@ ai_format_github_comments() {
     local comments_json="$1"
     local max_bytes="${2:-30000}"
     local repo="${3:-}"
+    local enriched="$comments_json"
 
     if [[ -n "$repo" ]]; then
-        comments_json="$(ai_enrich_github_comments_with_roles "$repo" "$comments_json")"
+        enriched="$(ai_enrich_github_comments_with_roles "$repo" "$comments_json")"
+        if [[ -z "$enriched" ]]; then
+            enriched="$comments_json"
+        fi
     fi
 
-    if [[ -z "$comments_json" || "$comments_json" == "[]" || "$comments_json" == "null" ]]; then
+    if [[ -z "$enriched" || "$enriched" == "[]" || "$enriched" == "null" ]]; then
         printf '%s' "(no comments)"
         return 0
     fi
@@ -675,7 +703,7 @@ ai_format_github_comments() {
                 end
             ) | join("\n")
             end
-        ' <<<"$comments_json"
+        ' <<<"$enriched"
     )" "$max_bytes"
 }
 

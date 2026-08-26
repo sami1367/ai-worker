@@ -876,7 +876,7 @@ ls -t /home/ubuntu/ai-worker/logs/*.result.txt | head -1 | xargs grep main_log=
 
 | File | What it shows |
 |------|----------------|
-| `*.comments-raw.json` | Raw GitLab notes from the API (GitLab only) |
+| `*.comments-raw.json` | Raw API payload (GitLab notes; GitHub issue + inline + review JSON) |
 | `*.discussion-items.json` | Normalized thread: author, role, `is_ai_review`, body |
 | `*.comments-full.txt` | Full discussion text sent to the AI |
 | `*.comments-since-ai.txt` | **Highest-priority section** — comments after the last automated AI review |

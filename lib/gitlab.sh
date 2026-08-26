@@ -398,6 +398,11 @@ gitlab_enrich_notes_with_roles() {
         return 0
     fi
 
+    if [[ -z "$enriched" ]]; then
+        printf '%s' "$notes_json"
+        return 0
+    fi
+
     printf '%s' "$enriched"
 }
 

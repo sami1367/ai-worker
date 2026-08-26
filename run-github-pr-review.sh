@@ -81,6 +81,7 @@ REVIEW_FILE="$PROJECT_DIR/.ai-pr-review.md"
 DIFF_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.diff.txt"
 ISSUES_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.issues.txt"
 COMMENTS_ITEMS_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.discussion-items.json"
+COMMENTS_RAW_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.comments-raw.json"
 COMMENTS_FULL_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.comments-full.txt"
 COMMENTS_SINCE_AI_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.comments-since-ai.txt"
 STATE_FILE="$STATE_DIR/${PROJECT}-github-pr-${PR_NUMBER}.running"
@@ -317,7 +318,27 @@ gh pr edit "$PR_NUMBER" \
 echo
 echo "Fetching pull request comments..."
 
-PR_DISCUSSION_ITEMS="$(ai_github_discussion_items_from_pr "$REPO" "$PR_NUMBER")"
+PR_ISSUE_COMMENTS_RAW="$(ai_github_fetch_issue_comments "$REPO" "$PR_NUMBER")"
+PR_INLINE_COMMENTS_RAW="$(ai_github_fetch_pr_review_comments "$REPO" "$PR_NUMBER")"
+PR_REVIEWS_RAW="$(ai_github_fetch_pr_reviews "$REPO" "$PR_NUMBER")"
+
+jq -n \
+    --argjson issue "${PR_ISSUE_COMMENTS_RAW:-[]}" \
+    --argjson inline "${PR_INLINE_COMMENTS_RAW:-[]}" \
+    --argjson reviews "${PR_REVIEWS_RAW:-[]}" \
+    '{issue_comments: $issue, inline_comments: $inline, reviews: $reviews}' \
+    > "$COMMENTS_RAW_FILE"
+
+PR_ISSUE_COMMENTS_RAW_COUNT="$(jq 'length' <<<"${PR_ISSUE_COMMENTS_RAW:-[]}")"
+PR_INLINE_COMMENTS_RAW_COUNT="$(jq 'length' <<<"${PR_INLINE_COMMENTS_RAW:-[]}")"
+PR_REVIEWS_RAW_COUNT="$(jq 'length' <<<"${PR_REVIEWS_RAW:-[]}")"
+echo "Raw PR issue comments from GitHub API: $PR_ISSUE_COMMENTS_RAW_COUNT"
+echo "Raw PR inline review comments from GitHub API: $PR_INLINE_COMMENTS_RAW_COUNT"
+echo "Raw PR reviews from GitHub API: $PR_REVIEWS_RAW_COUNT"
+
+PR_DISCUSSION_ITEMS="$(ai_github_discussion_items_from_pr \
+    "$REPO" "$PR_NUMBER" \
+    "$PR_ISSUE_COMMENTS_RAW" "$PR_INLINE_COMMENTS_RAW" "$PR_REVIEWS_RAW")"
 printf '%s' "$PR_DISCUSSION_ITEMS" > "$COMMENTS_ITEMS_FILE"
 
 ai_log_latest_discussion_comment "$PR_DISCUSSION_ITEMS" "GitHub PR #$PR_NUMBER"
@@ -331,6 +352,7 @@ PR_SINCE_AI_COMMENTS_TEXT="$(cat "$COMMENTS_SINCE_AI_FILE")"
 echo "PR discussion items: $PR_COMMENTS_COUNT"
 echo "Prior AI review rounds in thread: $AI_REVIEW_ROUNDS"
 echo "Comment diagnostics files:"
+echo "  Raw GitHub comments JSON:  $COMMENTS_RAW_FILE"
 echo "  Normalized discussion:     $COMMENTS_ITEMS_FILE"
 echo "  Full thread (prompt):      $COMMENTS_FULL_FILE"
 echo "  Since last AI (prompt):    $COMMENTS_SINCE_AI_FILE"
@@ -629,6 +651,7 @@ labels=ai-reviewed
 linked_issues=$LINKED_ISSUE_COUNT
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
+comments_raw=$COMMENTS_RAW_FILE
 comments_items=$COMMENTS_ITEMS_FILE
 comments_full=$COMMENTS_FULL_FILE
 comments_since_ai=$COMMENTS_SINCE_AI_FILE
