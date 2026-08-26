@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/prompts.sh
+source "$BASE_DIR/lib/prompts.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 # shellcheck source=lib/gitlab.sh
@@ -188,70 +190,20 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     exit 12
 fi
 
-{
-    cat <<EOF
-You are an autonomous senior software engineer updating an existing GitLab merge request branch.
+ai_prompt_clear
+ai_prompt_set REPO_PATH "$REPO_PATH"
+ai_prompt_set GITLAB_HOST "$GITLAB_HOST"
+ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
+ai_prompt_set MR_IID "$MR_IID"
+ai_prompt_set MR_URL "$MR_URL"
+ai_prompt_set SOURCE_BRANCH "$SOURCE_BRANCH"
+ai_prompt_set TARGET_BRANCH "$TARGET_BRANCH"
+ai_prompt_set MR_TITLE "$MR_TITLE"
+ai_prompt_set MR_BODY "$MR_BODY"
+ai_prompt_set MR_COMMENTS_TEXT "$MR_COMMENTS_TEXT"
+ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
 
-Repository: $REPO_PATH
-GitLab host: $GITLAB_HOST
-Project directory: $PROJECT_DIR
-Merge request: !$MR_IID
-MR URL: $MR_URL
-Source branch: $SOURCE_BRANCH
-Target branch: $TARGET_BRANCH
-
-You are checked out on the merge request source branch. Implement the requested changes on this branch.
-
-============================================================
-MR TITLE
-============================================================
-
-$MR_TITLE
-
-============================================================
-MR DESCRIPTION
-============================================================
-
-$MR_BODY
-
-============================================================
-MR COMMENTS / DISCUSSION (primary instructions — overrides title/description)
-============================================================
-
-$MR_COMMENTS_TEXT
-
-$(ai_prompt_comments_priority_instructions)
-
-============================================================
-LINKED ISSUES / TASKS
-============================================================
-
-EOF
-    cat "$ISSUES_FILE"
-    cat <<EOF
-
-============================================================
-YOUR JOB
-============================================================
-
-Implement the work requested in the MR comments and linked issue comments.
-Comments are the primary source of requirements; follow them over the MR/issue title and description.
-
-You are running unattended. Do not ask questions or wait for approval.
-
-You MAY inspect files, modify code, run tests, lint, and install dependencies when needed.
-
-You MUST NOT run git commands, call the GitLab API, create branches, commit, push, merge, or read .env files.
-
-Leave completed changes UNCOMMITTED in the working tree.
-
-============================================================
-FINAL RESPONSE
-============================================================
-
-Report: Summary, files changed, tests run, problems/limitations.
-EOF
-} > "$PROMPT_FILE"
+ai_prompt_render "gitlab-mr-implement.txt" "$PROMPT_FILE"
 
 ai_log_agent_start "STARTING AI AGENT (MR IMPLEMENT)"
 echo "Branch:        $SOURCE_BRANCH"

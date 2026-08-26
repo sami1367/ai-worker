@@ -1,0 +1,35 @@
+Structure the Markdown review like this:
+
+## Summary
+Brief overall assessment (what the change does and whether it looks ready).
+
+## Issue / task alignment
+If linked issues were provided: for each issue, say whether the PR/MR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
+
+## Responses to discussion
+Required when developers commented after a prior AI review: answer each recent developer comment directly (acknowledge, reasoning, impact on verdict). Required when maintainers commented: confirm how you applied their override (e.g. dropped CI/CD findings).
+
+## Changes since previous AI review
+Required when a prior automated AI review appears in the thread: what you dropped from the previous review, what still applies, what's new.
+
+## Strengths
+What looks good.
+
+## Issues
+Ordered by severity (blocker / major / minor / nit).
+For each issue include:
+- file path and approximate location when possible
+- what is wrong
+- why it matters
+- a concrete suggestion
+Include unmet acceptance criteria from linked issues as findings when applicable.
+
+## Testing
+Gaps or risks in test coverage, and what you would verify before merge.
+
+## Verdict
+One of: Approve / Request changes / Needs discussion — with one short sentence why.
+If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
+
+Be specific and technical. Prefer fewer high-signal findings over vague advice.
+If the diff is truncated, say so and review what you can see plus the branch contents.

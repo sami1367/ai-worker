@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/prompts.sh
+source "$BASE_DIR/lib/prompts.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 
@@ -193,69 +195,19 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     exit 12
 fi
 
-{
-    cat <<EOF
-You are an autonomous senior software engineer updating an existing GitHub pull request branch.
+ai_prompt_clear
+ai_prompt_set REPO "$REPO"
+ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
+ai_prompt_set PR_NUMBER "$PR_NUMBER"
+ai_prompt_set PR_URL "$PR_URL"
+ai_prompt_set SOURCE_BRANCH "$SOURCE_BRANCH"
+ai_prompt_set TARGET_BRANCH "$TARGET_BRANCH"
+ai_prompt_set PR_TITLE "$PR_TITLE"
+ai_prompt_set PR_BODY "$PR_BODY"
+ai_prompt_set PR_COMMENTS_TEXT "$PR_COMMENTS_TEXT"
+ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
 
-Repository: $REPO
-Project directory: $PROJECT_DIR
-Pull request: #$PR_NUMBER
-PR URL: $PR_URL
-Source branch: $SOURCE_BRANCH
-Target branch: $TARGET_BRANCH
-
-You are checked out on the pull request source branch. Implement the requested changes on this branch.
-
-============================================================
-PR TITLE
-============================================================
-
-$PR_TITLE
-
-============================================================
-PR DESCRIPTION
-============================================================
-
-$PR_BODY
-
-============================================================
-PR COMMENTS / DISCUSSION (primary instructions — overrides title/description)
-============================================================
-
-$PR_COMMENTS_TEXT
-
-$(ai_prompt_comments_priority_instructions)
-
-============================================================
-LINKED ISSUES / TASKS
-============================================================
-
-EOF
-    cat "$ISSUES_FILE"
-    cat <<EOF
-
-============================================================
-YOUR JOB
-============================================================
-
-Implement the work requested in the PR comments and linked issue comments.
-Comments are the primary source of requirements; follow them over the PR/issue title and description.
-
-You are running unattended. Do not ask questions or wait for approval.
-
-You MAY inspect files, modify code, run tests, lint, and install dependencies when needed.
-
-You MUST NOT run git/gh commands, create branches, commit, push, merge, or read .env files.
-
-Leave completed changes UNCOMMITTED in the working tree.
-
-============================================================
-FINAL RESPONSE
-============================================================
-
-Report: Summary, files changed, tests run, problems/limitations.
-EOF
-} > "$PROMPT_FILE"
+ai_prompt_render "github-pr-implement.txt" "$PROMPT_FILE"
 
 ai_log_agent_start "STARTING AI AGENT (PR IMPLEMENT)"
 echo "Branch:        $SOURCE_BRANCH"

@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/prompts.sh
+source "$BASE_DIR/lib/prompts.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 
@@ -462,172 +464,28 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
 fi
 
 # ============================================================
-# Build Cursor prompt
+# Build AI prompt
 # ============================================================
 
 rm -f "$REVIEW_FILE"
 
-{
-    cat <<EOF
-You are an autonomous senior code reviewer reviewing a GitHub pull request.
+ai_prompt_clear
+ai_prompt_set REPO "$REPO"
+ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
+ai_prompt_set PR_NUMBER "$PR_NUMBER"
+ai_prompt_set PR_URL "$PR_URL"
+ai_prompt_set AUTHOR "$AUTHOR"
+ai_prompt_set SOURCE_BRANCH "$SOURCE_BRANCH"
+ai_prompt_set TARGET_BRANCH "$TARGET_BRANCH"
+ai_prompt_set PR_TITLE "$PR_TITLE"
+ai_prompt_set PR_BODY "$PR_BODY"
+ai_prompt_set PR_COMMENTS_TEXT "$PR_COMMENTS_TEXT"
+ai_prompt_set SINCE_LAST_AI_COMMENTS_TEXT "$PR_SINCE_AI_COMMENTS_TEXT"
+ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
+ai_prompt_set DIFF "$(cat "$DIFF_FILE")"
+ai_prompt_set REVIEW_FILE "$REVIEW_FILE"
 
-Repository: $REPO
-Project directory: $PROJECT_DIR
-Pull request: #$PR_NUMBER
-PR URL: $PR_URL
-Author: $AUTHOR
-Source branch: $SOURCE_BRANCH
-Target branch: $TARGET_BRANCH
-
-You are currently checked out on the pull request source branch.
-Review the changes carefully. You may inspect any repository files for context.
-
-============================================================
-PR TITLE
-============================================================
-
-$PR_TITLE
-
-============================================================
-PR DESCRIPTION
-============================================================
-
-$PR_BODY
-
-============================================================
-PR COMMENTS / DISCUSSION (read first — overrides title/description)
-============================================================
-
-$PR_COMMENTS_TEXT
-
-$(ai_prompt_comments_priority_instructions)
-
-$(ai_prompt_followup_review_instructions)
-
-============================================================
-COMMENTS SINCE LAST AI REVIEW (highest priority on follow-up runs)
-============================================================
-
-$PR_SINCE_AI_COMMENTS_TEXT
-
-============================================================
-LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
-============================================================
-
-EOF
-    cat "$ISSUES_FILE"
-    cat <<EOF
-
-============================================================
-PR DIFF (from GitHub; may be truncated)
-============================================================
-
-EOF
-    cat "$DIFF_FILE"
-    cat <<EOF
-
-============================================================
-YOUR JOB
-============================================================
-
-Produce a thorough, actionable code review of this pull request.
-
-You are running unattended.
-
-Do not ask questions.
-Do not ask for confirmation.
-Do not wait for user approval.
-
-IMPORTANT — linked issues:
-- If one or more linked issues/tasks are listed above, read them first and treat them as the acceptance criteria for this PR.
-- Include each linked issue's comments in acceptance criteria; issue comments override the issue description when they conflict.
-- Judge whether the diff fulfills the linked issue(s): scope, requirements, edge cases, and any explicit non-goals.
-- Call out missing requirements from the issue (including comment feedback) even if the code quality is otherwise fine.
-- If no linked issues were found, review from the PR title, description, comments, and diff alone.
-- PR comments override the PR title and description when they conflict; later comments override earlier ones.
-- Maintainer/owner comments override prior AI review findings; developer comments should get direct responses.
-
-You MAY:
-
-- inspect and search repository files
-- read tests, configs, and related code for context
-- run read-only checks (tests, lint, type-check) if helpful
-
-You MUST NOT:
-
-- modify any source files (except the single review output file below)
-- run git commands
-- call the GitHub API or gh CLI
-- create, switch, delete, or modify branches
-- create commits
-- push code
-- create or merge pull requests
-- change git remotes
-- read, print, or modify .env files
-- reveal passwords, tokens, API keys, SSH keys, or other secrets
-- approve or merge the pull request
-
-A separate automation script will post your review as a GitHub PR comment.
-
-============================================================
-REVIEW OUTPUT FILE (REQUIRED)
-============================================================
-
-Write your COMPLETE review as Markdown into exactly this file path:
-
-$REVIEW_FILE
-
-Overwrite the file if it already exists.
-Do not write the review anywhere else.
-Do not modify any other files.
-
-============================================================
-REVIEW CONTENT GUIDELINES
-============================================================
-
-Structure the Markdown review like this:
-
-## Summary
-Brief overall assessment (what the PR does and whether it looks ready).
-
-## Issue / task alignment
-If linked issues were provided: for each issue, say whether the PR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
-
-## Responses to discussion
-Required when developers commented after a prior AI review: answer each recent developer comment directly (acknowledge, reasoning, impact on verdict). Required when maintainers commented: confirm how you applied their override (e.g. dropped CI/CD findings).
-
-## Changes since previous AI review
-Required when a prior automated AI review appears in the thread: what you dropped from the previous review, what still applies, what's new.
-
-## Strengths
-What looks good.
-
-## Issues
-Ordered by severity (blocker / major / minor / nit).
-For each issue include:
-- file path and approximate location when possible
-- what is wrong
-- why it matters
-- a concrete suggestion
-Include unmet acceptance criteria from linked issues as findings when applicable.
-
-## Testing
-Gaps or risks in test coverage, and what you would verify before merge.
-
-## Verdict
-One of: Approve / Request changes / Needs discussion — with one short sentence why.
-If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
-
-Be specific and technical. Prefer fewer high-signal findings over vague advice.
-If the diff is truncated, say so and review what you can see plus the branch contents.
-
-============================================================
-FINAL RESPONSE
-============================================================
-
-After writing $REVIEW_FILE, reply with a one-line confirmation that the review file was written.
-EOF
-} > "$PROMPT_FILE"
+ai_prompt_render "github-pr-review.txt" "$PROMPT_FILE"
 
 # ============================================================
 # Run Cursor

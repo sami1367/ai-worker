@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/prompts.sh
+source "$BASE_DIR/lib/prompts.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 # shellcheck source=lib/gitlab.sh
@@ -429,173 +431,29 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
 fi
 
 # ============================================================
-# Build Cursor prompt
+# Build AI prompt
 # ============================================================
 
 rm -f "$REVIEW_FILE"
 
-{
-    cat <<EOF
-You are an autonomous senior code reviewer reviewing a GitLab merge request.
+ai_prompt_clear
+ai_prompt_set REPO_PATH "$REPO_PATH"
+ai_prompt_set GITLAB_HOST "$GITLAB_HOST"
+ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
+ai_prompt_set MR_IID "$MR_IID"
+ai_prompt_set MR_URL "$MR_URL"
+ai_prompt_set AUTHOR "$AUTHOR"
+ai_prompt_set SOURCE_BRANCH "$SOURCE_BRANCH"
+ai_prompt_set TARGET_BRANCH "$TARGET_BRANCH"
+ai_prompt_set MR_TITLE "$MR_TITLE"
+ai_prompt_set MR_BODY "$MR_BODY"
+ai_prompt_set MR_COMMENTS_TEXT "$MR_COMMENTS_TEXT"
+ai_prompt_set SINCE_LAST_AI_COMMENTS_TEXT "$MR_SINCE_AI_COMMENTS_TEXT"
+ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
+ai_prompt_set DIFF "$(cat "$DIFF_FILE")"
+ai_prompt_set REVIEW_FILE "$REVIEW_FILE"
 
-Repository: $REPO_PATH
-GitLab host: $GITLAB_HOST
-Project directory: $PROJECT_DIR
-Merge request: !$MR_IID
-MR URL: $MR_URL
-Author: $AUTHOR
-Source branch: $SOURCE_BRANCH
-Target branch: $TARGET_BRANCH
-
-You are currently checked out on the merge request source branch.
-Review the changes carefully. You may inspect any repository files for context.
-
-============================================================
-MR TITLE
-============================================================
-
-$MR_TITLE
-
-============================================================
-MR DESCRIPTION
-============================================================
-
-$MR_BODY
-
-============================================================
-MR COMMENTS / DISCUSSION (read first — overrides title/description)
-============================================================
-
-$MR_COMMENTS_TEXT
-
-$(ai_prompt_comments_priority_instructions)
-
-$(ai_prompt_followup_review_instructions)
-
-============================================================
-COMMENTS SINCE LAST AI REVIEW (highest priority on follow-up runs)
-============================================================
-
-$MR_SINCE_AI_COMMENTS_TEXT
-
-============================================================
-LINKED ISSUES / TASKS (from Closes / Fixes / Related to #N)
-============================================================
-
-EOF
-    cat "$ISSUES_FILE"
-    cat <<EOF
-
-============================================================
-MR DIFF (from GitLab API; may be truncated)
-============================================================
-
-EOF
-    cat "$DIFF_FILE"
-    cat <<EOF
-
-============================================================
-YOUR JOB
-============================================================
-
-Produce a thorough, actionable code review of this merge request.
-
-You are running unattended.
-
-Do not ask questions.
-Do not ask for confirmation.
-Do not wait for user approval.
-
-IMPORTANT — linked issues:
-- If one or more linked issues/tasks are listed above, read them first and treat them as the acceptance criteria for this MR.
-- Include each linked issue's comments in acceptance criteria; issue comments override the issue description when they conflict.
-- Judge whether the diff fulfills the linked issue(s): scope, requirements, edge cases, and any explicit non-goals.
-- Call out missing requirements from the issue (including comment feedback) even if the code quality is otherwise fine.
-- If no linked issues were found, review from the MR title, description, comments, and diff alone.
-- MR comments override the MR title and description when they conflict; later comments override earlier ones.
-- Maintainer/owner comments override prior AI review findings; developer comments should get direct responses.
-
-You MAY:
-
-- inspect and search repository files
-- read tests, configs, and related code for context
-- run read-only checks (tests, lint, type-check) if helpful
-
-You MUST NOT:
-
-- modify any source files (except the single review output file below)
-- run git commands
-- call the GitLab API
-- create, switch, delete, or modify branches
-- create commits
-- push code
-- create or merge merge requests
-- change git remotes
-- read, print, or modify .env files
-- reveal passwords, tokens, API keys, SSH keys, or other secrets
-- approve or merge the merge request
-
-A separate automation script will post your review as a GitLab MR comment.
-
-============================================================
-REVIEW OUTPUT FILE (REQUIRED)
-============================================================
-
-Write your COMPLETE review as Markdown into exactly this file path:
-
-$REVIEW_FILE
-
-Overwrite the file if it already exists.
-Do not write the review anywhere else.
-Do not modify any other files.
-
-============================================================
-REVIEW CONTENT GUIDELINES
-============================================================
-
-Structure the Markdown review like this:
-
-## Summary
-Brief overall assessment (what the MR does and whether it looks ready).
-
-## Issue / task alignment
-If linked issues were provided: for each issue, say whether the MR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
-
-## Responses to discussion
-Required when developers commented after a prior AI review: answer each recent developer comment directly (acknowledge, reasoning, impact on verdict). Required when maintainers commented: confirm how you applied their override (e.g. dropped CI/CD findings).
-
-## Changes since previous AI review
-Required when a prior automated AI review appears in the thread: what you dropped from the previous review, what still applies, what's new.
-
-## Strengths
-What looks good.
-
-## Issues
-Ordered by severity (blocker / major / minor / nit).
-For each issue include:
-- file path and approximate location when possible
-- what is wrong
-- why it matters
-- a concrete suggestion
-Include unmet acceptance criteria from linked issues as findings when applicable.
-
-## Testing
-Gaps or risks in test coverage, and what you would verify before merge.
-
-## Verdict
-One of: Approve / Request changes / Needs discussion — with one short sentence why.
-If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
-
-Be specific and technical. Prefer fewer high-signal findings over vague advice.
-If the diff is truncated, say so and review what you can see plus the branch contents.
-
-============================================================
-FINAL RESPONSE
-============================================================
-
-After writing $REVIEW_FILE, reply with a one-line confirmation that the review file was written.
-EOF
-} > "$PROMPT_FILE"
+ai_prompt_render "gitlab-mr-review.txt" "$PROMPT_FILE"
 
 # ============================================================
 # Run Cursor

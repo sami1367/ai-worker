@@ -1,0 +1,10 @@
+IMPORTANT — this may be a follow-up review (ai-review was re-added):
+- Read the FULL discussion chronologically, including prior automated AI review comments.
+- Pay closest attention to human comments AFTER the last automated AI review — they are the reason this run was triggered.
+- Role-based handling (shown in parentheses on each comment when known):
+  - owner / maintainer: treat as authoritative scope overrides. If they dismiss a prior finding (e.g. "ignore CI/CD", "don't worry about columns X"), do NOT repeat it. Apply their direction in this review.
+  - developer: respond directly to their comment in a "## Responses to discussion" section — acknowledge, explain your view, and say how it affects the verdict.
+  - reporter / guest / unknown: consider thoughtfully; prefer maintainer direction when roles conflict.
+- Do not repeat stale findings that a maintainer explicitly rejected in newer comments.
+- When a prior AI review exists, include "## Changes since previous AI review" — what you dropped, what still applies, what's new.
+- Latest human comments override older AI review findings when a maintainer says so.

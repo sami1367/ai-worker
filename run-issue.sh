@@ -13,6 +13,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$BASE_DIR/lib/common.sh"
+# shellcheck source=lib/prompts.sh
+source "$BASE_DIR/lib/prompts.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 
@@ -378,138 +380,19 @@ echo "$BRANCH"
 git -C "$PROJECT_DIR" checkout -b "$BRANCH" main
 
 # ============================================================
-# Build Cursor prompt
+# Build AI prompt
 # ============================================================
 
-cat > "$PROMPT_FILE" <<EOF
-You are an autonomous senior software engineer working on a GitHub issue.
+ai_prompt_clear
+ai_prompt_set REPO "$REPO"
+ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
+ai_prompt_set ISSUE_NUMBER "$ISSUE_NUMBER"
+ai_prompt_set ISSUE_URL "$ISSUE_URL"
+ai_prompt_set ISSUE_TITLE "$ISSUE_TITLE"
+ai_prompt_set ISSUE_BODY "$ISSUE_BODY"
+ai_prompt_set ISSUE_COMMENTS_TEXT "$ISSUE_COMMENTS_TEXT"
 
-Repository: $REPO
-Project directory: $PROJECT_DIR
-GitHub issue: #$ISSUE_NUMBER
-Issue URL: $ISSUE_URL
-
-============================================================
-ISSUE TITLE
-============================================================
-
-$ISSUE_TITLE
-
-============================================================
-ISSUE DESCRIPTION
-============================================================
-
-$ISSUE_BODY
-
-============================================================
-ISSUE COMMENTS / DISCUSSION (read first — overrides title/description)
-============================================================
-
-$ISSUE_COMMENTS_TEXT
-
-$(ai_prompt_comments_priority_instructions)
-
-============================================================
-YOUR JOB
-============================================================
-
-Implement this issue completely and carefully.
-
-You are running unattended.
-
-Do not ask questions.
-Do not ask for confirmation.
-Do not wait for user approval.
-
-Use your engineering judgment when the issue is clear enough
-to implement.
-
-You MAY:
-
-- inspect and search repository files
-- modify source code
-- add or update tests
-- run project tests
-- run linting and formatting
-- run build/type-check commands
-- install project dependencies when genuinely required
-
-You MUST NOT:
-
-- run git commands
-- run gh/GitHub CLI commands
-- create, switch, delete, or modify branches
-- create commits
-- push code
-- create or merge pull requests
-- change git remotes
-- read, print, or modify .env files
-- reveal passwords
-- reveal tokens
-- reveal API keys
-- reveal SSH keys
-- reveal other secrets
-- make unrelated changes
-- modify production infrastructure unless the issue explicitly requires it
-- modify database schema unless the issue explicitly requires it
-
-A separate automation script handles:
-
-- Git
-- GitHub
-- branches
-- commits
-- pushes
-- labels
-- pull requests
-
-Leave your completed code changes in the working tree when finished.
-
-============================================================
-PROCESS
-============================================================
-
-1. Inspect the relevant architecture and existing implementation.
-
-2. Inspect existing tests and project conventions.
-
-3. Implement the issue using the smallest reasonable scope.
-
-4. Add or update tests where appropriate.
-
-5. Run the tests relevant to your changes.
-
-6. Run appropriate lint, formatting, type-check, or build commands.
-
-7. Fix failures caused by your implementation.
-
-8. Review all files you changed.
-
-9. Make sure no unrelated files were changed.
-
-10. Leave all completed changes UNCOMMITTED in the working tree.
-
-If a test fails because of the environment and cannot reasonably
-be fixed, clearly report that in your final response.
-
-Do not silently claim tests passed when they did not run or failed.
-
-============================================================
-FINAL RESPONSE
-============================================================
-
-At the end report:
-
-Summary:
-
-Files changed:
-
-Tests run and results:
-
-Lint / format / type-check / build results:
-
-Problems or limitations:
-EOF
+ai_prompt_render "github-issue-implement.txt" "$PROMPT_FILE"
 
 # ============================================================
 # Run AI agent

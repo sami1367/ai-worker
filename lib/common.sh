@@ -141,33 +141,6 @@ ai_trim_text() {
     printf '\n... [truncated] ...'
 }
 
-# Shared prompt block: comments override title/body; later comments win.
-ai_prompt_comments_priority_instructions() {
-    cat <<'EOF'
-IMPORTANT — comments are the primary instructions:
-- Read all discussion comments carefully before acting.
-- When comments conflict with the title or description, follow the comments.
-- When comments conflict with each other, follow the most recent comment on that topic.
-- Treat human feedback in comments as corrections or refinements to the original request.
-EOF
-}
-
-# Follow-up review instructions (re-added ai-review after prior AI/human discussion).
-ai_prompt_followup_review_instructions() {
-    cat <<'EOF'
-IMPORTANT — this may be a follow-up review (ai-review was re-added):
-- Read the FULL discussion chronologically, including prior automated AI review comments.
-- Pay closest attention to human comments AFTER the last automated AI review — they are the reason this run was triggered.
-- Role-based handling (shown in parentheses on each comment when known):
-  - owner / maintainer: treat as authoritative scope overrides. If they dismiss a prior finding (e.g. "ignore CI/CD", "don't worry about columns X"), do NOT repeat it. Apply their direction in this review.
-  - developer: respond directly to their comment in a "## Responses to discussion" section — acknowledge, explain your view, and say how it affects the verdict.
-  - reporter / guest / unknown: consider thoughtfully; prefer maintainer direction when roles conflict.
-- Do not repeat stale findings that a maintainer explicitly rejected in newer comments.
-- When a prior AI review exists, include "## Changes since previous AI review" — what you dropped, what still applies, what's new.
-- Latest human comments override older AI review findings when a maintainer says so.
-EOF
-}
-
 # True when a comment body looks like an automated ai-review post.
 ai_is_automation_review_comment() {
     local body="$1"

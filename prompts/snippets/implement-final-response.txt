@@ -1,0 +1,15 @@
+============================================================
+FINAL RESPONSE
+============================================================
+
+At the end report:
+
+Summary:
+
+Files changed:
+
+Tests run and results:
+
+Lint / format / type-check / build results:
+
+Problems or limitations:
