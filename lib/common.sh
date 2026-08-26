@@ -215,14 +215,22 @@ ai_format_discussion_items_text() {
     )" "$max_bytes"
 }
 
-# Split normalized discussion items into full thread and items after last AI review.
-# Prints: full_text, newline, since_text, newline, ai_rounds (to stdout via multiple printf lines).
-ai_split_discussion_items_since_last_ai() {
+# Split discussion into full thread and comments after the last automated AI review.
+# Writes text to output files (safe for multiline content). Sets rounds_var if provided.
+ai_split_discussion_items_to_files() {
     local items_json="$1"
-    local full_text since_text since_items ai_rounds
+    local full_file="$2"
+    local since_file="$3"
+    local rounds_var="${4:-}"
+
+    local since_items ai_rounds full_text since_text
 
     if [[ -z "$items_json" || "$items_json" == "[]" || "$items_json" == "null" ]]; then
-        printf '%s\n%s\n0' "(no comments)" "(no new comments since the last AI review)"
+        printf '%s' "(no comments)" > "$full_file"
+        printf '%s' "(no new comments since the last AI review)" > "$since_file"
+        if [[ -n "$rounds_var" ]]; then
+            printf -v "$rounds_var" '%s' "0"
+        fi
         return 0
     fi
 
@@ -244,7 +252,65 @@ ai_split_discussion_items_since_last_ai() {
         since_text="(no new comments since the last AI review)"
     fi
 
-    printf '%s\n%s\n%s' "$full_text" "$since_text" "$ai_rounds"
+    printf '%s' "$full_text" > "$full_file"
+    printf '%s' "$since_text" > "$since_file"
+
+    if [[ -n "$rounds_var" ]]; then
+        printf -v "$rounds_var" '%s' "$ai_rounds"
+    fi
+}
+
+# Log a readable table of discussion items for debugging (main worker log).
+ai_log_discussion_items_table() {
+    local items_json="$1"
+    local title="${2:-Discussion items}"
+
+    if [[ -z "$items_json" || "$items_json" == "[]" || "$items_json" == "null" ]]; then
+        echo
+        echo "============================================================"
+        echo "$title"
+        echo "============================================================"
+        echo "(no discussion items)"
+        return 0
+    fi
+
+    echo
+    echo "============================================================"
+    echo "$title"
+    echo "============================================================"
+    jq -r '
+        to_entries[] |
+        "[\(.key)] \(.value.created_at) author=\(.value.author) role=\(.value.role) ai_review=\(.value.is_ai_review)\n  preview: \(.value.body | .[0:200] | gsub("\r"; "") | gsub("\n"; " "))"
+    ' <<<"$items_json"
+}
+
+# Log human comments since the last automated AI review.
+ai_log_human_comments_since_last_ai() {
+    local items_json="$1"
+
+    echo
+    echo "------------------------------------------------------------"
+    echo "Human comments since last automated AI review (fed to prompt)"
+    echo "------------------------------------------------------------"
+
+    local human_since
+    human_since="$(
+        jq '
+            [to_entries[] | select(.value.is_ai_review == true) | .key] as $ai_idxs |
+            if ($ai_idxs | length) == 0 then . else .[($ai_idxs | max + 1):] end |
+            [.[] | select(.is_ai_review != true)]
+        ' <<<"$items_json"
+    )"
+
+    if [[ "$human_since" == "[]" || -z "$human_since" ]]; then
+        echo "(none — prompt SINCE_LAST section will be empty or placeholder)"
+        return 0
+    fi
+
+    jq -r '
+        .[] |
+        "--- \(.author) (\(.role)) at \(.created_at) ---\n\(.body)\n"
+    ' <<<"$human_since"
 }
 
 # Build normalized discussion items from GitLab MR/issue notes.

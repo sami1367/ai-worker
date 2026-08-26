@@ -852,6 +852,57 @@ ai-worker/
 | GitLab token | `.env` → `GITLAB_TOKEN` | required for GitLab |
 | Branch naming | runners | `ai/issue-<number>` |
 
+## Verifying comment handling (follow-up `ai-review` runs)
+
+When you leave a comment on an MR/PR and re-add **`ai-review`**, the worker should feed that comment into the prompt. Each review run writes comment diagnostic files under `logs/` (paths are also in the run’s `*.result.txt`).
+
+### Find the latest MR/PR review log
+
+```bash
+# GitLab MR (replace project slug if needed)
+ls -t /home/ubuntu/ai-worker/logs/*gitlab-mr-*-*.log | head -1
+
+# GitHub PR
+ls -t /home/ubuntu/ai-worker/logs/*github-pr-*-*.log | head -1
+```
+
+Or open the `main_log=` line from the latest result file:
+
+```bash
+ls -t /home/ubuntu/ai-worker/logs/*.result.txt | head -1 | xargs grep main_log=
+```
+
+### Comment files for that run (same timestamp suffix)
+
+| File | What it shows |
+|------|----------------|
+| `*.comments-raw.json` | Raw GitLab notes from the API (GitLab only) |
+| `*.discussion-items.json` | Normalized thread: author, role, `is_ai_review`, body |
+| `*.comments-full.txt` | Full discussion text sent to the AI |
+| `*.comments-since-ai.txt` | **Highest-priority section** — comments after the last automated AI review |
+| `*.prompt.txt` | Final rendered prompt (search for `COMMENTS SINCE LAST AI REVIEW`) |
+
+### What to look for in the main log
+
+Search the main log for:
+
+- `MR DISCUSSION TIMELINE` or `PR DISCUSSION TIMELINE` — each line shows `author=`, `role=`, `ai_review=true/false`, and a body preview.
+- `Human comments since last automated AI review` — your comment should appear here.
+- `SINCE_LAST_AI_COMMENTS_TEXT bytes` — should be **> 0** when you left a new comment.
+- `Preview (first 800 chars...)` — quick check that your comment text is in the prompt input.
+
+### Same GitLab user for AI and human
+
+If the worker posts reviews under **your** GitLab account, author names match — the system distinguishes automated vs human comments by the **`ai_review`** flag (automated posts contain `was processed automatically` and `ai-review` in the body). In the timeline table, your human comment should show `ai_review=false` after the last `ai_review=true` entry.
+
+### Live worker log
+
+```bash
+tail -f /home/ubuntu/ai-worker/logs/worker.log
+# or
+journalctl -u ai-worker -f
+```
+
 ## Troubleshooting
 
 | Problem | What to check |

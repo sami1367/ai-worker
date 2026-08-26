@@ -80,6 +80,9 @@ RESULT_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.result.txt"
 REVIEW_FILE="$PROJECT_DIR/.ai-pr-review.md"
 DIFF_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.diff.txt"
 ISSUES_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.issues.txt"
+COMMENTS_ITEMS_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.discussion-items.json"
+COMMENTS_FULL_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.comments-full.txt"
+COMMENTS_SINCE_AI_FILE="$LOG_DIR/${PROJECT}-github-pr-${PR_NUMBER}-${TIMESTAMP}.comments-since-ai.txt"
 STATE_FILE="$STATE_DIR/${PROJECT}-github-pr-${PR_NUMBER}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -315,14 +318,30 @@ echo
 echo "Fetching pull request comments..."
 
 PR_DISCUSSION_ITEMS="$(ai_github_discussion_items_from_pr "$REPO" "$PR_NUMBER")"
+printf '%s' "$PR_DISCUSSION_ITEMS" > "$COMMENTS_ITEMS_FILE"
+
 PR_COMMENTS_COUNT="$(jq 'length' <<<"$PR_DISCUSSION_ITEMS")"
-mapfile -t PR_DISC_PARTS < <(ai_split_discussion_items_since_last_ai "$PR_DISCUSSION_ITEMS")
-PR_COMMENTS_TEXT="${PR_DISC_PARTS[0]:-(no comments)}"
-PR_SINCE_AI_COMMENTS_TEXT="${PR_DISC_PARTS[1]:-(no new comments since the last AI review)}"
-AI_REVIEW_ROUNDS="${PR_DISC_PARTS[2]:-0}"
+ai_split_discussion_items_to_files "$PR_DISCUSSION_ITEMS" "$COMMENTS_FULL_FILE" "$COMMENTS_SINCE_AI_FILE" AI_REVIEW_ROUNDS
+
+PR_COMMENTS_TEXT="$(cat "$COMMENTS_FULL_FILE")"
+PR_SINCE_AI_COMMENTS_TEXT="$(cat "$COMMENTS_SINCE_AI_FILE")"
 
 echo "PR discussion items: $PR_COMMENTS_COUNT"
 echo "Prior AI review rounds in thread: $AI_REVIEW_ROUNDS"
+echo "Comment diagnostics files:"
+echo "  Normalized discussion:     $COMMENTS_ITEMS_FILE"
+echo "  Full thread (prompt):      $COMMENTS_FULL_FILE"
+echo "  Since last AI (prompt):    $COMMENTS_SINCE_AI_FILE"
+
+ai_log_discussion_items_table "$PR_DISCUSSION_ITEMS" "PR DISCUSSION TIMELINE (index = order in thread)"
+ai_log_human_comments_since_last_ai "$PR_DISCUSSION_ITEMS"
+
+echo
+echo "SINCE_LAST_AI_COMMENTS_TEXT bytes: $(wc -c < "$COMMENTS_SINCE_AI_FILE" | tr -d ' ')"
+echo "Preview (first 800 chars of since-last-AI section sent to AI):"
+head -c 800 "$COMMENTS_SINCE_AI_FILE" || true
+echo
+echo "--- end preview ---"
 
 # ============================================================
 # Linked issues from PR description (Closes/Fixes/Related to #N)
@@ -608,6 +627,10 @@ labels=ai-reviewed
 linked_issues=$LINKED_ISSUE_COUNT
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
+comments_items=$COMMENTS_ITEMS_FILE
+comments_full=$COMMENTS_FULL_FILE
+comments_since_ai=$COMMENTS_SINCE_AI_FILE
+prompt_file=$PROMPT_FILE
 ai_provider=$AI_PROVIDER
 agent_log=$AGENT_LOG
 agent_stderr=$AGENT_ERR_LOG

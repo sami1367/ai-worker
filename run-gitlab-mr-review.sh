@@ -82,6 +82,10 @@ RESULT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.result.txt"
 REVIEW_FILE="$PROJECT_DIR/.ai-mr-review.md"
 DIFF_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.diff.txt"
 ISSUES_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.issues.txt"
+COMMENTS_RAW_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.comments-raw.json"
+COMMENTS_ITEMS_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.discussion-items.json"
+COMMENTS_FULL_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.comments-full.txt"
+COMMENTS_SINCE_AI_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-${MR_IID}-${TIMESTAMP}.comments-since-ai.txt"
 STATE_FILE="$STATE_DIR/${PROJECT}-gitlab-mr-${MR_IID}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -275,15 +279,34 @@ echo
 echo "Fetching merge request comments..."
 
 MR_NOTES_JSON="$(gitlab_list_mr_notes "$REPO_PATH" "$MR_IID")"
+printf '%s' "$MR_NOTES_JSON" > "$COMMENTS_RAW_FILE"
+
 MR_DISCUSSION_ITEMS="$(ai_gitlab_discussion_items_from_notes "$REPO_PATH" "$MR_NOTES_JSON")"
+printf '%s' "$MR_DISCUSSION_ITEMS" > "$COMMENTS_ITEMS_FILE"
+
 MR_COMMENTS_COUNT="$(jq 'length' <<<"$MR_DISCUSSION_ITEMS")"
-mapfile -t MR_DISC_PARTS < <(ai_split_discussion_items_since_last_ai "$MR_DISCUSSION_ITEMS")
-MR_COMMENTS_TEXT="${MR_DISC_PARTS[0]:-(no comments)}"
-MR_SINCE_AI_COMMENTS_TEXT="${MR_DISC_PARTS[1]:-(no new comments since the last AI review)}"
-AI_REVIEW_ROUNDS="${MR_DISC_PARTS[2]:-0}"
+ai_split_discussion_items_to_files "$MR_DISCUSSION_ITEMS" "$COMMENTS_FULL_FILE" "$COMMENTS_SINCE_AI_FILE" AI_REVIEW_ROUNDS
+
+MR_COMMENTS_TEXT="$(cat "$COMMENTS_FULL_FILE")"
+MR_SINCE_AI_COMMENTS_TEXT="$(cat "$COMMENTS_SINCE_AI_FILE")"
 
 echo "MR comments: $MR_COMMENTS_COUNT"
 echo "Prior AI review rounds in thread: $AI_REVIEW_ROUNDS"
+echo "Comment diagnostics files:"
+echo "  Raw GitLab notes JSON:     $COMMENTS_RAW_FILE"
+echo "  Normalized discussion:     $COMMENTS_ITEMS_FILE"
+echo "  Full thread (prompt):      $COMMENTS_FULL_FILE"
+echo "  Since last AI (prompt):    $COMMENTS_SINCE_AI_FILE"
+
+ai_log_discussion_items_table "$MR_DISCUSSION_ITEMS" "MR DISCUSSION TIMELINE (index = order in thread)"
+ai_log_human_comments_since_last_ai "$MR_DISCUSSION_ITEMS"
+
+echo
+echo "SINCE_LAST_AI_COMMENTS_TEXT bytes: $(wc -c < "$COMMENTS_SINCE_AI_FILE" | tr -d ' ')"
+echo "Preview (first 800 chars of since-last-AI section sent to AI):"
+head -c 800 "$COMMENTS_SINCE_AI_FILE" || true
+echo
+echo "--- end preview ---"
 
 # ============================================================
 # Linked issues from MR description (Closes/Fixes/Related to #N)
@@ -580,6 +603,11 @@ labels=ai-reviewed
 linked_issues=$LINKED_ISSUE_COUNT
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
+comments_raw=$COMMENTS_RAW_FILE
+comments_items=$COMMENTS_ITEMS_FILE
+comments_full=$COMMENTS_FULL_FILE
+comments_since_ai=$COMMENTS_SINCE_AI_FILE
+prompt_file=$PROMPT_FILE
 ai_provider=$AI_PROVIDER
 agent_log=$AGENT_LOG
 agent_stderr=$AGENT_ERR_LOG
