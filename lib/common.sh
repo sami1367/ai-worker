@@ -3,6 +3,44 @@
 
 # Resolve BASE_DIR from the sourcing script when not already set.
 : "${BASE_DIR:=/home/ubuntu/ai-worker}"
+AI_WORKER_LOG="${BASE_DIR}/logs/worker.log"
+
+# Print to the current log stream and mirror to worker.log (visible via tail -f logs/worker.log).
+ai_echo_worker() {
+    printf '%s\n' "$1"
+    printf '%s\n' "$1" >>"$AI_WORKER_LOG"
+}
+
+# One highly visible line — easy to spot when tailing worker.log.
+ai_log_worker_star_line() {
+    local stars
+    stars="$(printf '%*s' 1000 '' | tr ' ' '*')"
+    ai_echo_worker "$stars"
+}
+
+# After fetching discussion items: star marker + latest comment in the thread.
+ai_log_latest_discussion_comment() {
+    local items_json="$1"
+    local context="${2:-discussion}"
+
+    ai_log_worker_star_line
+    ai_echo_worker "LATEST COMMENT after fetch ($context):"
+
+    if [[ -z "$items_json" || "$items_json" == "[]" || "$items_json" == "null" ]]; then
+        ai_echo_worker "(no comments fetched)"
+        return 0
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        ai_echo_worker "$line"
+    done < <(
+        jq -r '
+            (length - 1) as $idx |
+            .[$idx] |
+            "[\($idx)] \(.created_at) author=\(.author) role=\(.role) ai_review=\(.is_ai_review)\n\(.body)"
+        ' <<<"$items_json"
+    )
+}
 
 ai_load_env() {
     local env_file="${1:-$BASE_DIR/.env}"
@@ -304,13 +342,22 @@ ai_log_human_comments_since_last_ai() {
 
     if [[ "$human_since" == "[]" || -z "$human_since" ]]; then
         echo "(none — prompt SINCE_LAST section will be empty or placeholder)"
+        ai_log_worker_star_line
+        ai_echo_worker "PICKED COMMENTS (since last AI review): (none)"
         return 0
     fi
 
-    jq -r '
-        .[] |
-        "--- \(.author) (\(.role)) at \(.created_at) ---\n\(.body)\n"
-    ' <<<"$human_since"
+    ai_log_worker_star_line
+    ai_echo_worker "PICKED COMMENTS (since last AI review) — fed to SINCE_LAST_AI prompt section:"
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        ai_echo_worker "$line"
+    done < <(
+        jq -r '
+            .[] |
+            "--- \(.author) (\(.role)) at \(.created_at) ---\n\(.body)\n"
+        ' <<<"$human_since"
+    )
 }
 
 # Build normalized discussion items from GitLab MR/issue notes.

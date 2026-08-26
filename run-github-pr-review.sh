@@ -320,6 +320,8 @@ echo "Fetching pull request comments..."
 PR_DISCUSSION_ITEMS="$(ai_github_discussion_items_from_pr "$REPO" "$PR_NUMBER")"
 printf '%s' "$PR_DISCUSSION_ITEMS" > "$COMMENTS_ITEMS_FILE"
 
+ai_log_latest_discussion_comment "$PR_DISCUSSION_ITEMS" "GitHub PR #$PR_NUMBER"
+
 PR_COMMENTS_COUNT="$(jq 'length' <<<"$PR_DISCUSSION_ITEMS")"
 ai_split_discussion_items_to_files "$PR_DISCUSSION_ITEMS" "$COMMENTS_FULL_FILE" "$COMMENTS_SINCE_AI_FILE" AI_REVIEW_ROUNDS
 

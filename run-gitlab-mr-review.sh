@@ -284,6 +284,8 @@ printf '%s' "$MR_NOTES_JSON" > "$COMMENTS_RAW_FILE"
 MR_DISCUSSION_ITEMS="$(ai_gitlab_discussion_items_from_notes "$REPO_PATH" "$MR_NOTES_JSON")"
 printf '%s' "$MR_DISCUSSION_ITEMS" > "$COMMENTS_ITEMS_FILE"
 
+ai_log_latest_discussion_comment "$MR_DISCUSSION_ITEMS" "GitLab MR !$MR_IID"
+
 MR_COMMENTS_COUNT="$(jq 'length' <<<"$MR_DISCUSSION_ITEMS")"
 ai_split_discussion_items_to_files "$MR_DISCUSSION_ITEMS" "$COMMENTS_FULL_FILE" "$COMMENTS_SINCE_AI_FILE" AI_REVIEW_ROUNDS
 
