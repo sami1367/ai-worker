@@ -281,6 +281,9 @@ echo "Fetching merge request comments..."
 MR_NOTES_JSON="$(gitlab_list_mr_notes "$REPO_PATH" "$MR_IID")"
 printf '%s' "$MR_NOTES_JSON" > "$COMMENTS_RAW_FILE"
 
+MR_NOTES_RAW_COUNT="$(jq 'length' <<<"${MR_NOTES_JSON:-[]}")"
+echo "Raw MR notes from GitLab API: $MR_NOTES_RAW_COUNT"
+
 MR_DISCUSSION_ITEMS="$(ai_gitlab_discussion_items_from_notes "$REPO_PATH" "$MR_NOTES_JSON")"
 printf '%s' "$MR_DISCUSSION_ITEMS" > "$COMMENTS_ITEMS_FILE"
 

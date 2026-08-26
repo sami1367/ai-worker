@@ -364,9 +364,13 @@ ai_log_human_comments_since_last_ai() {
 ai_gitlab_discussion_items_from_notes() {
     local project_path="$1"
     local notes_json="$2"
+    local enriched="$notes_json"
 
     if [[ -n "$project_path" ]]; then
-        notes_json="$(gitlab_enrich_notes_with_roles "$project_path" "$notes_json")"
+        enriched="$(gitlab_enrich_notes_with_roles "$project_path" "$notes_json")"
+        if [[ -z "$enriched" ]]; then
+            enriched="$notes_json"
+        fi
     fi
 
     jq '
@@ -380,7 +384,7 @@ ai_gitlab_discussion_items_from_notes() {
                 (.body // "") | (contains("was processed automatically") and contains("ai-review"))
             )
         })
-    ' <<<"${notes_json:-[]}"
+    ' <<<"${enriched:-[]}"
 }
 
 # Enrich GitHub issue/PR comments with repo roles.
@@ -402,16 +406,20 @@ ai_enrich_github_comments_with_roles() {
         fi
     done < <(jq -r '.[].user.login // empty' <<<"$comments_json" | sort -u)
 
-    jq --argjson roles "$role_map" '
+    local enriched
+    if ! enriched="$(jq --argjson roles "$role_map" '
         map(
             . + {
-                review_role: (
-                    if (.user.login // "") as $u | $roles | has($u) then $roles[$u]
-                    else "unknown" end
-                )
+                review_role: ($roles[.user.login // ""] // "unknown")
             }
         )
-    ' <<<"$comments_json"
+    ' <<<"$comments_json")"; then
+        echo "WARNING: Could not enrich GitHub comments with roles (jq failed); using raw comments." >&2
+        printf '%s' "$comments_json"
+        return 0
+    fi
+
+    printf '%s' "$enriched"
 }
 
 # Build normalized discussion items for a GitHub pull request.

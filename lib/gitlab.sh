@@ -385,16 +385,20 @@ gitlab_enrich_notes_with_roles() {
         fi
     done < <(jq -r '.[].author.id // empty' <<<"$notes_json" | sort -u)
 
-    jq --argjson roles "$role_map" '
+    local enriched
+    if ! enriched="$(jq --argjson roles "$role_map" '
         map(
             . + {
-                review_role: (
-                    if (.author.id|tostring) as $id | $roles | has($id) then $roles[$id]
-                    else "unknown" end
-                )
+                review_role: ($roles[.author.id | tostring] // "unknown")
             }
         )
-    ' <<<"$notes_json"
+    ' <<<"$notes_json")"; then
+        echo "WARNING: Could not enrich GitLab notes with roles (jq failed); using raw notes." >&2
+        printf '%s' "$notes_json"
+        return 0
+    fi
+
+    printf '%s' "$enriched"
 }
 
 # Format GitLab notes JSON into readable chronological text.
