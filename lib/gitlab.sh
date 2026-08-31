@@ -130,19 +130,47 @@ gitlab_extract_linked_issue_iids() {
     printf '%s\n' "$matches" | grep -oE '[[:digit:]]+' | sort -n -u
 }
 
-# Print oldest open issue iid with label "ai", or empty.
-gitlab_find_ai_issue() {
+# Print oldest open issue iid with the given label, or empty.
+gitlab_find_open_issue_with_label() {
     local project_path="$1"
+    local label="$2"
     local encoded body iid
 
     encoded="$(gitlab_encode_path "$project_path")"
     body="$(
         gitlab_api GET \
-            "/projects/${encoded}/issues?labels=ai&state=opened&order_by=created_at&sort=asc&per_page=1"
+            "/projects/${encoded}/issues?labels=${label}&state=opened&order_by=created_at&sort=asc&per_page=1"
     )" || return 1
 
     iid="$(jq -r '.[0].iid // empty' <<<"$body")"
     printf '%s' "$iid"
+}
+
+# Print oldest open issue iid with label "ai", or empty.
+gitlab_find_ai_issue() {
+    gitlab_find_open_issue_with_label "$1" "ai"
+}
+
+# Print a short description of the oldest open AI-created MR, or empty.
+# Example: "!12 (ai/issue-3)"
+gitlab_find_open_ai_issue_mr() {
+    local project_path="$1"
+    local encoded body desc
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=100"
+    )" || return 1
+
+    desc="$(
+        jq -r '
+            [.[] | select((.source_branch // "") | startswith("ai/issue-"))]
+            | .[0]
+            | if . then "!\(.iid) (\(.source_branch))" else empty end
+        ' <<<"$body"
+    )"
+    printf '%s' "$desc"
 }
 
 # Add and/or remove labels on an issue.
