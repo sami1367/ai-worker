@@ -27,6 +27,7 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | `followup-review.txt` | Re-review after human replies; role handling |
 | `implement-process.txt` | Issue implementation steps |
 | `implement-final-response.txt` | What to report after implementing |
+| `minimal-changes.txt` | Do not reformat or pretty-print unrelated code |
 | `review-output-guidelines.txt` | Markdown structure for review comments |
 
 ## Placeholders

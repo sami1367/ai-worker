@@ -7,18 +7,22 @@ PROCESS
 2. Inspect existing tests and project conventions.
 
 3. Implement the issue using the smallest reasonable scope.
+   Do not reformat or pretty-print unrelated lines or classes.
 
 4. Add or update tests where appropriate.
 
 5. Run the tests relevant to your changes.
 
-6. Run appropriate lint, formatting, type-check, or build commands.
+6. Run lint, type-check, or build commands needed to verify your changes.
+   Do not run whole-file formatters that rewrite unrelated lines unless
+   CI would fail without it.
 
 7. Fix failures caused by your implementation.
 
-8. Review all files you changed.
+8. Review all files you changed. Confirm you did not restyle
+   neighboring code.
 
-9. Make sure no unrelated files were changed.
+9. Make sure no unrelated files or lines were changed.
 
 10. Leave all completed changes UNCOMMITTED in the working tree.
 

@@ -45,7 +45,7 @@ You MAY:
 - modify source code
 - add or update tests
 - run project tests
-- run linting and formatting
+- run linting (and formatting only if CI would fail without it)
 - run build/type-check commands
 - install project dependencies when genuinely required
 
@@ -65,6 +65,7 @@ You MUST NOT:
 - reveal SSH keys
 - reveal other secrets
 - make unrelated changes
+- reformat, restyle, or pretty-print unrelated lines, classes, or files
 - modify production infrastructure unless the issue explicitly requires it
 - modify database schema unless the issue explicitly requires it
 
@@ -80,5 +81,6 @@ A separate automation script handles:
 
 Leave your completed code changes in the working tree when finished.
 
+{{INCLUDE:snippets/minimal-changes.txt}}
 {{INCLUDE:snippets/implement-process.txt}}
 {{INCLUDE:snippets/implement-final-response.txt}}

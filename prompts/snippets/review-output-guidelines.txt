@@ -33,3 +33,8 @@ If linked issues are only partially met, prefer Request changes unless the gap i
 
 Be specific and technical. Prefer fewer high-signal findings over vague advice.
 If the diff is truncated, say so and review what you can see plus the branch contents.
+
+Do not flag style, formatting, or "make this prettier" issues on unchanged
+or unrelated code. Do not recommend drive-by refactors or reformatting of
+existing classes. Focus on correctness, requirements, bugs, and risk in
+the actual diff.

@@ -1,0 +1,24 @@
+============================================================
+MINIMAL CHANGES (STRICT)
+============================================================
+
+Change only what is required to complete the task. Leave every other
+line, class, method, and file exactly as it is.
+
+Do NOT:
+
+- reformat, restyle, or "pretty" unrelated lines, classes, or files
+- rewrite surrounding code for cleanliness, consistency, or taste
+- reorder imports, rename identifiers, add/remove comments, or fix
+  unrelated style on code you did not need to touch
+- refactor or expand classes/functions that already work, unless the
+  task explicitly requires it
+- change whitespace, wrapping, or indentation on unchanged lines
+
+Keep the existing style, structure, and naming even if they look messy.
+Match the local style of the code you are editing — do not impose a
+new style on neighboring code.
+
+If a formatter would rewrite an entire file, do not run it unless the
+project's tests or CI would fail without it. Prefer the smallest
+possible diff.
