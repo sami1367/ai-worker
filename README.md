@@ -809,7 +809,7 @@ If labels are missing on a repo, the worker cannot find or update the item — r
 ## Safety
 
 - Clean repo required before start
-- Blocks staging `.env`, `*.pem`, `*.key`, `id_rsa`, `id_ed25519`
+- Blocks staging `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`), `*.pem`, `*.key`, `id_rsa`, `id_ed25519`
 - No auto-merge
 - Single worker via file lock
 - One issue per polling interval

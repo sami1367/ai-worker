@@ -147,12 +147,26 @@ ai_foreach_project() {
 }
 
 # Return 0 if staged/changed file list looks like secrets.
+# Allows env templates (.env.example / .env.sample / .env.template).
 ai_has_secret_files() {
     local changed_files="$1"
+    local path base
 
-    grep -Eq \
-        '(^|/)\.env($|\.)|(^|/).*\.pem$|(^|/).*\.key$|(^|/)id_rsa$|(^|/)id_ed25519$' \
-        <<<"$changed_files"
+    while IFS= read -r path || [[ -n "$path" ]]; do
+        [[ -z "$path" ]] && continue
+        base="${path##*/}"
+
+        case "$base" in
+            .env.example|.env.sample|.env.template)
+                continue
+                ;;
+            .env|.env.*|*.pem|*.key|id_rsa|id_ed25519)
+                return 0
+                ;;
+        esac
+    done <<<"$changed_files"
+
+    return 1
 }
 
 ai_log_banner() {

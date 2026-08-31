@@ -461,15 +461,10 @@ printf '%s\n' "$CHANGED_FILES"
 # Basic secret/private-key protection
 # ============================================================
 
-if grep -Eq \
-    '(^|/)\.env($|\.)|(^|/).*\.pem$|(^|/).*\.key$|(^|/)id_rsa$|(^|/)id_ed25519$' \
-    <<<"$CHANGED_FILES"; then
-
+if ai_has_secret_files "$CHANGED_FILES"; then
     echo
-    echo "ERROR:"
-    echo "A potential secret/private-key file is staged."
+    echo "ERROR: A potential secret/private-key file is staged."
     echo "Refusing to continue."
-
     exit 30
 fi
 
