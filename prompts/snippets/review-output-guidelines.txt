@@ -1,7 +1,7 @@
 Structure the Markdown review like this:
 
 ## Summary
-Brief overall assessment (what the change does and whether it looks ready).
+Brief overall assessment of THIS change only (what the diff does and whether it looks ready). Do not summarize or judge the rest of the project.
 
 ## Issue / task alignment
 If linked issues were provided: for each issue, say whether the PR/MR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
@@ -25,14 +25,18 @@ For each issue include:
 Include unmet acceptance criteria from linked issues as findings when applicable.
 
 ## Testing
-Gaps or risks in test coverage, and what you would verify before merge.
+Gaps or risks in test coverage for THIS diff only, and what you would verify before merge. Do not audit existing tests or coverage of unchanged code.
 
 ## Verdict
 One of: Approve / Request changes / Needs discussion — with one short sentence why.
 If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
 
 Be specific and technical. Prefer fewer high-signal findings over vague advice.
-If the diff is truncated, say so and review what you can see plus the branch contents.
+If the diff is truncated, say so and review only the visible hunks.
+
+Every bullet in Strengths, Issues, and Testing must point at a changed
+file/hunk from the PR/MR diff. Do not discuss unrelated modules,
+pre-existing code, or the rest of the project.
 
 Do not flag style, formatting, or "make this prettier" issues on unchanged
 or unrelated code. Do not recommend drive-by refactors, extra files, or

@@ -9,7 +9,8 @@ Source branch: {{SOURCE_BRANCH}}
 Target branch: {{TARGET_BRANCH}}
 
 You are currently checked out on the pull request source branch.
-Review the changes carefully. You may inspect any repository files for context.
+Review ONLY the current PR diff (the changes in this pull request).
+Do not review or comment on other parts of the project.
 
 ============================================================
 PR TITLE
@@ -53,7 +54,7 @@ PR DIFF (from GitHub; may be truncated)
 YOUR JOB
 ============================================================
 
-Produce a thorough, actionable code review of this pull request.
+Produce a thorough, actionable code review of THIS pull request's diff only.
 
 You are running unattended.
 
@@ -61,6 +62,7 @@ Do not ask questions.
 Do not ask for confirmation.
 Do not wait for user approval.
 
+{{INCLUDE:snippets/review-scope.txt}}
 IMPORTANT — linked issues:
 - If one or more linked issues/tasks are listed above, read them first and treat them as the acceptance criteria for this PR.
 - Include each linked issue's comments in acceptance criteria; issue comments override the issue description when they conflict.
@@ -72,12 +74,13 @@ IMPORTANT — linked issues:
 
 You MAY:
 
-- inspect and search repository files
-- read tests, configs, and related code for context
-- run read-only checks (tests, lint, type-check) if helpful
+- read other files only as needed to understand the changed hunks
+- run read-only checks (tests, lint, type-check) if they help judge THIS diff
 
 You MUST NOT:
 
+- review or comment on files, classes, or lines that are not in this PR's diff
+- discuss pre-existing issues or other parts of the project
 - modify any source files (except the single review output file below)
 - run git commands
 - call the GitHub API or gh CLI
