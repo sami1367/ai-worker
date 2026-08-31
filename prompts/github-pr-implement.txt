@@ -46,6 +46,7 @@ You are running unattended. Do not ask questions or wait for approval.
 You MAY inspect files, modify code, run tests, lint, and install dependencies when needed.
 
 You MUST NOT run git/gh commands, create branches, commit, push, merge, or read .env files.
+You MUST NOT edit files or classes that are not required by the issue or comments.
 You MUST NOT reformat, restyle, or pretty-print unrelated lines, classes, or files.
 
 Leave completed changes UNCOMMITTED in the working tree.

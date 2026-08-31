@@ -65,6 +65,7 @@ You MUST NOT:
 - reveal SSH keys
 - reveal other secrets
 - make unrelated changes
+- edit files or classes that are not required by the issue
 - reformat, restyle, or pretty-print unrelated lines, classes, or files
 - modify production infrastructure unless the issue explicitly requires it
 - modify database schema unless the issue explicitly requires it

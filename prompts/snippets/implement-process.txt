@@ -3,11 +3,14 @@ PROCESS
 ============================================================
 
 1. Inspect the relevant architecture and existing implementation.
+   List the files and classes the issue actually requires. Do not
+   edit anything outside that list.
 
 2. Inspect existing tests and project conventions.
 
 3. Implement the issue using the smallest reasonable scope.
-   Do not reformat or pretty-print unrelated lines or classes.
+   Change only required files and classes. Do not reformat or
+   pretty-print unrelated lines, classes, or files.
 
 4. Add or update tests where appropriate.
 
@@ -20,9 +23,11 @@ PROCESS
 7. Fix failures caused by your implementation.
 
 8. Review all files you changed. Confirm you did not restyle
-   neighboring code.
+   neighboring code and did not touch classes the issue did not
+   require.
 
-9. Make sure no unrelated files or lines were changed.
+9. Make sure no unrelated files, classes, or lines were changed.
+   If a file is not required by the issue, revert any edits to it.
 
 10. Leave all completed changes UNCOMMITTED in the working tree.
 

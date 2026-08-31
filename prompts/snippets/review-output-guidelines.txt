@@ -35,6 +35,7 @@ Be specific and technical. Prefer fewer high-signal findings over vague advice.
 If the diff is truncated, say so and review what you can see plus the branch contents.
 
 Do not flag style, formatting, or "make this prettier" issues on unchanged
-or unrelated code. Do not recommend drive-by refactors or reformatting of
-existing classes. Focus on correctness, requirements, bugs, and risk in
-the actual diff.
+or unrelated code. Do not recommend drive-by refactors, extra files, or
+reformatting of existing classes. If the diff touches files or classes
+that the issue did not require, call that out as scope creep.
+Focus on correctness, requirements, bugs, and risk in the actual diff.
