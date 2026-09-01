@@ -78,7 +78,7 @@ With the worker running as a systemd service (recommended), you only touch GitLa
 
 | What you want | Where | What you do | What the worker does |
 |---------------|-------|-------------|----------------------|
-| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. **Waits** if another AI PR/MR is still open. |
+| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. **Waits** if that same repo already has an open AI PR/MR. |
 | AI-review a PR | GitHub project in `projects.conf` | Add label **`ai-review`** on an open PR | Reviews diff + linked issues → posts PR comment → `ai-reviewed` / `ai-review-failed` |
 | AI-review an MR | GitLab project in `gitlab-projects.conf` | Add label **`ai-review`** on an open MR | Reviews diff + linked issues → posts MR comment → `ai-reviewed` / `ai-review-failed` |
 
@@ -90,7 +90,7 @@ With the worker running as a systemd service (recommended), you only touch GitLa
 4. On any open PR/MR in those projects, add **`ai-review`**.
 5. Within ~60s the worker claims it (`ai-reviewing`), runs the review, posts a comment, then sets `ai-reviewed`.
 
-It polls every ~60s when idle. It never runs two jobs at once. **New issues** wait if any registered project already has an open AI pull/merge request (branch `ai/issue-*`) or an issue labeled `ai-working`. After that PR/MR is merged or closed, the next `ai` issue is picked up. Labeling an existing PR/MR with `ai` or `ai-review` is not blocked.
+It polls every ~60s when idle. It never runs two jobs at once. **New issues** in a repo wait if that same repo already has an open AI pull/merge request (branch `ai/issue-*`) or an issue labeled `ai-working`. An open PR/MR in another repo does not block this one. After that PR/MR is merged or closed, the next `ai` issue in that repo is picked up. Labeling an existing PR/MR with `ai` or `ai-review` is not blocked.
 
 **Review queue example:** label three open PRs/MRs with `ai-review` → worker reviews the oldest first → updates labels → immediately picks the next → and so on.
 
@@ -100,10 +100,10 @@ Idle log line (healthy):
 [YYYY-MM-DD HH:MM:SS UTC] No queued AI issues or PR/MR reviews. Sleeping 60s.
 ```
 
-When a previous AI PR/MR is still open:
+When a previous AI PR/MR is still open **in that same repo**:
 
 ```text
-[YYYY-MM-DD HH:MM:SS UTC] Not starting a new issue (github my-app: open pull request #12 (ai/issue-3)).
+[YYYY-MM-DD HH:MM:SS UTC] Not starting a new issue in this repo (github my-app: open pull request #12 (ai/issue-3)).
 [YYYY-MM-DD HH:MM:SS UTC] No queued AI issues or PR/MR reviews. Sleeping 60s.
 ```
 
@@ -680,8 +680,8 @@ flowchart LR
 
 1. **`worker.sh`** polls every 60 seconds while idle.
 2. Priority per cycle (one task only): GitHub issues → GitHub PR implement → GitHub PR reviews → GitLab issues → GitLab MR implement → GitLab MR reviews.
-3. **One issue at a time:** if any project already has an `ai-working` issue or an open AI-created PR/MR (`ai/issue-*`), new `ai` issues are left queued until that PR/MR is merged or closed. PR/MR follow-up (`ai` on the PR/MR) and reviews still run.
-4. After each finished task, the worker **immediately** looks for the next allowed item. It only sleeps when nothing is left (or when new issues are blocked by an open PR/MR and nothing else is queued).
+3. **One issue at a time per repo:** if a repo already has an `ai-working` issue or an open AI-created PR/MR (`ai/issue-*`), new `ai` issues in **that same repo** stay queued until that PR/MR is merged or closed. Other repos can still start issues. PR/MR follow-up (`ai` on the PR/MR) and reviews still run.
+4. After each finished task, the worker **immediately** looks for the next allowed item. It only sleeps when nothing is left (or when new issues are blocked by an open PR/MR in their own repo and nothing else is queued).
 5. Issue path: label becomes `ai-working` → AI agent implements → opens a PR/MR → `ai-pr` or `ai-failed`.
 6. PR/MR review path: label becomes `ai-reviewing` → AI agent reviews linked issues + diff → posts a comment → `ai-reviewed` or `ai-review-failed`.
 
@@ -707,7 +707,7 @@ Create these on every registered repository before queuing issues.
 | Label | Color | Who sets it | Meaning |
 |-------|-------|-------------|---------|
 | `ai` | Green (`0E8A16`) | **You** (manually) | Queue this open issue for the worker |
-| `ai-working` | Yellow (`FBCA04`) | Worker | Issue is being processed right now — blocks starting any other issue |
+| `ai-working` | Yellow (`FBCA04`) | Worker | Issue is being processed right now — blocks starting another issue in that same repo |
 | `ai-pr` | Blue (`1D76DB`) | Worker | Finished successfully; a PR (GitHub) or MR (GitLab) was opened |
 | `ai-failed` | Red (`D73A4A`) | Worker | Run failed — check logs before retrying |
 
@@ -718,7 +718,7 @@ ai  →  ai-working  →  ai-pr      (success — PR/MR created)
                  ↘  ai-failed   (failure — not auto-retried)
 ```
 
-The worker starts **at most one new issue** across all GitHub and GitLab projects. While an issue is `ai-working`, or while an AI-created PR/MR (branch `ai/issue-*`) is still open, further `ai` issues stay queued. Merge or close that PR/MR to unblock the next issue. If a run crashes and leaves `ai-working` on an issue, remove that label (add `ai` again to retry) or new issues will wait.
+The worker still runs **one job at a time**, but the issue gate is **per repo**. While an issue in a repo is `ai-working`, or while an AI-created PR/MR (branch `ai/issue-*`) is still open in that repo, further `ai` issues in **that same repo** stay queued. Other registered repos are not blocked. Merge or close that PR/MR to unblock the next issue there. If a run crashes and leaves `ai-working` on an issue, remove that label (add `ai` again to retry) or new issues in that repo will wait.
 
 ### PR / MR review labels
 

@@ -70,13 +70,13 @@ echo "Worker log:           $WORKER_LOG"
 echo "============================================================"
 
 # ============================================================
-# Single-issue gate
+# Per-repo issue gate
 #
-# New `ai` issues are not started while any registered project
-# already has:
+# A new `ai` issue is not started in a repo that already has:
 #   - an open issue labeled ai-working, or
 #   - an open AI-created pull/merge request (branch ai/issue-*)
-# PR/MR follow-up implement and review jobs are not blocked.
+# Other repos are not blocked. PR/MR follow-up implement and
+# review jobs are not blocked.
 # ============================================================
 
 github_repo_from_dir() {
@@ -166,42 +166,6 @@ gitlab_in_flight_issue_reason() {
     fi
 }
 
-# Callback helpers for ai_foreach_project: stop at the first in-flight reason.
-_capture_github_in_flight() {
-    local reason
-    reason="$(github_in_flight_issue_reason "$1" "$2")"
-    if [[ -n "$reason" ]]; then
-        IN_FLIGHT_REASON="$reason"
-        return 1
-    fi
-    return 0
-}
-
-_capture_gitlab_in_flight() {
-    local reason
-    reason="$(gitlab_in_flight_issue_reason "$1" "$2")"
-    if [[ -n "$reason" ]]; then
-        IN_FLIGHT_REASON="$reason"
-        return 1
-    fi
-    return 0
-}
-
-# Scan all registered projects. Prints the first in-flight reason, or empty.
-worker_in_flight_issue_reason() {
-    IN_FLIGHT_REASON=""
-
-    if [[ -f "$PROJECTS_FILE" ]]; then
-        ai_foreach_project "$PROJECTS_FILE" _capture_github_in_flight || true
-    fi
-
-    if [[ -z "$IN_FLIGHT_REASON" && -f "$GITLAB_PROJECTS_FILE" ]]; then
-        ai_foreach_project "$GITLAB_PROJECTS_FILE" _capture_gitlab_in_flight || true
-    fi
-
-    printf '%s' "$IN_FLIGHT_REASON"
-}
-
 # ============================================================
 # Process one GitHub issue (returns 0 if handled, 1 if none/skip)
 # Sets FOUND_TASK=1 when a task was claimed.
@@ -210,7 +174,7 @@ worker_in_flight_issue_reason() {
 process_github_project() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
-    local REPO ISSUE_NUMBER
+    local REPO ISSUE_NUMBER in_flight
 
     REPO="$(
         cd "$PROJECT_DIR"
@@ -234,6 +198,12 @@ process_github_project() {
     )"
 
     if [[ -z "$ISSUE_NUMBER" ]]; then
+        return 0
+    fi
+
+    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
+    if [[ -n "$in_flight" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
         return 0
     fi
 
@@ -321,7 +291,7 @@ process_github_project() {
 process_gitlab_project() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
-    local REPO_PATH ISSUE_NUMBER
+    local REPO_PATH ISSUE_NUMBER in_flight
 
     if ! gitlab_configured; then
         if [[ "$GITLAB_WARNED" -eq 0 ]]; then
@@ -341,6 +311,12 @@ process_gitlab_project() {
     ISSUE_NUMBER="$(gitlab_find_ai_issue "$REPO_PATH" 2>/dev/null || true)"
 
     if [[ -z "$ISSUE_NUMBER" ]]; then
+        return 0
+    fi
+
+    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
+    if [[ -n "$in_flight" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
         return 0
     fi
 
@@ -846,24 +822,21 @@ process_gitlab_mr_review() {
 # Main loop
 #
 # Each cycle handles at most one task (issue or MR review).
-# New issues are skipped while any AI-created PR/MR is still
-# open (one issue in flight across all projects). PR/MR
-# implement and review jobs still drain back-to-back.
-# Sleep only when nothing is queued.
+# A new issue is skipped only in a repo that already has an
+# open AI-created PR/MR (or ai-working). Other repos can still
+# start issues. PR/MR implement and review jobs still drain
+# back-to-back. Sleep only when nothing is queued.
 # ============================================================
 
 while true; do
 
     FOUND_TASK=0
-    IN_FLIGHT_REASON="$(worker_in_flight_issue_reason)"
 
     # Priority: GitHub issues → GitHub PR implement → GitHub PR reviews →
     #           GitLab issues → GitLab MR implement → GitLab MR reviews.
-    # New issues run only when no other issue/PR/MR is already in flight.
-    if [[ -z "$IN_FLIGHT_REASON" && -f "$PROJECTS_FILE" ]]; then
+    # New issues in a repo wait only on that same repo's open AI PR/MR.
+    if [[ -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_project || true
-    elif [[ -n "$IN_FLIGHT_REASON" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue ($IN_FLIGHT_REASON)."
     fi
 
     if [[ "$FOUND_TASK" -eq 0 && -f "$PROJECTS_FILE" ]]; then
@@ -874,7 +847,7 @@ while true; do
         ai_foreach_project "$PROJECTS_FILE" process_github_pr_review || true
     fi
 
-    if [[ -z "$IN_FLIGHT_REASON" && "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
+    if [[ "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
         ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_project || true
     fi
 
