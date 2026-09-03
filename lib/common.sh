@@ -115,6 +115,55 @@ ai_validate_project_dir() {
     return 0
 }
 
+# Normalize an issue title for special-case matching (trim + lowercase).
+ai_normalize_issue_title() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# Return 0 if the title is the "new release" / "new tag" shortcut.
+ai_is_new_release_title() {
+    local norm
+    norm="$(ai_normalize_issue_title "$1")"
+    [[ "$norm" == "new release" || "$norm" == "new tag" ]]
+}
+
+# Highest local git tag matching vMAJOR.MINOR.PATCH, or empty.
+# Usage: ai_latest_git_semver_tag <project_dir>
+ai_latest_git_semver_tag() {
+    local project_dir="$1"
+
+    git -C "$project_dir" tag -l 'v*.*.*' --sort=-v:refname | head -n 1
+}
+
+# Highest vMAJOR.MINOR.PATCH from stdin lines (non-matching lines ignored).
+ai_max_semver_tag_from_lines() {
+    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true
+}
+
+# Print next patch bump for a vMAJOR.MINOR.PATCH tag.
+# Usage: ai_bump_semver_patch <tag>
+ai_bump_semver_patch() {
+    local tag="$1"
+
+    if [[ ! "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        return 1
+    fi
+
+    printf 'v%s.%s.%s\n' \
+        "${BASH_REMATCH[1]}" \
+        "${BASH_REMATCH[2]}" \
+        "$((BASH_REMATCH[3] + 1))"
+}
+
+# True if a local git tag ref exists.
+# Usage: ai_git_tag_exists <project_dir> <tag>
+ai_git_tag_exists() {
+    local project_dir="$1"
+    local tag="$2"
+
+    git -C "$project_dir" rev-parse -q --verify "refs/tags/${tag}" >/dev/null
+}
+
 # Iterate conf lines. Calls callback as: callback <project> <project_dir>
 # Skips blank lines and comments. Callback non-zero with FOUND_TASK=1 should
 # signal the caller to stop (callback sets globals as needed).

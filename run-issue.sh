@@ -341,15 +341,15 @@ fi
 # ============================================================
 # Special case: title "new release" or "new tag"
 #
-# Skip the AI agent. Fetch tags, bump the latest vMAJOR.MINOR.PATCH
-# tag by one on the patch component, and create a draft GitHub release.
+# Skip the AI agent. Sync the repo, then bump past the highest
+# vMAJOR.MINOR.PATCH already used by either a git tag or a
+# GitHub release (including drafts — draft releases often have
+# no fetchable git tag yet), and create a draft GitHub release.
 # ============================================================
 
-ISSUE_TITLE_NORM="$(
-    printf '%s' "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
-)"
+ISSUE_TITLE_NORM="$(ai_normalize_issue_title "$ISSUE_TITLE")"
 
-if [[ "$ISSUE_TITLE_NORM" == "new release" || "$ISSUE_TITLE_NORM" == "new tag" ]]; then
+if ai_is_new_release_title "$ISSUE_TITLE"; then
 
     ai_log_banner "NEW RELEASE / NEW TAG (NO AI)"
     echo "Issue title matches '$ISSUE_TITLE_NORM'."
@@ -361,9 +361,23 @@ if [[ "$ISSUE_TITLE_NORM" == "new release" || "$ISSUE_TITLE_NORM" == "new tag" ]
 
     git -C "$PROJECT_DIR" fetch --tags --prune origin
 
+    LATEST_GIT_TAG="$(ai_latest_git_semver_tag "$PROJECT_DIR")"
+    echo "Latest git tag:     ${LATEST_GIT_TAG:-<none>}"
+
+    echo
+    echo "Checking GitHub releases (including drafts)..."
+
+    LATEST_RELEASE_TAG="$(
+        gh release list --repo "$REPO" --limit 100 --json tagName \
+            --jq '.[].tagName' |
+            ai_max_semver_tag_from_lines
+    )"
+
+    echo "Latest release tag: ${LATEST_RELEASE_TAG:-<none>}"
+
     LATEST_TAG="$(
-        git -C "$PROJECT_DIR" tag -l 'v*.*.*' --sort=-v:refname |
-            head -n 1
+        printf '%s\n%s\n' "$LATEST_GIT_TAG" "$LATEST_RELEASE_TAG" |
+            ai_max_semver_tag_from_lines
     )"
 
     if [[ -z "$LATEST_TAG" ]]; then
@@ -373,33 +387,23 @@ if [[ "$ISSUE_TITLE_NORM" == "new release" || "$ISSUE_TITLE_NORM" == "new tag" ]
         exit 50
     fi
 
-    if [[ ! "$LATEST_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    if ! NEW_TAG="$(ai_bump_semver_patch "$LATEST_TAG")"; then
         echo
         echo "ERROR: Latest tag is not in vMAJOR.MINOR.PATCH format: $LATEST_TAG"
         exit 51
     fi
 
-    TAG_MAJOR="${BASH_REMATCH[1]}"
-    TAG_MINOR="${BASH_REMATCH[2]}"
-    TAG_PATCH="${BASH_REMATCH[3]}"
-    NEW_PATCH=$((TAG_PATCH + 1))
-    NEW_TAG="v${TAG_MAJOR}.${TAG_MINOR}.${NEW_PATCH}"
+    # Keep bumping if a local tag or GitHub release already claims the candidate
+    # (race / stale draft without a git tag).
+    while ai_git_tag_exists "$PROJECT_DIR" "$NEW_TAG" ||
+          gh release view "$NEW_TAG" --repo "$REPO" >/dev/null 2>&1; do
+        echo "Candidate $NEW_TAG already exists; bumping patch again..."
+        NEW_TAG="$(ai_bump_semver_patch "$NEW_TAG")"
+    done
 
     echo
-    echo "Latest tag:  $LATEST_TAG"
+    echo "Latest used: $LATEST_TAG"
     echo "New tag:     $NEW_TAG"
-
-    if git -C "$PROJECT_DIR" rev-parse -q --verify "refs/tags/${NEW_TAG}" >/dev/null; then
-        echo
-        echo "ERROR: Tag already exists locally: $NEW_TAG"
-        exit 52
-    fi
-
-    if gh release view "$NEW_TAG" --repo "$REPO" >/dev/null 2>&1; then
-        echo
-        echo "ERROR: A GitHub release already exists for: $NEW_TAG"
-        exit 53
-    fi
 
     echo
     echo "Creating draft release: $NEW_TAG"
@@ -448,6 +452,7 @@ EOF
         --comment "Closed after creating draft release $NEW_TAG."
 
     cat > "$RESULT_FILE" <<EOF
+forge=github
 project=$PROJECT
 repository=$REPO
 issue=$ISSUE_NUMBER
@@ -461,6 +466,7 @@ main_log=$LOG_FILE
 EOF
 
     ai_log_banner "RELEASE COMPLETE"
+    echo "Forge:        github"
     echo "Project:      $PROJECT"
     echo "Issue:        #$ISSUE_NUMBER"
     echo "Previous tag: $LATEST_TAG"
