@@ -589,3 +589,105 @@ gitlab_create_mr_note() {
     payload="$(jq -n --arg body "$body" '{body: $body}')"
     gitlab_api POST "/projects/${encoded}/merge_requests/${mr_iid}/notes" -d "$payload"
 }
+
+# Print all release tag_name values (one per line), paginated.
+# Usage: gitlab_list_release_tags <project_path>
+gitlab_list_release_tags() {
+    local project_path="$1"
+    local encoded page=1 body count
+
+    encoded="$(gitlab_encode_path "$project_path")"
+
+    while true; do
+        body="$(
+            gitlab_api GET \
+                "/projects/${encoded}/releases?per_page=100&page=${page}"
+        )" || return 1
+
+        count="$(jq 'length' <<<"$body")"
+        if [[ "$count" -eq 0 ]]; then
+            break
+        fi
+
+        jq -r '.[].tag_name // empty' <<<"$body"
+
+        if [[ "$count" -lt 100 ]]; then
+            break
+        fi
+
+        page=$((page + 1))
+    done
+}
+
+# Return 0 if a release exists for the given tag.
+# Usage: gitlab_release_exists <project_path> <tag>
+gitlab_release_exists() {
+    local project_path="$1"
+    local tag="$2"
+    local encoded tag_encoded
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    tag_encoded="$(printf '%s' "$tag" | jq -sRr @uri)"
+
+    gitlab_api GET "/projects/${encoded}/releases/${tag_encoded}" >/dev/null 2>&1
+}
+
+# Create an upcoming (draft-like) GitLab release from ref, creating the tag if needed.
+# Prints the release web URL on success.
+# Usage: gitlab_create_upcoming_release <project_path> <tag> [ref] [description]
+gitlab_create_upcoming_release() {
+    local project_path="$1"
+    local tag="$2"
+    local ref="${3:-main}"
+    local description="${4:-}"
+    local encoded payload body url released_at
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    # Far-future released_at → Upcoming Release in GitLab UI (closest to GitHub draft).
+    released_at="2099-01-01T00:00:00Z"
+
+    if [[ -z "$description" ]]; then
+        description="Automated upcoming release created by the AI worker. Update or publish when ready."
+    fi
+
+    payload="$(
+        jq -n \
+            --arg name "$tag" \
+            --arg tag_name "$tag" \
+            --arg ref "$ref" \
+            --arg description "$description" \
+            --arg released_at "$released_at" \
+            '{
+                name: $name,
+                tag_name: $tag_name,
+                ref: $ref,
+                description: $description,
+                released_at: $released_at
+            }'
+    )"
+
+    body="$(
+        gitlab_api POST "/projects/${encoded}/releases" -d "$payload"
+    )" || return 1
+
+    # Prefer the project Releases page URL (API _links.self is the API endpoint).
+    url="https://${GITLAB_HOST}/${project_path}/-/releases/${tag}"
+    if [[ -z "$(jq -r '.tag_name // empty' <<<"$body")" ]]; then
+        return 1
+    fi
+
+    printf '%s\n' "$url"
+}
+
+# Close a GitLab issue.
+# Usage: gitlab_close_issue <project_path> <issue_iid>
+gitlab_close_issue() {
+    local project_path="$1"
+    local issue_iid="$2"
+    local encoded payload
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    payload="$(jq -n '{state_event: "close"}')"
+
+    gitlab_api PUT "/projects/${encoded}/issues/${issue_iid}" -d "$payload" >/dev/null
+}

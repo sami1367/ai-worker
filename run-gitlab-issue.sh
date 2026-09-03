@@ -50,7 +50,7 @@ fi
 
 ai_require_cmds git curl jq tee || exit 1
 
-ai_init || exit 1
+# AI provider is initialized later — skipped for title "new release" / "new tag".
 
 # ============================================================
 # Resolve project
@@ -167,7 +167,6 @@ issue=$ISSUE_NUMBER
 started=$(date '+%Y-%m-%d %H:%M:%S %Z')
 pid=$$
 log=$LOG_FILE
-ai_provider=$AI_PROVIDER
 agent_log=$AGENT_LOG
 agent_stderr=$AGENT_ERR_LOG
 EOF
@@ -179,11 +178,7 @@ echo "Host:          $GITLAB_HOST"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
 echo "Project dir:   $PROJECT_DIR"
-echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
-echo "AI binary:     $AI_PROVIDER_BIN"
 echo "Main log:      $LOG_FILE"
-echo "Agent log:     $AGENT_LOG"
-echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "============================================================"
 
 # ============================================================
@@ -260,6 +255,169 @@ if [[ "$ISSUE_STATE" != "opened" ]]; then
     echo "Nothing to do."
     exit 0
 fi
+
+# ============================================================
+# Special case: title "new release" or "new tag"
+#
+# Skip the AI agent. Sync tags, bump past the highest
+# vMAJOR.MINOR.PATCH from git tags or GitLab releases
+# (including upcoming), and create an upcoming GitLab release
+# (draft-like; does not publish as current until released_at).
+# ============================================================
+
+ISSUE_TITLE_NORM="$(ai_normalize_issue_title "$ISSUE_TITLE")"
+
+if ai_is_new_release_title "$ISSUE_TITLE"; then
+
+    ai_log_banner "NEW RELEASE / NEW TAG (NO AI)"
+    echo "Issue title matches '$ISSUE_TITLE_NORM'."
+    echo "Skipping AI agent; creating the next upcoming GitLab release."
+    echo "============================================================"
+
+    echo
+    echo "Fetching all tags from origin..."
+
+    git -C "$PROJECT_DIR" fetch --tags --prune origin
+
+    LATEST_GIT_TAG="$(ai_latest_git_semver_tag "$PROJECT_DIR")"
+    echo "Latest git tag:     ${LATEST_GIT_TAG:-<none>}"
+
+    echo
+    echo "Checking GitLab releases (including upcoming)..."
+
+    LATEST_RELEASE_TAG="$(
+        gitlab_list_release_tags "$REPO_PATH" |
+            ai_max_semver_tag_from_lines
+    )"
+
+    echo "Latest release tag: ${LATEST_RELEASE_TAG:-<none>}"
+
+    LATEST_TAG="$(
+        printf '%s\n%s\n' "$LATEST_GIT_TAG" "$LATEST_RELEASE_TAG" |
+            ai_max_semver_tag_from_lines
+    )"
+
+    if [[ -z "$LATEST_TAG" ]]; then
+        echo
+        echo "ERROR: No tags matching vMAJOR.MINOR.PATCH were found."
+        echo "Create an initial tag (for example v0.0.1) before using 'new release'."
+        exit 50
+    fi
+
+    if ! NEW_TAG="$(ai_bump_semver_patch "$LATEST_TAG")"; then
+        echo
+        echo "ERROR: Latest tag is not in vMAJOR.MINOR.PATCH format: $LATEST_TAG"
+        exit 51
+    fi
+
+    while ai_git_tag_exists "$PROJECT_DIR" "$NEW_TAG" ||
+          gitlab_release_exists "$REPO_PATH" "$NEW_TAG"; do
+        echo "Candidate $NEW_TAG already exists; bumping patch again..."
+        NEW_TAG="$(ai_bump_semver_patch "$NEW_TAG")"
+    done
+
+    echo
+    echo "Latest used: $LATEST_TAG"
+    echo "New tag:     $NEW_TAG"
+
+    RELEASE_DESCRIPTION="$(cat <<EOF
+## Automated upcoming release
+
+Created by the AI worker because issue title is \`${ISSUE_TITLE_NORM}\`.
+
+- Previous tag: \`${LATEST_TAG}\`
+- New tag: \`${NEW_TAG}\`
+- Source ref: \`main\`
+
+This is an **upcoming** release (not the current published release). Update \`released_at\` or edit the release on GitLab when you are ready. The automation never marks releases as current automatically.
+EOF
+)"
+
+    echo
+    echo "Creating upcoming GitLab release: $NEW_TAG (from main)"
+
+    RELEASE_URL="$(
+        gitlab_create_upcoming_release \
+            "$REPO_PATH" \
+            "$NEW_TAG" \
+            "main" \
+            "$RELEASE_DESCRIPTION"
+    )"
+
+    if [[ -z "$RELEASE_URL" ]]; then
+        echo
+        echo "ERROR: GitLab release create did not return a release URL."
+        exit 54
+    fi
+
+    echo
+    echo "Upcoming release created:"
+    echo "$RELEASE_URL"
+
+    COMMENT_BODY="$(cat <<EOF
+## Automated upcoming release
+
+Skipped the AI agent because this issue title is \`$ISSUE_TITLE_NORM\`.
+
+- Previous tag: \`$LATEST_TAG\`
+- New upcoming release: \`$NEW_TAG\`
+- URL: $RELEASE_URL
+
+GitLab has no draft releases; this was created as an **upcoming** release. Edit or set \`released_at\` when you are ready. This automation never publishes releases as current automatically.
+EOF
+)"
+
+    echo
+    echo "Commenting on issue #$ISSUE_NUMBER..."
+    gitlab_create_issue_note "$REPO_PATH" "$ISSUE_NUMBER" "$COMMENT_BODY" >/dev/null
+
+    echo
+    echo "Closing issue #$ISSUE_NUMBER..."
+    gitlab_close_issue "$REPO_PATH" "$ISSUE_NUMBER"
+
+    cat > "$RESULT_FILE" <<EOF
+forge=gitlab
+project=$PROJECT
+repository=$REPO_PATH
+issue=$ISSUE_NUMBER
+issue_url=$ISSUE_URL
+mode=new-release
+previous_tag=$LATEST_TAG
+new_tag=$NEW_TAG
+release_url=$RELEASE_URL
+completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
+main_log=$LOG_FILE
+EOF
+
+    ai_log_banner "RELEASE COMPLETE"
+    echo "Forge:        gitlab"
+    echo "Project:      $PROJECT"
+    echo "Issue:        #$ISSUE_NUMBER"
+    echo "Previous tag: $LATEST_TAG"
+    echo "New tag:      $NEW_TAG"
+    echo "Release:      $RELEASE_URL"
+    echo "Main log:     $LOG_FILE"
+    echo "Result file:  $RESULT_FILE"
+    echo "============================================================"
+
+    exit 0
+fi
+
+# ============================================================
+# Initialize AI provider (normal issue path)
+# ============================================================
+
+ai_init || exit 1
+
+cat >> "$STATE_FILE" <<EOF
+ai_provider=$AI_PROVIDER
+EOF
+
+echo
+echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
+echo "AI binary:     $AI_PROVIDER_BIN"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 
 # ============================================================
 # Read issue comments
