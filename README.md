@@ -79,6 +79,7 @@ With the worker running as a systemd service (recommended), you only touch GitLa
 | What you want | Where | What you do | What the worker does |
 |---------------|-------|-------------|----------------------|
 | Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. **Waits** if that same repo already has an open AI PR/MR. |
+| Create next draft release | GitHub project in `projects.conf` | Open an issue titled **`new release`** or **`new tag`**, add label **`ai`** | Skips AI → fetches tags → bumps latest `vMAJOR.MINOR.PATCH` (e.g. `v0.11.98` → `v0.11.99`) → `gh release create … --draft --generate-notes` → comments + closes the issue → `ai-pr` / `ai-failed` |
 | AI-review a PR | GitHub project in `projects.conf` | Add label **`ai-review`** on an open PR | Reviews diff + linked issues → posts PR comment → `ai-reviewed` / `ai-review-failed` |
 | AI-review an MR | GitLab project in `gitlab-projects.conf` | Add label **`ai-review`** on an open MR | Reviews diff + linked issues → posts MR comment → `ai-reviewed` / `ai-review-failed` |
 
@@ -682,7 +683,7 @@ flowchart LR
 2. Priority per cycle (one task only): GitHub issues → GitHub PR implement → GitHub PR reviews → GitLab issues → GitLab MR implement → GitLab MR reviews.
 3. **One issue at a time per repo:** if a repo already has an `ai-working` issue or an open AI-created PR/MR (`ai/issue-*`), new `ai` issues in **that same repo** stay queued until that PR/MR is merged or closed. Other repos can still start issues. PR/MR follow-up (`ai` on the PR/MR) and reviews still run.
 4. After each finished task, the worker **immediately** looks for the next allowed item. It only sleeps when nothing is left (or when new issues are blocked by an open PR/MR in their own repo and nothing else is queued).
-5. Issue path: label becomes `ai-working` → AI agent implements → opens a PR/MR → `ai-pr` or `ai-failed`.
+5. Issue path: label becomes `ai-working` → AI agent implements → opens a PR/MR → `ai-pr` or `ai-failed`. **Exception (GitHub):** if the issue title is `new release` or `new tag`, the worker skips AI, bumps the latest `vMAJOR.MINOR.PATCH` tag by one on the patch number, creates a **draft** release with `gh release create … --draft --generate-notes`, comments on the issue, and closes it.
 6. PR/MR review path: label becomes `ai-reviewing` → AI agent reviews linked issues + diff → posts a comment → `ai-reviewed` or `ai-review-failed`.
 
 ## Prerequisites
