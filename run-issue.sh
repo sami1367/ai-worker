@@ -46,7 +46,7 @@ fi
 
 ai_require_cmds git gh jq tee || exit 1
 
-ai_init || exit 1
+# AI provider is initialized later — skipped for title "new release".
 
 # ============================================================
 # Resolve project
@@ -213,7 +213,6 @@ issue=$ISSUE_NUMBER
 started=$(date '+%Y-%m-%d %H:%M:%S %Z')
 pid=$$
 log=$LOG_FILE
-ai_provider=$AI_PROVIDER
 agent_log=$AGENT_LOG
 agent_stderr=$AGENT_ERR_LOG
 EOF
@@ -227,11 +226,7 @@ echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
 echo "Project dir:   $PROJECT_DIR"
-echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
-echo "AI binary:     $AI_PROVIDER_BIN"
 echo "Main log:      $LOG_FILE"
-echo "Agent log:     $AGENT_LOG"
-echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "============================================================"
 
 # ============================================================
@@ -342,6 +337,157 @@ if [[ "$ISSUE_STATE" != "OPEN" ]]; then
 
     exit 0
 fi
+
+# ============================================================
+# Special case: title "new release" or "new tag"
+#
+# Skip the AI agent. Fetch tags, bump the latest vMAJOR.MINOR.PATCH
+# tag by one on the patch component, and create a draft GitHub release.
+# ============================================================
+
+ISSUE_TITLE_NORM="$(
+    printf '%s' "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+)"
+
+if [[ "$ISSUE_TITLE_NORM" == "new release" || "$ISSUE_TITLE_NORM" == "new tag" ]]; then
+
+    ai_log_banner "NEW RELEASE / NEW TAG (NO AI)"
+    echo "Issue title matches '$ISSUE_TITLE_NORM'."
+    echo "Skipping AI agent; creating the next draft GitHub release."
+    echo "============================================================"
+
+    echo
+    echo "Fetching all tags from origin..."
+
+    git -C "$PROJECT_DIR" fetch --tags --prune origin
+
+    LATEST_TAG="$(
+        git -C "$PROJECT_DIR" tag -l 'v*.*.*' --sort=-v:refname |
+            head -n 1
+    )"
+
+    if [[ -z "$LATEST_TAG" ]]; then
+        echo
+        echo "ERROR: No tags matching vMAJOR.MINOR.PATCH were found."
+        echo "Create an initial tag (for example v0.0.1) before using 'new release'."
+        exit 50
+    fi
+
+    if [[ ! "$LATEST_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        echo
+        echo "ERROR: Latest tag is not in vMAJOR.MINOR.PATCH format: $LATEST_TAG"
+        exit 51
+    fi
+
+    TAG_MAJOR="${BASH_REMATCH[1]}"
+    TAG_MINOR="${BASH_REMATCH[2]}"
+    TAG_PATCH="${BASH_REMATCH[3]}"
+    NEW_PATCH=$((TAG_PATCH + 1))
+    NEW_TAG="v${TAG_MAJOR}.${TAG_MINOR}.${NEW_PATCH}"
+
+    echo
+    echo "Latest tag:  $LATEST_TAG"
+    echo "New tag:     $NEW_TAG"
+
+    if git -C "$PROJECT_DIR" rev-parse -q --verify "refs/tags/${NEW_TAG}" >/dev/null; then
+        echo
+        echo "ERROR: Tag already exists locally: $NEW_TAG"
+        exit 52
+    fi
+
+    if gh release view "$NEW_TAG" --repo "$REPO" >/dev/null 2>&1; then
+        echo
+        echo "ERROR: A GitHub release already exists for: $NEW_TAG"
+        exit 53
+    fi
+
+    echo
+    echo "Creating draft release: $NEW_TAG"
+    echo "Command: gh release create $NEW_TAG --repo $REPO --draft --generate-notes"
+
+    RELEASE_URL="$(
+        gh release create "$NEW_TAG" \
+            --repo "$REPO" \
+            --draft \
+            --generate-notes
+    )"
+
+    if [[ -z "$RELEASE_URL" ]]; then
+        echo
+        echo "ERROR: gh release create did not return a release URL."
+        exit 54
+    fi
+
+    echo
+    echo "Draft release created:"
+    echo "$RELEASE_URL"
+
+    COMMENT_BODY="$(cat <<EOF
+## Automated draft release
+
+Skipped the AI agent because this issue title is \`$ISSUE_TITLE_NORM\`.
+
+- Previous tag: \`$LATEST_TAG\`
+- New draft release: \`$NEW_TAG\`
+- URL: $RELEASE_URL
+
+Publish the draft on GitHub when you are ready. This automation never publishes releases automatically.
+EOF
+)"
+
+    echo
+    echo "Commenting on issue #$ISSUE_NUMBER..."
+    gh issue comment "$ISSUE_NUMBER" \
+        --repo "$REPO" \
+        --body "$COMMENT_BODY"
+
+    echo
+    echo "Closing issue #$ISSUE_NUMBER..."
+    gh issue close "$ISSUE_NUMBER" \
+        --repo "$REPO" \
+        --comment "Closed after creating draft release $NEW_TAG."
+
+    cat > "$RESULT_FILE" <<EOF
+project=$PROJECT
+repository=$REPO
+issue=$ISSUE_NUMBER
+issue_url=$ISSUE_URL
+mode=new-release
+previous_tag=$LATEST_TAG
+new_tag=$NEW_TAG
+release_url=$RELEASE_URL
+completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
+main_log=$LOG_FILE
+EOF
+
+    ai_log_banner "RELEASE COMPLETE"
+    echo "Project:      $PROJECT"
+    echo "Issue:        #$ISSUE_NUMBER"
+    echo "Previous tag: $LATEST_TAG"
+    echo "New tag:      $NEW_TAG"
+    echo "Release:      $RELEASE_URL"
+    echo "Main log:     $LOG_FILE"
+    echo "Result file:  $RESULT_FILE"
+    echo "============================================================"
+
+    exit 0
+fi
+
+# ============================================================
+# Initialize AI provider (normal issue path)
+# ============================================================
+
+ai_init || exit 1
+
+cat >> "$STATE_FILE" <<EOF
+ai_provider=$AI_PROVIDER
+EOF
+
+echo
+echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
+echo "AI binary:     $AI_PROVIDER_BIN"
+echo "Agent log:     $AGENT_LOG"
+echo "Agent stderr:  $AGENT_ERR_LOG"
 
 # ============================================================
 # Read issue comments
