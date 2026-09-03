@@ -344,7 +344,8 @@ fi
 # Skip the AI agent. Sync the repo, then bump past the highest
 # vMAJOR.MINOR.PATCH already used by either a git tag or a
 # GitHub release (including drafts — draft releases often have
-# no fetchable git tag yet), and create a draft GitHub release.
+# no fetchable git tag yet), push a real git tag (so tag-based
+# Actions CI runs), and create a draft GitHub release on that tag.
 # ============================================================
 
 ISSUE_TITLE_NORM="$(ai_normalize_issue_title "$ISSUE_TITLE")"
@@ -353,7 +354,7 @@ if ai_is_new_release_title "$ISSUE_TITLE"; then
 
     ai_log_banner "NEW RELEASE / NEW TAG (NO AI)"
     echo "Issue title matches '$ISSUE_TITLE_NORM'."
-    echo "Skipping AI agent; creating the next draft GitHub release."
+    echo "Skipping AI agent; pushing next git tag + draft GitHub release."
     echo "============================================================"
 
     echo
@@ -401,24 +402,48 @@ if ai_is_new_release_title "$ISSUE_TITLE"; then
         NEW_TAG="$(ai_bump_semver_patch "$NEW_TAG")"
     done
 
+    TAG_COMMIT="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+
     echo
     echo "Latest used: $LATEST_TAG"
     echo "New tag:     $NEW_TAG"
+    echo "Tag commit:  $TAG_COMMIT"
+
+    # Push a real git tag first. Draft-only `gh release create --draft` does
+    # not create a fetchable tag (untagged-… URLs), so tag-triggered Actions
+    # never run. Pushing the tag triggers `on: push: tags: v*` workflows.
+    echo
+    echo "Creating local git tag $NEW_TAG at $TAG_COMMIT..."
+    if ! git -C "$PROJECT_DIR" tag "$NEW_TAG" "$TAG_COMMIT"; then
+        echo
+        echo "ERROR: Failed to create local git tag $NEW_TAG."
+        exit 52
+    fi
+
+    echo "Pushing tag $NEW_TAG to origin..."
+    if ! git -C "$PROJECT_DIR" push origin "refs/tags/${NEW_TAG}"; then
+        echo
+        echo "ERROR: Failed to push tag $NEW_TAG to origin."
+        git -C "$PROJECT_DIR" tag -d "$NEW_TAG" >/dev/null 2>&1 || true
+        exit 53
+    fi
 
     echo
-    echo "Creating draft release: $NEW_TAG"
-    echo "Command: gh release create $NEW_TAG --repo $REPO --draft --generate-notes"
+    echo "Creating draft release on existing tag: $NEW_TAG"
+    echo "Command: gh release create $NEW_TAG --repo $REPO --draft --generate-notes --target $TAG_COMMIT"
 
     RELEASE_URL="$(
         gh release create "$NEW_TAG" \
             --repo "$REPO" \
             --draft \
-            --generate-notes
+            --generate-notes \
+            --target "$TAG_COMMIT"
     )"
 
     if [[ -z "$RELEASE_URL" ]]; then
         echo
         echo "ERROR: gh release create did not return a release URL."
+        echo "Git tag $NEW_TAG was already pushed (CI may already be running)."
         exit 54
     fi
 
@@ -432,10 +457,11 @@ if ai_is_new_release_title "$ISSUE_TITLE"; then
 Skipped the AI agent because this issue title is \`$ISSUE_TITLE_NORM\`.
 
 - Previous tag: \`$LATEST_TAG\`
+- New git tag: \`$NEW_TAG\` (\`$TAG_COMMIT\`)
 - New draft release: \`$NEW_TAG\`
 - URL: $RELEASE_URL
 
-Publish the draft on GitHub when you are ready. This automation never publishes releases automatically.
+The git tag was pushed so tag-based GitHub Actions can run. Publish the draft on GitHub when you are ready. This automation never publishes releases automatically.
 EOF
 )"
 
@@ -460,6 +486,7 @@ issue_url=$ISSUE_URL
 mode=new-release
 previous_tag=$LATEST_TAG
 new_tag=$NEW_TAG
+tag_commit=$TAG_COMMIT
 release_url=$RELEASE_URL
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
@@ -471,6 +498,7 @@ EOF
     echo "Issue:        #$ISSUE_NUMBER"
     echo "Previous tag: $LATEST_TAG"
     echo "New tag:      $NEW_TAG"
+    echo "Tag commit:   $TAG_COMMIT"
     echo "Release:      $RELEASE_URL"
     echo "Main log:     $LOG_FILE"
     echo "Result file:  $RESULT_FILE"
