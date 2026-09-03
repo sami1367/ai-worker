@@ -1,0 +1,8 @@
+# GitLab projects for the AI worker.
+# Copy to gitlab-projects.conf and edit:
+#   cp gitlab-projects.conf.example gitlab-projects.conf
+#
+# Format: name=/absolute/path/to/local/clone
+# Not mixed with GitHub projects.conf.
+
+# my-service=/home/ubuntu/dev/my-service

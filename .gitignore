@@ -1,3 +1,21 @@
-state/*
-logs/*
+# Local secrets (never commit)
 .env
+.env.*
+!.env.example
+
+# Local project registries (host-specific absolute clone paths)
+projects.conf
+gitlab-projects.conf
+
+# Created / updated while the worker runs
+/logs/*
+!/logs/.gitkeep
+/state/*
+!/state/.gitkeep
+
+# Local leftovers / editor junk
+*.old*
+*~
+*.bak
+*.swp
+*.tmp

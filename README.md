@@ -26,6 +26,8 @@ nano .env
 #   GITLAB_TOKEN=<personal access token with api scope>
 
 # 3) Register local clones (see sections below)
+cp -n projects.conf.example projects.conf
+cp -n gitlab-projects.conf.example gitlab-projects.conf
 nano projects.conf
 nano gitlab-projects.conf
 
@@ -85,7 +87,7 @@ With the worker running as a systemd service (recommended), you only touch GitLa
 
 **PR/MR review automation (end-to-end):**
 
-1. List each project once in [`projects.conf`](projects.conf) (GitHub) and/or [`gitlab-projects.conf`](gitlab-projects.conf) (GitLab).
+1. List each project once in [`projects.conf`](projects.conf.example) (GitHub) and/or [`gitlab-projects.conf`](gitlab-projects.conf.example) (GitLab).
 2. Ensure labels exist (`./setup-labels.sh`) and, for GitLab, `.env` has `GITLAB_TOKEN`.
 3. Keep `ai-worker` running under systemd.
 4. On any open PR/MR in those projects, add **`ai-review`**.
@@ -134,6 +136,8 @@ sudo -u ubuntu cp .env.example .env
 sudo -u ubuntu nano .env   # GITLAB_HOST + GITLAB_TOKEN
 
 # Register clones
+sudo -u ubuntu cp -n projects.conf.example projects.conf
+sudo -u ubuntu cp -n gitlab-projects.conf.example gitlab-projects.conf
 sudo -u ubuntu nano projects.conf
 sudo -u ubuntu nano gitlab-projects.conf
 
@@ -278,7 +282,7 @@ Notes:
 
 2. Ensure `origin` points at GitHub and default branch is `main`.
 
-3. Add one line to [`projects.conf`](projects.conf):
+3. Add one line to [`projects.conf`](projects.conf.example):
 
    ```conf
    my-app=/home/ubuntu/dev/my-app
@@ -313,7 +317,7 @@ Requirements: `gh` authenticated with access to the repo (`gh auth login`, `gh a
 
 2. Ensure `origin` is the GitLab remote and default branch is `main`.
 
-3. Add one line to [`gitlab-projects.conf`](gitlab-projects.conf) (**not** `projects.conf`):
+3. Add one line to [`gitlab-projects.conf`](gitlab-projects.conf.example) (**not** `projects.conf`):
 
    ```conf
    my-service=/home/ubuntu/dev/my-service
@@ -839,8 +843,8 @@ ai-worker/
 ├── setup-labels.sh           # Labels on GitHub + GitLab
 ├── setup-gitlab-labels.sh    # GitLab labels only (issues + MR review)
 ├── ai-worker.service         # systemd unit (copy to /etc/systemd/system/)
-├── projects.conf             # GitHub name → local path
-├── gitlab-projects.conf      # GitLab name → local path
+├── projects.conf.example     # template → copy to projects.conf
+├── gitlab-projects.conf.example  # template → copy to gitlab-projects.conf
 ├── .env.example              # GITLAB_HOST / GITLAB_TOKEN template
 ├── lib/
 │   ├── common.sh
