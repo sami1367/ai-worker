@@ -53,9 +53,11 @@ You MUST NOT reformat, restyle, or pretty-print unrelated lines, classes, or fil
 Leave completed changes UNCOMMITTED in the working tree.
 
 {{INCLUDE:snippets/minimal-changes.txt}}
+{{INCLUDE:snippets/implement-merge-notes.txt}}
 
 ============================================================
 FINAL RESPONSE
 ============================================================
 
 Report: Summary, files changed, tests run, problems/limitations.
+Confirm that {{NOTES_FILE}} was written.

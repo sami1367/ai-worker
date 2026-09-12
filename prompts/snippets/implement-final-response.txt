@@ -1,3 +1,4 @@
+{{INCLUDE:snippets/implement-merge-notes.txt}}
 ============================================================
 FINAL RESPONSE
 ============================================================
@@ -13,3 +14,5 @@ Tests run and results:
 Lint / format / type-check / build results:
 
 Problems or limitations:
+
+Confirm that {{NOTES_FILE}} was written.

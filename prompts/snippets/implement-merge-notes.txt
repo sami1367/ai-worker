@@ -1,0 +1,48 @@
+============================================================
+MERGE / PULL REQUEST NOTES FILE (required)
+============================================================
+
+Before finishing, write a Markdown file to exactly this path:
+
+{{NOTES_FILE}}
+
+A separate automation script will post that file as a comment on the
+pull request or merge request. Do not commit this file yourself
+(leave it uncommitted; the runner will move it aside).
+
+Write practical notes for the human who will review and merge.
+Be concrete. Prefer checklists. If a section does not apply, write
+`None` — do not invent work.
+
+Required structure:
+
+## What this change does
+
+2–5 sentences summarizing the behavior change for reviewers.
+
+## Before merging / deploying
+
+Checklist of actions humans must do outside this PR/MR, for example:
+- add or update environment variables (name + purpose only — never secret values)
+- run database migrations
+- update secrets managers / CI variables / hosting config
+- feature flags, DNS, or third-party dashboard settings
+- document ops steps that code alone does not cover
+
+Use `- [ ]` checklist items. If nothing is required, write `None`.
+
+## Configuration / environment
+
+List new or changed config keys and env var **names** with a short
+purpose. Never include real passwords, tokens, API keys, or private
+key material. If none, write `None`.
+
+## How to verify
+
+Short steps a reviewer can use to confirm the change works.
+
+## Risks / limitations
+
+Known gaps, follow-ups, or flaky areas. If none, write `None`.
+
+After writing {{NOTES_FILE}}, continue with your normal final response.

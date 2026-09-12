@@ -27,6 +27,7 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | `followup-review.txt` | Re-review after human replies; role handling |
 | `implement-process.txt` | Issue implementation steps |
 | `implement-final-response.txt` | What to report after implementing |
+| `implement-merge-notes.txt` | Write `.ai-*-notes.md` for the PR/MR comment (env, deploy, verify) |
 | `minimal-changes.txt` | Only edit files/classes the issue requires; no extra diffs |
 | `review-output-guidelines.txt` | Markdown structure for review comments |
 | `review-scope.txt` | Review only the current PR/MR diff; no project-wide comments |
@@ -38,6 +39,7 @@ Templates use `{{NAME}}` placeholders filled at runtime, for example:
 - `{{ISSUE_TITLE}}`, `{{ISSUE_BODY}}`, `{{ISSUE_COMMENTS_TEXT}}`
 - `{{PR_TITLE}}`, `{{LINKED_ISSUES}}`, `{{DIFF}}`
 - `{{REVIEW_FILE}}` — path where the agent must write the review
+- `{{NOTES_FILE}}` — path where the agent must write merge/PR notes (posted as a comment)
 
 Rendered prompts are also saved to `logs/*.prompt.txt` for debugging.
 

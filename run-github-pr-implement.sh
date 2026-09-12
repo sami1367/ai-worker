@@ -60,6 +60,7 @@ AGENT_ERR_LOG="$LOG_DIR/${PROJECT}-github-pr-implement-${PR_NUMBER}-${TIMESTAMP}
 PROMPT_FILE="$LOG_DIR/${PROJECT}-github-pr-implement-${PR_NUMBER}-${TIMESTAMP}.prompt.txt"
 RESULT_FILE="$LOG_DIR/${PROJECT}-github-pr-implement-${PR_NUMBER}-${TIMESTAMP}.result.txt"
 ISSUES_FILE="$LOG_DIR/${PROJECT}-github-pr-implement-${PR_NUMBER}-${TIMESTAMP}.issues.txt"
+NOTES_SAVED="$LOG_DIR/${PROJECT}-github-pr-implement-${PR_NUMBER}-${TIMESTAMP}-notes.md"
 STATE_FILE="$STATE_DIR/${PROJECT}-github-pr-implement-${PR_NUMBER}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -69,6 +70,8 @@ PR_TITLE=""
 PR_URL=""
 SOURCE_BRANCH=""
 TARGET_BRANCH=""
+NOTES_FILE=""
+NOTES_COMMENT_URL=""
 
 cleanup() {
     rc=$?
@@ -95,6 +98,11 @@ cleanup() {
             git -C "$PROJECT_DIR" checkout main || true
         fi
     fi
+
+    if [[ -n "${NOTES_FILE:-}" ]]; then
+        rm -f "$NOTES_FILE"
+    fi
+    ai_remove_ai_artifact_files "$PROJECT_DIR" 2>/dev/null || true
 
     rm -f "$STATE_FILE"
 
@@ -195,6 +203,9 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     exit 12
 fi
 
+NOTES_FILE="$PROJECT_DIR/.ai-pr-notes.md"
+rm -f "$NOTES_FILE"
+
 ai_prompt_clear
 ai_prompt_set REPO "$REPO"
 ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
@@ -206,6 +217,7 @@ ai_prompt_set PR_TITLE "$PR_TITLE"
 ai_prompt_set PR_BODY "$PR_BODY"
 ai_prompt_set PR_COMMENTS_TEXT "$PR_COMMENTS_TEXT"
 ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
+ai_prompt_set NOTES_FILE "$NOTES_FILE"
 
 ai_prompt_render "github-pr-implement.txt" "$PROMPT_FILE"
 
@@ -225,12 +237,15 @@ fi
 
 git -C "$PROJECT_DIR" status --short
 
+ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
+
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo "ERROR: Agent completed but made no changes."
     exit 20
 fi
 
 git -C "$PROJECT_DIR" add -A
+ai_unstage_ai_artifact_files "$PROJECT_DIR"
 CHANGED_FILES="$(git -C "$PROJECT_DIR" diff --cached --name-only)"
 
 if ai_has_secret_files "$CHANGED_FILES"; then
@@ -250,6 +265,17 @@ COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
 echo "Pushing branch $SOURCE_BRANCH..."
 git -C "$PROJECT_DIR" push origin "$SOURCE_BRANCH"
 
+if [[ -f "$NOTES_SAVED" ]]; then
+    if NOTES_COMMENT_URL="$(ai_post_github_pr_notes "$REPO" "$PR_NUMBER" "$NOTES_SAVED")"; then
+        :
+    else
+        NOTES_COMMENT_URL=""
+        echo "WARNING: Implement notes comment was not posted."
+    fi
+else
+    echo "WARNING: No implement notes file to post as a PR comment."
+fi
+
 cat > "$RESULT_FILE" <<EOF
 forge=github
 task=pr-implement
@@ -260,6 +286,8 @@ pull_request_url=$PR_URL
 branch=$SOURCE_BRANCH
 commit=$COMMIT_SHA
 linked_issues=$LINKED_ISSUE_COUNT
+notes_file=$NOTES_SAVED
+notes_comment=$NOTES_COMMENT_URL
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
 ai_provider=$AI_PROVIDER
@@ -272,4 +300,7 @@ echo "Pull request: #$PR_NUMBER"
 echo "Branch:       $SOURCE_BRANCH"
 echo "Commit:       $COMMIT_SHA"
 echo "PR URL:       $PR_URL"
+if [[ -n "$NOTES_COMMENT_URL" ]]; then
+    echo "Notes comment: $NOTES_COMMENT_URL"
+fi
 echo "============================================================"

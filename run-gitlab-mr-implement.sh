@@ -61,6 +61,7 @@ AGENT_ERR_LOG="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.ag
 PROMPT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.prompt.txt"
 RESULT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.result.txt"
 ISSUES_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.issues.txt"
+NOTES_SAVED="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}-notes.md"
 STATE_FILE="$STATE_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -70,6 +71,8 @@ MR_TITLE=""
 MR_URL=""
 SOURCE_BRANCH=""
 TARGET_BRANCH=""
+NOTES_FILE=""
+NOTES_COMMENT_URL=""
 
 cleanup() {
     rc=$?
@@ -96,6 +99,11 @@ cleanup() {
             git -C "$PROJECT_DIR" checkout main || true
         fi
     fi
+
+    if [[ -n "${NOTES_FILE:-}" ]]; then
+        rm -f "$NOTES_FILE"
+    fi
+    ai_remove_ai_artifact_files "$PROJECT_DIR" 2>/dev/null || true
 
     rm -f "$STATE_FILE"
 
@@ -190,6 +198,9 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     exit 12
 fi
 
+NOTES_FILE="$PROJECT_DIR/.ai-mr-notes.md"
+rm -f "$NOTES_FILE"
+
 ai_prompt_clear
 ai_prompt_set REPO_PATH "$REPO_PATH"
 ai_prompt_set GITLAB_HOST "$GITLAB_HOST"
@@ -202,6 +213,7 @@ ai_prompt_set MR_TITLE "$MR_TITLE"
 ai_prompt_set MR_BODY "$MR_BODY"
 ai_prompt_set MR_COMMENTS_TEXT "$MR_COMMENTS_TEXT"
 ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
+ai_prompt_set NOTES_FILE "$NOTES_FILE"
 
 ai_prompt_render "gitlab-mr-implement.txt" "$PROMPT_FILE"
 
@@ -221,12 +233,15 @@ fi
 
 git -C "$PROJECT_DIR" status --short
 
+ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
+
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo "ERROR: Agent completed but made no changes."
     exit 20
 fi
 
 git -C "$PROJECT_DIR" add -A
+ai_unstage_ai_artifact_files "$PROJECT_DIR"
 CHANGED_FILES="$(git -C "$PROJECT_DIR" diff --cached --name-only)"
 
 if ai_has_secret_files "$CHANGED_FILES"; then
@@ -246,6 +261,17 @@ COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
 echo "Pushing branch $SOURCE_BRANCH..."
 git -C "$PROJECT_DIR" push origin "$SOURCE_BRANCH"
 
+if [[ -f "$NOTES_SAVED" ]]; then
+    if NOTES_COMMENT_URL="$(ai_post_gitlab_mr_notes "$REPO_PATH" "$MR_IID" "$NOTES_SAVED")"; then
+        :
+    else
+        NOTES_COMMENT_URL=""
+        echo "WARNING: Implement notes comment was not posted."
+    fi
+else
+    echo "WARNING: No implement notes file to post as an MR comment."
+fi
+
 cat > "$RESULT_FILE" <<EOF
 forge=gitlab
 task=mr-implement
@@ -256,6 +282,8 @@ merge_request_url=$MR_URL
 branch=$SOURCE_BRANCH
 commit=$COMMIT_SHA
 linked_issues=$LINKED_ISSUE_COUNT
+notes_file=$NOTES_SAVED
+notes_comment=$NOTES_COMMENT_URL
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
 ai_provider=$AI_PROVIDER
@@ -268,4 +296,7 @@ echo "Merge request: !$MR_IID"
 echo "Branch:        $SOURCE_BRANCH"
 echo "Commit:        $COMMIT_SHA"
 echo "MR URL:        $MR_URL"
+if [[ -n "$NOTES_COMMENT_URL" ]]; then
+    echo "Notes comment: $NOTES_COMMENT_URL"
+fi
 echo "============================================================"

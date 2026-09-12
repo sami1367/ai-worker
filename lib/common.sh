@@ -860,3 +860,178 @@ ai_github_format_pr_discussion() {
 
     ai_trim_text "$combined" "$max_bytes"
 }
+
+# Filenames the agent may write for automation (never commit these).
+ai_implement_notes_basenames() {
+    printf '%s\n' \
+        '.ai-pr-notes.md' \
+        '.ai-mr-notes.md' \
+        '.ai-pr-review.md' \
+        '.ai-mr-review.md'
+}
+
+# Move implement notes out of the project tree before git add/commit.
+# Usage: ai_capture_implement_notes <notes_file> <saved_path>
+# Returns 0 if a non-empty notes file was captured, 1 otherwise.
+ai_capture_implement_notes() {
+    local notes_file="$1"
+    local saved_path="$2"
+    local bytes
+
+    if [[ -z "$notes_file" || -z "$saved_path" ]]; then
+        return 1
+    fi
+
+    if [[ ! -f "$notes_file" ]]; then
+        echo "WARNING: Implement notes file missing: $notes_file" >&2
+        echo "WARNING: No merge/PR notes comment will be posted." >&2
+        return 1
+    fi
+
+    bytes="$(wc -c < "$notes_file" | tr -d ' ')"
+    if [[ "$bytes" -eq 0 ]]; then
+        echo "WARNING: Implement notes file is empty: $notes_file" >&2
+        rm -f "$notes_file"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$saved_path")"
+    cp "$notes_file" "$saved_path"
+    rm -f "$notes_file"
+
+    # Safety: drop any leftover automation artifacts before staging.
+    if [[ -n "${PROJECT_DIR:-}" ]]; then
+        ai_remove_ai_artifact_files "$PROJECT_DIR"
+    fi
+
+    echo "Captured implement notes ($bytes bytes) -> $saved_path" >&2
+    return 0
+}
+
+# Remove known AI artifact files from a project directory (untracked leftovers).
+ai_remove_ai_artifact_files() {
+    local project_dir="$1"
+    local name
+
+    [[ -n "$project_dir" && -d "$project_dir" ]] || return 0
+
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        rm -f "${project_dir}/${name}"
+    done < <(ai_implement_notes_basenames)
+}
+
+# Unstage known AI artifact paths if they were accidentally staged.
+ai_unstage_ai_artifact_files() {
+    local project_dir="$1"
+    local name
+    local paths=()
+
+    [[ -n "$project_dir" && -d "$project_dir" ]] || return 0
+
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        if git -C "$project_dir" ls-files --cached --error-unmatch "$name" >/dev/null 2>&1; then
+            paths+=("$name")
+        fi
+    done < <(ai_implement_notes_basenames)
+
+    if [[ "${#paths[@]}" -gt 0 ]]; then
+        git -C "$project_dir" reset HEAD -- "${paths[@]}" >/dev/null 2>&1 || true
+        for name in "${paths[@]}"; do
+            rm -f "${project_dir}/${name}"
+        done
+        echo "Unstaged AI artifact file(s): ${paths[*]}" >&2
+    fi
+}
+
+# Wrap saved notes Markdown with a short automation footer for posting.
+# Prints the full comment body to stdout.
+ai_format_implement_notes_comment() {
+    local notes_path="$1"
+    local kind="${2:-pull request}"
+
+    cat "$notes_path"
+    cat <<EOF
+
+---
+_These notes were posted automatically after the AI implementation run. They are not part of the ${kind} description — use them for merge/deploy checklist items (env, migrations, verification)._
+EOF
+}
+
+# Post implement notes as a GitHub PR comment.
+# Usage: ai_post_github_pr_notes <repo> <pr_ref> <notes_path>
+# Echoes comment URL on success. Returns non-zero on failure.
+ai_post_github_pr_notes() {
+    local repo="$1"
+    local pr_ref="$2"
+    local notes_path="$3"
+    local comment_file comment_url
+
+    if [[ ! -f "$notes_path" ]]; then
+        echo "WARNING: Skipping GitHub notes comment (file missing)." >&2
+        return 1
+    fi
+
+    comment_file="$(mktemp)"
+    ai_format_implement_notes_comment "$notes_path" "pull request" > "$comment_file"
+
+    echo "Posting implement notes comment to GitHub PR $pr_ref..." >&2
+    comment_url="$(
+        gh pr comment "$pr_ref" \
+            --repo "$repo" \
+            --body-file "$comment_file"
+    )"
+    rm -f "$comment_file"
+
+    if [[ -z "$comment_url" ]]; then
+        echo "WARNING: Could not verify GitHub notes comment creation." >&2
+        return 1
+    fi
+
+    echo "Notes comment posted: $comment_url" >&2
+    printf '%s\n' "$comment_url"
+    return 0
+}
+
+# Post implement notes as a GitLab MR note.
+# Usage: ai_post_gitlab_mr_notes <project_path> <mr_iid> <notes_path>
+# Requires gitlab.sh sourced. Echoes note URL/id on success.
+ai_post_gitlab_mr_notes() {
+    local project_path="$1"
+    local mr_iid="$2"
+    local notes_path="$3"
+    local comment_body note_json note_id note_url
+
+    if [[ ! -f "$notes_path" ]]; then
+        echo "WARNING: Skipping GitLab notes comment (file missing)." >&2
+        return 1
+    fi
+
+    if ! declare -F gitlab_create_mr_note >/dev/null 2>&1; then
+        echo "WARNING: gitlab_create_mr_note unavailable; cannot post notes." >&2
+        return 1
+    fi
+
+    comment_body="$(ai_format_implement_notes_comment "$notes_path" "merge request")"
+
+    echo "Posting implement notes comment to GitLab MR !$mr_iid..." >&2
+    note_json="$(gitlab_create_mr_note "$project_path" "$mr_iid" "$comment_body")"
+    note_id="$(jq -r '.id // empty' <<<"$note_json")"
+
+    if [[ -z "$note_id" ]]; then
+        echo "WARNING: Could not verify GitLab notes comment creation." >&2
+        echo "$note_json" >&2
+        return 1
+    fi
+
+    note_url="$(jq -r '.web_url // empty' <<<"$note_json")"
+    echo "Notes comment posted (note id: $note_id)" >&2
+    if [[ -n "$note_url" ]]; then
+        echo "Notes comment URL: $note_url" >&2
+        printf '%s\n' "$note_url"
+    else
+        printf '%s\n' "$note_id"
+    fi
+    return 0
+}

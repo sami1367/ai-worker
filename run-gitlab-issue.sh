@@ -79,6 +79,7 @@ AGENT_LOG="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.agent.n
 AGENT_ERR_LOG="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.agent.stderr.log"
 PROMPT_FILE="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.prompt.txt"
 RESULT_FILE="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}.result.txt"
+NOTES_SAVED="$LOG_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}-notes.md"
 STATE_FILE="$STATE_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -88,6 +89,9 @@ REPO_PATH=""
 ISSUE_TITLE=""
 ISSUE_URL=""
 MR_URL=""
+MR_IID=""
+NOTES_FILE=""
+NOTES_COMMENT_URL=""
 
 # ============================================================
 # Cleanup
@@ -139,6 +143,11 @@ cleanup() {
             fi
         fi
     fi
+
+    if [[ -n "${NOTES_FILE:-}" ]]; then
+        rm -f "$NOTES_FILE"
+    fi
+    ai_remove_ai_artifact_files "$PROJECT_DIR" 2>/dev/null || true
 
     rm -f "$STATE_FILE"
 
@@ -454,6 +463,9 @@ git -C "$PROJECT_DIR" checkout -b "$BRANCH" main
 # Build AI prompt
 # ============================================================
 
+NOTES_FILE="$PROJECT_DIR/.ai-mr-notes.md"
+rm -f "$NOTES_FILE"
+
 ai_prompt_clear
 ai_prompt_set REPO_PATH "$REPO_PATH"
 ai_prompt_set GITLAB_HOST "$GITLAB_HOST"
@@ -463,6 +475,7 @@ ai_prompt_set ISSUE_URL "$ISSUE_URL"
 ai_prompt_set ISSUE_TITLE "$ISSUE_TITLE"
 ai_prompt_set ISSUE_BODY "$ISSUE_BODY"
 ai_prompt_set ISSUE_COMMENTS_TEXT "$ISSUE_COMMENTS_TEXT"
+ai_prompt_set NOTES_FILE "$NOTES_FILE"
 
 ai_prompt_render "gitlab-issue-implement.txt" "$PROMPT_FILE"
 
@@ -497,6 +510,9 @@ echo
 echo "Git status after Cursor:"
 git -C "$PROJECT_DIR" status --short
 
+# Capture merge notes before staging so they are never committed.
+ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
+
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo
     echo "ERROR: Cursor completed but made no changes."
@@ -510,6 +526,7 @@ fi
 echo
 echo "Staging changes..."
 git -C "$PROJECT_DIR" add -A
+ai_unstage_ai_artifact_files "$PROJECT_DIR"
 
 CHANGED_FILES="$(
     git -C "$PROJECT_DIR" diff --cached --name-only
@@ -598,12 +615,28 @@ MR_JSON="$(
 )"
 
 MR_URL="$(jq -r '.web_url // empty' <<<"$MR_JSON")"
+MR_IID="$(jq -r '.iid // empty' <<<"$MR_JSON")"
 
-if [[ -z "$MR_URL" ]]; then
+if [[ -z "$MR_URL" || -z "$MR_IID" ]]; then
     echo
     echo "ERROR: Merge request creation could not be verified."
     echo "$MR_JSON"
     exit 40
+fi
+
+# ============================================================
+# Post implement notes as an MR comment
+# ============================================================
+
+if [[ -f "$NOTES_SAVED" ]]; then
+    if NOTES_COMMENT_URL="$(ai_post_gitlab_mr_notes "$REPO_PATH" "$MR_IID" "$NOTES_SAVED")"; then
+        :
+    else
+        NOTES_COMMENT_URL=""
+        echo "WARNING: Implement notes comment was not posted."
+    fi
+else
+    echo "WARNING: No implement notes file to post as an MR comment."
 fi
 
 # ============================================================
@@ -619,6 +652,9 @@ issue_url=$ISSUE_URL
 branch=$BRANCH
 commit=$COMMIT_SHA
 merge_request=$MR_URL
+merge_request_iid=$MR_IID
+notes_file=$NOTES_SAVED
+notes_comment=$NOTES_COMMENT_URL
 completed=$(date '+%Y-%m-%d %H:%M:%S %Z')
 main_log=$LOG_FILE
 ai_provider=$AI_PROVIDER
@@ -633,6 +669,9 @@ echo "Issue:         #$ISSUE_NUMBER"
 echo "Branch:        $BRANCH"
 echo "Commit:        $COMMIT_SHA"
 echo "Merge request: $MR_URL"
+if [[ -n "$NOTES_COMMENT_URL" ]]; then
+    echo "Notes comment: $NOTES_COMMENT_URL"
+fi
 echo "Main log:      $LOG_FILE"
 echo "Agent log:     $AGENT_LOG"
 echo "Result file:   $RESULT_FILE"

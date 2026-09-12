@@ -818,7 +818,9 @@ If labels are missing on a repo, the worker cannot find or update the item — r
 
 ## What the AI agent does vs. what the scripts do
 
-**Issue runs:** The AI agent (Cursor or Claude Code) implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. The runners handle staging, secret checks, commit, push, PR/MR creation, and cleanup back to `main`.
+**Issue runs:** The AI agent (Cursor or Claude Code) implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. It also writes merge notes to `.ai-pr-notes.md` (GitHub) or `.ai-mr-notes.md` (GitLab) covering what changed, env/config to add, deploy steps, and how to verify. The runners handle staging, secret checks, commit, push, PR/MR creation, posting those notes as a PR/MR comment, and cleanup back to `main`. Notes files are never committed.
+
+**PR/MR implement runs:** Same notes file + comment flow when updating an existing PR/MR labeled `ai`.
 
 **PR/MR review runs:** The AI agent inspects the branch/diff and writes a Markdown review to `.ai-pr-review.md` (GitHub) or `.ai-mr-review.md` (GitLab). If the title/description links issues (`Closes #1`, `Fixes #123`, `Related to #45`, etc.), the runner fetches those issues first and includes them as acceptance criteria in the prompt. The runner posts the review as a PR/MR comment, then discards the file and returns to `main`. The agent must not change product code or call forge APIs.
 
