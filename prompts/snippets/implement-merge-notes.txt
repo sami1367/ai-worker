@@ -40,6 +40,8 @@ key material. If none, write `None`.
 ## How to verify
 
 Short steps a reviewer can use to confirm the change works.
+Include the coverage command and the percent of changed lines covered
+(must be above 80%). If coverage could not be measured, say so.
 
 ## Risks / limitations
 

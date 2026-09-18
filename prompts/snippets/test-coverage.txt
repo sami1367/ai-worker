@@ -1,0 +1,37 @@
+============================================================
+TESTS AND COVERAGE OF THIS CHANGE (REQUIRED)
+============================================================
+
+Every task that adds or changes executable code must leave tests for
+that change. Adding, editing, or revising those tests is in scope
+even when the issue or comments never mention tests.
+
+1. Use the project's existing test runner and coverage tool
+   (for example pytest-cov, jest/vitest --coverage, go test -cover,
+   cargo llvm-cov, PHPUnit coverage). Do not add a second stack.
+
+2. Add, edit, or revise tests for the behavior, branches, and error
+   paths in the lines you changed. Match existing test style and
+   location. Do not rewrite unrelated tests.
+
+3. Measure coverage of THIS change only: executable lines you added
+   or modified, not the whole repository. Prefer diff or changed-file
+   coverage. If the tool cannot do that, run coverage on the changed
+   files and read the line report for the hunks you edited.
+
+4. Those changed executable lines must be covered at more than 80%.
+   If the report is 80% or below, add or revise tests and re-run
+   until it is above 80%.
+
+5. Do not exclude the files you changed, delete assertions, or cover
+   only the happy path when you added branches, just to clear the bar.
+
+6. Generated code, lockfiles, migrations, and config with no logic
+   do not count. If a changed line cannot be executed in a test, say
+   why. Do not claim more than 80% unless you actually ran a coverage
+   report and read the number for this change.
+
+7. In the final response, report the tool, the command, and the
+   coverage percent for the changed code. If coverage could not be
+   measured, say that plainly and list which changed paths the tests
+   exercise.

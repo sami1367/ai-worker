@@ -26,9 +26,11 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | `comments-priority.txt` | Comments override title/description |
 | `followup-review.txt` | Re-review after human replies; role handling |
 | `implement-process.txt` | Issue implementation steps |
+| `test-coverage.txt` | Tests must cover more than 80% of the lines this task changed |
 | `implement-final-response.txt` | What to report after implementing |
 | `implement-merge-notes.txt` | Write `.ai-*-notes.md` for the PR/MR comment (env, deploy, verify) |
 | `minimal-changes.txt` | Only edit files/classes the issue requires; no extra diffs |
+| `review-tests.txt` | On PR/MR review, read and run tests and report coverage of the change |
 | `review-output-guidelines.txt` | Markdown structure for review comments |
 | `review-scope.txt` | Review only the current PR/MR diff; no project-wide comments |
 

@@ -11,6 +11,8 @@ Files changed:
 
 Tests run and results:
 
+Coverage of this change (tool, command, percent of changed lines; must be above 80%):
+
 Lint / format / type-check / build results:
 
 Problems or limitations:

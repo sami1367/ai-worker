@@ -75,8 +75,10 @@ IMPORTANT — linked issues:
 
 You MAY:
 
-- read other files only as needed to understand the changed hunks
-- run read-only checks (tests, lint, type-check) if they help judge THIS diff
+- read other files only as needed to understand the changed hunks, especially tests that cover those hunks
+- run read-only checks (lint, type-check) if they help judge THIS diff
+
+You MUST check the tests for this diff: read them, run them, and measure coverage of the changed lines. See the test-check rules below. Do not edit product code or tests.
 
 You MUST NOT:
 
@@ -112,6 +114,7 @@ Do not modify any other files.
 REVIEW CONTENT GUIDELINES
 ============================================================
 
+{{INCLUDE:snippets/review-tests.txt}}
 {{INCLUDE:snippets/review-output-guidelines.txt}}
 ============================================================
 FINAL RESPONSE

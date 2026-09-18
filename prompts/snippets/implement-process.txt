@@ -12,9 +12,11 @@ PROCESS
    Change only required files and classes. Do not reformat or
    pretty-print unrelated lines, classes, or files.
 
-4. Add or update tests where appropriate.
+4. Add, edit, or revise tests for the code this task changed.
+   Follow the coverage rules below. Tests for this change are required.
 
-5. Run the tests relevant to your changes.
+5. Run the tests relevant to your changes, then measure coverage of
+   the changed lines. Do not finish while that coverage is 80% or below.
 
 6. Run lint, type-check, or build commands needed to verify your changes.
    Do not run whole-file formatters that rewrite unrelated lines unless
@@ -31,6 +33,7 @@ PROCESS
 
 10. Leave all completed changes UNCOMMITTED in the working tree.
 
+{{INCLUDE:snippets/test-coverage.txt}}
 If a test fails because of the environment and cannot reasonably
 be fixed, clearly report that in your final response.
 

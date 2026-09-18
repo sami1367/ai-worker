@@ -25,11 +25,18 @@ For each issue include:
 Include unmet acceptance criteria from linked issues as findings when applicable.
 
 ## Testing
-Gaps or risks in test coverage for THIS diff only, and what you would verify before merge. Do not audit existing tests or coverage of unchanged code.
+Required. This section is how a reviewer sees whether the change was tested. Do not skip it and do not audit tests or coverage of unchanged code.
+Write each of these, with file paths from the diff:
+- Test files in this diff, or "none"
+- What those tests assert about the changed behavior, and which branches or error paths in the diff they miss
+- Commands you ran and the results, or why they could not run
+- Coverage of changed executable lines: tool, command, and percent, or "not measured" and why
+Changed executable lines must be above 80% covered. If tests are missing, weak, failing, or that coverage is 80% or below, list it as a major issue unless the diff has no executable logic.
 
 ## Verdict
 One of: Approve / Request changes / Needs discussion — with one short sentence why.
 If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
+If executable code changed and the tests for it are missing, weak, failing, or not above 80% coverage of the changed lines, use Request changes.
 
 Be specific and technical. Prefer fewer high-signal findings over vague advice.
 If the diff is truncated, say so and review only the visible hunks.

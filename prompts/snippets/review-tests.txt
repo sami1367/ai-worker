@@ -1,0 +1,39 @@
+============================================================
+CHECK TESTS FOR THIS CHANGE (REQUIRED)
+============================================================
+
+Pay attention to tests. A review of this diff is incomplete until
+you have checked the tests that belong to the changed code.
+
+Do this before you write the review. Stay inside this diff: judge
+tests for the lines that changed, not the rest of the suite.
+
+1. In the diff, list production files with executable changes and
+   the test files added or edited for them. Read those tests. If a
+   changed behavior has no test in the diff, read nearby existing
+   tests only to see whether they already cover that behavior.
+
+2. Check that the tests assert the new or changed behavior, including
+   important branches and error paths in the diff. A test that only
+   calls the code, or only covers the happy path when the diff added
+   branches, is not enough.
+
+3. Run the project's existing tests for this change, then measure
+   coverage of the executable lines in the diff (not the whole repo).
+   Use the project's coverage tool. Do not add a new test stack.
+   Do not edit product code or tests. The only file you may write is
+   the review file. If a command cannot run, say why.
+
+4. Changed executable lines must be covered at more than 80%.
+   Generated code, lockfiles, migrations, and config with no logic
+   do not count.
+
+5. In the Testing section, report what you actually saw and ran:
+   test files, what they assert, commands and results, coverage tool
+   and percent of changed lines (or "not measured" plus why).
+   Do not write "tests look fine" without that evidence.
+
+6. If executable code changed and tests are missing, weak, failing,
+   or coverage of the changed lines is 80% or below, record a major
+   issue and use verdict Request changes. If the diff has no
+   executable logic, say that and do not demand tests.

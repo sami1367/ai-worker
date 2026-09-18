@@ -11,7 +11,8 @@ Every finding, strength, test gap, and verdict point MUST refer to
 lines, hunks, or files that appear in that diff.
 
 You MAY read other files only to understand how the changed code is
-used (callers, types, tests). Reading is for context of THIS change.
+used (callers, types, tests). Reading tests that cover this change is
+required, including test files in the diff. Do not review unrelated tests.
 
 You MUST NOT:
 
@@ -22,6 +23,8 @@ You MUST NOT:
   looking around" section
 - recommend refactors, extra files, cleanups, or reformatting outside
   the changed lines
+- treat missing or weak tests for changed executable code as out of
+  scope — those tests are part of this change and must be checked
 - comment on unmodified functions/classes in a file that also has a
   small diff — only the changed hunks are in scope
 - ask the author to "also fix" unrelated areas of the repo

@@ -16,7 +16,8 @@ You MAY change:
   feature/bugfix to work
 - classes, methods, and lines inside those files that are needed
   for the task
-- tests that cover the change, when appropriate
+- tests that cover this task's changed code (required when you
+  changed executable code; see the coverage rules)
 
 You MUST NOT:
 
