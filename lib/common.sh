@@ -165,8 +165,7 @@ ai_git_tag_exists() {
 }
 
 # Iterate conf lines. Calls callback as: callback <project> <project_dir>
-# Skips blank lines and comments. Callback non-zero with FOUND_TASK=1 should
-# signal the caller to stop (callback sets globals as needed).
+# Skips blank lines and comments. A non-zero callback return stops the scan.
 ai_foreach_project() {
     local projects_file="$1"
     local callback="$2"

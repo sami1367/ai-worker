@@ -67,17 +67,146 @@ echo "GitLab projects:      $GITLAB_PROJECTS_FILE"
 echo "GitLab host:          ${GITLAB_HOST}"
 echo "GitLab token set:     $(gitlab_configured && echo yes || echo no)"
 echo "Worker log:           $WORKER_LOG"
+echo "Concurrency:          one task per repository; other repositories run in parallel"
 echo "============================================================"
 
 # ============================================================
-# Per-repo issue gate
+# Per-repository agents
 #
-# A new `ai` issue is not started in a repo that already has:
+# Different repositories run at the same time. A repository runs
+# at most one task at a time. A new `ai` issue is not started when
+# that repository already has:
+#   - an agent running, or
 #   - an open issue labeled ai-working, or
-#   - an open AI-created pull/merge request (branch ai/issue-*)
-# Other repos are not blocked. PR/MR follow-up implement and
-# review jobs are not blocked.
+#   - any open pull request / merge request
+# Updating or reviewing an existing PR/MR is still allowed when
+# that repository's agent is idle.
 # ============================================================
+
+declare -A REPO_AGENT_PIDS=()
+declare -A REPO_AGENT_NAMES=()
+declare -A REPO_BUSY_LOGGED=()
+
+repo_slot_key() {
+    local project_dir="$1"
+    local canon
+
+    canon="$(readlink -f "$project_dir" 2>/dev/null || printf '%s' "$project_dir")"
+    printf '%s' "$canon" | tr -c 'A-Za-z0-9._-' '_'
+}
+
+reset_repo_busy_log() {
+    local key
+
+    for key in "${!REPO_BUSY_LOGGED[@]}"; do
+        unset 'REPO_BUSY_LOGGED[$key]'
+    done
+}
+
+# Return 0 when this checkout already has a running agent.
+repo_agent_running() {
+    local project_dir="$1"
+    local project_name="$2"
+    local key pid lock
+
+    key="$(repo_slot_key "$project_dir")"
+    pid="${REPO_AGENT_PIDS[$key]:-}"
+
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        if [[ -z "${REPO_BUSY_LOGGED[$key]:-}" ]]; then
+            REPO_BUSY_LOGGED[$key]=1
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] ${project_name} already has an agent running; not starting another task in this repository."
+        fi
+        return 0
+    fi
+
+    if [[ -n "$pid" ]]; then
+        wait "$pid" 2>/dev/null || true
+        unset 'REPO_AGENT_PIDS[$key]'
+        unset 'REPO_AGENT_NAMES[$key]'
+    fi
+
+    lock="$STATE_DIR/slots/${key}.lock"
+    if [[ -e "$lock" ]] && ! (
+        flock -n 8 || exit 1
+        exit 0
+    ) 8>"$lock"; then
+        if [[ -z "${REPO_BUSY_LOGGED[$key]:-}" ]]; then
+            REPO_BUSY_LOGGED[$key]=1
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] ${project_name} already has an agent running; not starting another task in this repository."
+        fi
+        return 0
+    fi
+
+    return 1
+}
+
+reap_repo_agents() {
+    local key pid name
+
+    for key in "${!REPO_AGENT_PIDS[@]}"; do
+        pid="${REPO_AGENT_PIDS[$key]}"
+        if ! kill -0 "$pid" 2>/dev/null; then
+            wait "$pid" 2>/dev/null || true
+            name="${REPO_AGENT_NAMES[$key]:-$key}"
+            unset 'REPO_AGENT_PIDS[$key]'
+            unset 'REPO_AGENT_NAMES[$key]'
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Agent finished for ${name}."
+        fi
+    done
+}
+
+# Run one task while holding this repository's lock.
+# Usage: launch_repo_job <project_dir> <project_name> <function> [args...]
+launch_repo_job() {
+    local project_dir="$1"
+    local project_name="$2"
+    local key pid
+    shift 2
+
+    if repo_agent_running "$project_dir" "$project_name"; then
+        return 1
+    fi
+
+    key="$(repo_slot_key "$project_dir")"
+    mkdir -p "$STATE_DIR/slots"
+
+    (
+        exec 8>"$STATE_DIR/slots/${key}.lock"
+        # Do not keep the supervisor lock. A restarted worker must be able
+        # to start while this agent is still running; this repo lock is what
+        # stops a second task in the same checkout.
+        exec 9>&- || true
+        if ! flock -n 8; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a second task in ${project_name} (repository lock is held)."
+            exit 0
+        fi
+        "$@"
+    ) &
+    pid=$!
+    REPO_AGENT_PIDS[$key]="$pid"
+    REPO_AGENT_NAMES[$key]="$project_name"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Started agent for ${project_name} (pid ${pid})."
+    return 0
+}
+
+# Wake when any agent exits, or after CHECK_INTERVAL, whichever comes first.
+wait_for_running_agents() {
+    local sleeper
+
+    sleep "$CHECK_INTERVAL" &
+    sleeper=$!
+
+    wait -n || true
+
+    if kill -0 "$sleeper" 2>/dev/null; then
+        kill "$sleeper" 2>/dev/null || true
+        wait "$sleeper" 2>/dev/null || true
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] An agent finished; checking repositories again."
+    else
+        wait "$sleeper" 2>/dev/null || true
+    fi
+}
 
 github_repo_from_dir() {
     local project_dir="$1"
@@ -102,15 +231,15 @@ github_find_open_issue_with_label() {
         2>/dev/null || true
 }
 
-github_find_open_ai_issue_pr() {
+github_find_open_pr() {
     local repo="$1"
 
     gh pr list \
         --repo "$repo" \
         --state open \
-        --limit 100 \
+        --limit 1 \
         --json number,headRefName \
-        --jq '[.[] | select(.headRefName | startswith("ai/issue-"))] | .[0] | if . then "#\(.number) (\(.headRefName))" else empty end' \
+        --jq '.[0] | if . then "#\(.number) (\(.headRefName))" else empty end' \
         2>/dev/null || true
 }
 
@@ -131,7 +260,7 @@ github_in_flight_issue_reason() {
         return 0
     fi
 
-    pr_desc="$(github_find_open_ai_issue_pr "$repo")"
+    pr_desc="$(github_find_open_pr "$repo")"
     if [[ -n "$pr_desc" ]]; then
         printf 'github %s: open pull request %s' "$project" "$pr_desc"
         return 0
@@ -159,7 +288,7 @@ gitlab_in_flight_issue_reason() {
         return 0
     fi
 
-    mr_desc="$(gitlab_find_open_ai_issue_mr "$repo_path" 2>/dev/null || true)"
+    mr_desc="$(gitlab_find_open_mr "$repo_path" 2>/dev/null || true)"
     if [[ -n "$mr_desc" ]]; then
         printf 'gitlab %s: open merge request %s' "$project" "$mr_desc"
         return 0
@@ -167,47 +296,13 @@ gitlab_in_flight_issue_reason() {
 }
 
 # ============================================================
-# Process one GitHub issue (returns 0 if handled, 1 if none/skip)
-# Sets FOUND_TASK=1 when a task was claimed.
+# Background jobs (one repository at a time; lock held by caller)
 # ============================================================
 
-process_github_project() {
+github_issue_job() {
     local PROJECT="$1"
-    local PROJECT_DIR="$2"
-    local REPO ISSUE_NUMBER in_flight
-
-    REPO="$(
-        cd "$PROJECT_DIR"
-        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
-    )"
-
-    if [[ -z "$REPO" ]]; then
-        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
-        return 0
-    fi
-
-    ISSUE_NUMBER="$(
-        gh issue list \
-            --repo "$REPO" \
-            --label "ai" \
-            --state open \
-            --limit 1 \
-            --json number \
-            --jq '.[0].number // empty' \
-            2>/dev/null || true
-    )"
-
-    if [[ -z "$ISSUE_NUMBER" ]]; then
-        return 0
-    fi
-
-    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
-    if [[ -n "$in_flight" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
-        return 0
-    fi
-
-    FOUND_TASK=1
+    local REPO="$2"
+    local ISSUE_NUMBER="$3"
 
     ai_log_banner "FOUND AI ISSUE"
     echo "Forge:      github"
@@ -227,7 +322,7 @@ process_github_project() {
 
         echo
         echo "ERROR: Could not mark issue as ai-working. Skipping it."
-        return 1
+        return 0
     fi
 
     gh issue edit "$ISSUE_NUMBER" \
@@ -280,47 +375,12 @@ process_github_project() {
         echo "The issue was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
-
-    return 1
 }
 
-# ============================================================
-# Process one GitLab issue
-# ============================================================
-
-process_gitlab_project() {
+gitlab_issue_job() {
     local PROJECT="$1"
-    local PROJECT_DIR="$2"
-    local REPO_PATH ISSUE_NUMBER in_flight
-
-    if ! gitlab_configured; then
-        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
-            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
-            GITLAB_WARNED=1
-        fi
-        return 0
-    fi
-
-    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
-
-    if [[ -z "$REPO_PATH" ]]; then
-        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
-        return 0
-    fi
-
-    ISSUE_NUMBER="$(gitlab_find_ai_issue "$REPO_PATH" 2>/dev/null || true)"
-
-    if [[ -z "$ISSUE_NUMBER" ]]; then
-        return 0
-    fi
-
-    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
-    if [[ -n "$in_flight" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
-        return 0
-    fi
-
-    FOUND_TASK=1
+    local REPO_PATH="$2"
+    local ISSUE_NUMBER="$3"
 
     ai_log_banner "FOUND AI ISSUE"
     echo "Forge:      gitlab"
@@ -339,7 +399,7 @@ process_gitlab_project() {
 
         echo
         echo "ERROR: Could not mark issue as ai-working. Skipping it."
-        return 1
+        return 0
     fi
 
     gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
@@ -388,45 +448,12 @@ process_gitlab_project() {
         echo "The issue was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
-
-    return 1
 }
 
-# ============================================================
-# Process one GitHub pull request (implement on branch via ai label)
-# ============================================================
-
-process_github_pr_implement() {
+github_pr_implement_job() {
     local PROJECT="$1"
-    local PROJECT_DIR="$2"
-    local REPO PR_NUMBER
-
-    REPO="$(
-        cd "$PROJECT_DIR"
-        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
-    )"
-
-    if [[ -z "$REPO" ]]; then
-        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
-        return 0
-    fi
-
-    PR_NUMBER="$(
-        gh pr list \
-            --repo "$REPO" \
-            --label "ai" \
-            --state open \
-            --limit 100 \
-            --json number,createdAt \
-            --jq 'sort_by(.createdAt) | .[0].number // empty' \
-            2>/dev/null || true
-    )"
-
-    if [[ -z "$PR_NUMBER" ]]; then
-        return 0
-    fi
-
-    FOUND_TASK=1
+    local REPO="$2"
+    local PR_NUMBER="$3"
 
     ai_log_banner "FOUND AI PR (IMPLEMENT)"
     echo "Forge:         github"
@@ -446,7 +473,7 @@ process_github_pr_implement() {
 
         echo
         echo "ERROR: Could not mark PR as ai-working. Skipping it."
-        return 1
+        return 0
     fi
 
     gh pr edit "$PR_NUMBER" \
@@ -499,45 +526,12 @@ process_github_pr_implement() {
         echo "The pull request was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
-
-    return 1
 }
 
-# ============================================================
-# Process one GitHub pull-request review
-# ============================================================
-
-process_github_pr_review() {
+github_pr_review_job() {
     local PROJECT="$1"
-    local PROJECT_DIR="$2"
-    local REPO PR_NUMBER
-
-    REPO="$(
-        cd "$PROJECT_DIR"
-        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
-    )"
-
-    if [[ -z "$REPO" ]]; then
-        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
-        return 0
-    fi
-
-    PR_NUMBER="$(
-        gh pr list \
-            --repo "$REPO" \
-            --label "ai-review" \
-            --state open \
-            --limit 100 \
-            --json number,createdAt \
-            --jq 'sort_by(.createdAt) | .[0].number // empty' \
-            2>/dev/null || true
-    )"
-
-    if [[ -z "$PR_NUMBER" ]]; then
-        return 0
-    fi
-
-    FOUND_TASK=1
+    local REPO="$2"
+    local PR_NUMBER="$3"
 
     ai_log_banner "FOUND AI PR REVIEW"
     echo "Forge:         github"
@@ -557,7 +551,7 @@ process_github_pr_review() {
 
         echo
         echo "ERROR: Could not mark PR as ai-reviewing. Skipping it."
-        return 1
+        return 0
     fi
 
     gh pr edit "$PR_NUMBER" \
@@ -610,41 +604,12 @@ process_github_pr_review() {
         echo "The pull request was NOT automatically re-reviewed."
         echo "Review the logs first. When ready, add label: ai-review"
     fi
-
-    return 1
 }
 
-# ============================================================
-# Process one GitLab merge request (implement on branch via ai label)
-# ============================================================
-
-process_gitlab_mr_implement() {
+gitlab_mr_implement_job() {
     local PROJECT="$1"
-    local PROJECT_DIR="$2"
-    local REPO_PATH MR_IID
-
-    if ! gitlab_configured; then
-        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
-            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
-            GITLAB_WARNED=1
-        fi
-        return 0
-    fi
-
-    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
-
-    if [[ -z "$REPO_PATH" ]]; then
-        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
-        return 0
-    fi
-
-    MR_IID="$(gitlab_find_ai_mr "$REPO_PATH" 2>/dev/null || true)"
-
-    if [[ -z "$MR_IID" ]]; then
-        return 0
-    fi
-
-    FOUND_TASK=1
+    local REPO_PATH="$2"
+    local MR_IID="$3"
 
     ai_log_banner "FOUND AI MR (IMPLEMENT)"
     echo "Forge:          gitlab"
@@ -663,7 +628,7 @@ process_gitlab_mr_implement() {
 
         echo
         echo "ERROR: Could not mark MR as ai-working. Skipping it."
-        return 1
+        return 0
     fi
 
     gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
@@ -712,41 +677,12 @@ process_gitlab_mr_implement() {
         echo "The merge request was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
-
-    return 1
 }
 
-# ============================================================
-# Process one GitLab merge-request review
-# ============================================================
-
-process_gitlab_mr_review() {
+gitlab_mr_review_job() {
     local PROJECT="$1"
-    local PROJECT_DIR="$2"
-    local REPO_PATH MR_IID
-
-    if ! gitlab_configured; then
-        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
-            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
-            GITLAB_WARNED=1
-        fi
-        return 0
-    fi
-
-    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
-
-    if [[ -z "$REPO_PATH" ]]; then
-        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
-        return 0
-    fi
-
-    MR_IID="$(gitlab_find_ai_review_mr "$REPO_PATH" 2>/dev/null || true)"
-
-    if [[ -z "$MR_IID" ]]; then
-        return 0
-    fi
-
-    FOUND_TASK=1
+    local REPO_PATH="$2"
+    local MR_IID="$3"
 
     ai_log_banner "FOUND AI MR REVIEW"
     echo "Forge:          gitlab"
@@ -765,7 +701,7 @@ process_gitlab_mr_review() {
 
         echo
         echo "ERROR: Could not mark MR as ai-reviewing. Skipping it."
-        return 1
+        return 0
     fi
 
     gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" \
@@ -814,58 +750,301 @@ process_gitlab_mr_review() {
         echo "The merge request was NOT automatically re-reviewed."
         echo "Review the logs first. When ready, add label: ai-review"
     fi
+}
 
-    return 1
+# ============================================================
+# Process one GitHub issue (returns 0; work runs in the background)
+# ============================================================
+
+process_github_project() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO ISSUE_NUMBER in_flight
+
+    if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
+        return 0
+    fi
+
+    REPO="$(
+        cd "$PROJECT_DIR"
+        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
+    )"
+
+    if [[ -z "$REPO" ]]; then
+        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
+        return 0
+    fi
+
+    ISSUE_NUMBER="$(
+        gh issue list \
+            --repo "$REPO" \
+            --label "ai" \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number // empty' \
+            2>/dev/null || true
+    )"
+
+    if [[ -z "$ISSUE_NUMBER" ]]; then
+        return 0
+    fi
+
+    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
+    if [[ -n "$in_flight" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+        return 0
+    fi
+
+    launch_repo_job "$PROJECT_DIR" "$PROJECT" github_issue_job "$PROJECT" "$REPO" "$ISSUE_NUMBER"
+    return 0
+}
+
+# ============================================================
+# Process one GitLab issue
+# ============================================================
+
+process_gitlab_project() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO_PATH ISSUE_NUMBER in_flight
+
+    if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
+        return 0
+    fi
+
+    if ! gitlab_configured; then
+        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
+            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
+            GITLAB_WARNED=1
+        fi
+        return 0
+    fi
+
+    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+
+    if [[ -z "$REPO_PATH" ]]; then
+        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
+        return 0
+    fi
+
+    ISSUE_NUMBER="$(gitlab_find_ai_issue "$REPO_PATH" 2>/dev/null || true)"
+
+    if [[ -z "$ISSUE_NUMBER" ]]; then
+        return 0
+    fi
+
+    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
+    if [[ -n "$in_flight" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+        return 0
+    fi
+
+    launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_issue_job "$PROJECT" "$REPO_PATH" "$ISSUE_NUMBER"
+    return 0
+}
+
+# ============================================================
+# Process one GitHub pull request (implement on branch via ai label)
+# ============================================================
+
+process_github_pr_implement() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO PR_NUMBER
+
+    if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
+        return 0
+    fi
+
+    REPO="$(
+        cd "$PROJECT_DIR"
+        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
+    )"
+
+    if [[ -z "$REPO" ]]; then
+        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
+        return 0
+    fi
+
+    PR_NUMBER="$(
+        gh pr list \
+            --repo "$REPO" \
+            --label "ai" \
+            --state open \
+            --limit 100 \
+            --json number,createdAt \
+            --jq 'sort_by(.createdAt) | .[0].number // empty' \
+            2>/dev/null || true
+    )"
+
+    if [[ -z "$PR_NUMBER" ]]; then
+        return 0
+    fi
+
+    launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_implement_job "$PROJECT" "$REPO" "$PR_NUMBER"
+    return 0
+}
+
+# ============================================================
+# Process one GitHub pull-request review
+# ============================================================
+
+process_github_pr_review() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO PR_NUMBER
+
+    if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
+        return 0
+    fi
+
+    REPO="$(
+        cd "$PROJECT_DIR"
+        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
+    )"
+
+    if [[ -z "$REPO" ]]; then
+        echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
+        return 0
+    fi
+
+    PR_NUMBER="$(
+        gh pr list \
+            --repo "$REPO" \
+            --label "ai-review" \
+            --state open \
+            --limit 100 \
+            --json number,createdAt \
+            --jq 'sort_by(.createdAt) | .[0].number // empty' \
+            2>/dev/null || true
+    )"
+
+    if [[ -z "$PR_NUMBER" ]]; then
+        return 0
+    fi
+
+    launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_review_job "$PROJECT" "$REPO" "$PR_NUMBER"
+    return 0
+}
+
+# ============================================================
+# Process one GitLab merge request (implement on branch via ai label)
+# ============================================================
+
+process_gitlab_mr_implement() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO_PATH MR_IID
+
+    if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
+        return 0
+    fi
+
+    if ! gitlab_configured; then
+        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
+            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
+            GITLAB_WARNED=1
+        fi
+        return 0
+    fi
+
+    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+
+    if [[ -z "$REPO_PATH" ]]; then
+        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
+        return 0
+    fi
+
+    MR_IID="$(gitlab_find_ai_mr "$REPO_PATH" 2>/dev/null || true)"
+
+    if [[ -z "$MR_IID" ]]; then
+        return 0
+    fi
+
+    launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_mr_implement_job "$PROJECT" "$REPO_PATH" "$MR_IID"
+    return 0
+}
+
+# ============================================================
+# Process one GitLab merge-request review
+# ============================================================
+
+process_gitlab_mr_review() {
+    local PROJECT="$1"
+    local PROJECT_DIR="$2"
+    local REPO_PATH MR_IID
+
+    if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
+        return 0
+    fi
+
+    if ! gitlab_configured; then
+        if [[ "$GITLAB_WARNED" -eq 0 ]]; then
+            echo "WARNING: GITLAB_TOKEN not set; skipping GitLab projects."
+            GITLAB_WARNED=1
+        fi
+        return 0
+    fi
+
+    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+
+    if [[ -z "$REPO_PATH" ]]; then
+        echo "WARNING: Cannot determine GitLab project for: $PROJECT"
+        return 0
+    fi
+
+    MR_IID="$(gitlab_find_ai_review_mr "$REPO_PATH" 2>/dev/null || true)"
+
+    if [[ -z "$MR_IID" ]]; then
+        return 0
+    fi
+
+    launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_mr_review_job "$PROJECT" "$REPO_PATH" "$MR_IID"
+    return 0
 }
 
 # ============================================================
 # Main loop
 #
-# Each cycle handles at most one task (issue or MR review).
-# A new issue is skipped only in a repo that already has an
-# open AI-created PR/MR (or ai-working). Other repos can still
-# start issues. PR/MR implement and review jobs still drain
-# back-to-back. Sleep only when nothing is queued.
+# Each idle repository can start one task per cycle. Tasks in
+# different repositories run at the same time. A repository with
+# a running agent, an ai-working issue, or any open PR/MR does
+# not start a new issue. Sleep when nothing is running; wake
+# early when an agent finishes so that repo can take its next task.
 # ============================================================
 
 while true; do
 
-    FOUND_TASK=0
+    reset_repo_busy_log
+    reap_repo_agents
 
-    # Priority: GitHub issues → GitHub PR implement → GitHub PR reviews →
-    #           GitLab issues → GitLab MR implement → GitLab MR reviews.
-    # New issues in a repo wait only on that same repo's open AI PR/MR.
+    # Priority inside one repository: issues, then PR/MR implement,
+    # then reviews. A launch marks that repository busy, so later
+    # handlers in this cycle skip it. Other repositories still start.
     if [[ -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_project || true
-    fi
-
-    if [[ "$FOUND_TASK" -eq 0 && -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_pr_implement || true
-    fi
-
-    if [[ "$FOUND_TASK" -eq 0 && -f "$PROJECTS_FILE" ]]; then
         ai_foreach_project "$PROJECTS_FILE" process_github_pr_review || true
     fi
 
-    if [[ "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
+    if [[ -f "$GITLAB_PROJECTS_FILE" ]]; then
         ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_project || true
-    fi
-
-    if [[ "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
         ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_implement || true
-    fi
-
-    if [[ "$FOUND_TASK" -eq 0 && -f "$GITLAB_PROJECTS_FILE" ]]; then
         ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review || true
     fi
 
-    if [[ "$FOUND_TASK" -eq 1 ]]; then
-        echo
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Task finished; checking for next queued item..."
+    if [[ "${#REPO_AGENT_PIDS[@]}" -eq 0 ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s."
+        sleep "$CHECK_INTERVAL"
         continue
     fi
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s."
-    sleep "$CHECK_INTERVAL"
+    if [[ "${#REPO_AGENT_PIDS[@]}" -eq 1 ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] 1 repository agent running. Checking again in ${CHECK_INTERVAL}s, or sooner when it finishes."
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] ${#REPO_AGENT_PIDS[@]} repository agents running. Checking again in ${CHECK_INTERVAL}s, or sooner when one finishes."
+    fi
+    wait_for_running_agents
 
 done

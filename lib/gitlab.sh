@@ -151,23 +151,22 @@ gitlab_find_ai_issue() {
     gitlab_find_open_issue_with_label "$1" "ai"
 }
 
-# Print a short description of the oldest open AI-created MR, or empty.
+# Print a short description of the oldest open merge request, or empty.
 # Example: "!12 (ai/issue-3)"
-gitlab_find_open_ai_issue_mr() {
+gitlab_find_open_mr() {
     local project_path="$1"
     local encoded body desc
 
     encoded="$(gitlab_encode_path "$project_path")"
     body="$(
         gitlab_api GET \
-            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=100"
+            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=1"
     )" || return 1
 
     desc="$(
         jq -r '
-            [.[] | select((.source_branch // "") | startswith("ai/issue-"))]
-            | .[0]
-            | if . then "!\(.iid) (\(.source_branch))" else empty end
+            .[0]
+            | if . then "!\(.iid) (\(.source_branch // "unknown"))" else empty end
         ' <<<"$body"
     )"
     printf '%s' "$desc"
