@@ -15,6 +15,8 @@ LOG_DIR="$BASE_DIR/logs"
 source "$BASE_DIR/lib/common.sh"
 # shellcheck source=lib/prompts.sh
 source "$BASE_DIR/lib/prompts.sh"
+# shellcheck source=lib/related-tasks.sh
+source "$BASE_DIR/lib/related-tasks.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 
@@ -98,6 +100,7 @@ PROMPT_FILE="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.prompt.txt"
 
 RESULT_FILE="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}.result.txt"
 NOTES_SAVED="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}-notes.md"
+RELATED_TASKS_SAVED="$LOG_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}-related-tasks.json"
 
 STATE_FILE="$STATE_DIR/${PROJECT}-issue-${ISSUE_NUMBER}.running"
 
@@ -110,6 +113,7 @@ ISSUE_TITLE=""
 ISSUE_URL=""
 PR_URL=""
 NOTES_FILE=""
+RELATED_TASKS_FILE=""
 NOTES_COMMENT_URL=""
 
 # ============================================================
@@ -573,6 +577,8 @@ git -C "$PROJECT_DIR" checkout -b "$BRANCH" main
 
 NOTES_FILE="$PROJECT_DIR/.ai-pr-notes.md"
 rm -f "$NOTES_FILE"
+RELATED_TASKS_FILE="$PROJECT_DIR/.ai-related-tasks.json"
+rm -f "$RELATED_TASKS_FILE"
 
 ai_prompt_clear
 ai_prompt_set REPO "$REPO"
@@ -583,6 +589,9 @@ ai_prompt_set ISSUE_TITLE "$ISSUE_TITLE"
 ai_prompt_set ISSUE_BODY "$ISSUE_BODY"
 ai_prompt_set ISSUE_COMMENTS_TEXT "$ISSUE_COMMENTS_TEXT"
 ai_prompt_set NOTES_FILE "$NOTES_FILE"
+ai_prompt_set RELATED_TASKS_FILE "$RELATED_TASKS_FILE"
+ai_prompt_set SOURCE_PROJECT "$PROJECT"
+ai_prompt_set REGISTERED_PROJECTS "$(ai_registered_projects_text)"
 
 ai_prompt_render "github-issue-implement.txt" "$PROMPT_FILE"
 
@@ -622,6 +631,7 @@ git -C "$PROJECT_DIR" status --short
 
 # Capture merge/PR notes before staging so they are never committed.
 ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
+ai_capture_related_tasks_file "$RELATED_TASKS_FILE" "$RELATED_TASKS_SAVED" || true
 
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
 
@@ -631,6 +641,12 @@ if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
 
     exit 20
 fi
+
+ai_apply_related_tasks \
+    "$RELATED_TASKS_SAVED" \
+    "$PROJECT" \
+    "GitHub issue #${ISSUE_NUMBER} (${ISSUE_URL})" \
+    "$ISSUE_BODY" || true
 
 # ============================================================
 # Stage changes

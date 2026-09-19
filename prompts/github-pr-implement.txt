@@ -54,6 +54,7 @@ Leave completed changes UNCOMMITTED in the working tree.
 {{INCLUDE:snippets/minimal-changes.txt}}
 {{INCLUDE:snippets/test-coverage.txt}}
 {{INCLUDE:snippets/implement-merge-notes.txt}}
+{{INCLUDE:snippets/related-services.txt}}
 
 ============================================================
 FINAL RESPONSE
@@ -61,3 +62,4 @@ FINAL RESPONSE
 
 Report: Summary, files changed, tests run, coverage of this change (tool, command, percent of changed lines; must be above 80%), problems/limitations.
 Confirm that {{NOTES_FILE}} was written.
+Confirm that {{RELATED_TASKS_FILE}} was written.

@@ -30,6 +30,7 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | `implement-final-response.txt` | What to report after implementing |
 | `implement-merge-notes.txt` | Write `.ai-*-notes.md` for the PR/MR comment (env, deploy, verify) |
 | `minimal-changes.txt` | Only edit files/classes the issue requires; no extra diffs |
+| `related-services.txt` | From project docs, list other registered repos this change affects |
 | `review-tests.txt` | On PR/MR review, read and run tests and report coverage of the change |
 | `review-output-guidelines.txt` | Markdown structure for review comments |
 | `review-scope.txt` | Review only the current PR/MR diff; no project-wide comments |
@@ -42,6 +43,9 @@ Templates use `{{NAME}}` placeholders filled at runtime, for example:
 - `{{PR_TITLE}}`, `{{LINKED_ISSUES}}`, `{{DIFF}}`
 - `{{REVIEW_FILE}}` — path where the agent must write the review
 - `{{NOTES_FILE}}` — path where the agent must write merge/PR notes (posted as a comment)
+- `{{RELATED_TASKS_FILE}}` — JSON list of follow-up tasks for other registered repos
+- `{{REGISTERED_PROJECTS}}` — names from `projects.conf` and `gitlab-projects.conf`
+- `{{SOURCE_PROJECT}}` — conf name of the repository being changed
 
 Rendered prompts are also saved to `logs/*.prompt.txt` for debugging.
 

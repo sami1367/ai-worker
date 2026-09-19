@@ -463,6 +463,48 @@ gitlab_format_notes() {
     )" "$max_bytes"
 }
 
+# Create an issue. Prints the issue JSON.
+# Usage: gitlab_create_issue <project_path> <title> <description> [label]
+gitlab_create_issue() {
+    local project_path="$1"
+    local title="$2"
+    local description="$3"
+    local label="${4:-ai}"
+    local encoded payload
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    payload="$(
+        jq -n \
+            --arg title "$title" \
+            --arg description "$description" \
+            --arg label "$label" \
+            '{title: $title, description: $description, labels: $label}'
+    )"
+    gitlab_api POST "/projects/${encoded}/issues" -d "$payload"
+}
+
+# Print the web URL of an open issue with this exact title, or empty.
+# Usage: gitlab_find_open_issue_url_by_title <project_path> <title>
+gitlab_find_open_issue_url_by_title() {
+    local project_path="$1"
+    local title="$2"
+    local encoded search_q body url
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    search_q="$(jq -nr --arg s "$title" '$s | @uri')"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/issues?state=opened&scope=all&in=title&per_page=20&search=${search_q}"
+    )" || return 1
+
+    url="$(
+        jq -r --arg t "$title" \
+            '[.[] | select(.title == $t) | .web_url] | first // empty' \
+            <<<"$body"
+    )"
+    printf '%s' "$url"
+}
+
 # Post a note/comment on an issue (optional helper).
 gitlab_create_issue_note() {
     local project_path="$1"

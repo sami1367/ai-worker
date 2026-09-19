@@ -1,0 +1,63 @@
+============================================================
+RELATED SERVICES (required)
+============================================================
+
+This change may require work in other services. Before your final
+response, decide whether it does, using only this repository's
+documentation and the registered project list below.
+
+Read documentation that describes dependencies and neighboring
+services, for example README files, docs/, and architecture notes.
+Do not guess from package names alone.
+
+Current project (never file a task for this one): {{SOURCE_PROJECT}}
+
+Registered projects (use these names exactly):
+
+{{REGISTERED_PROJECTS}}
+
+Write a JSON file to exactly this path:
+
+{{RELATED_TASKS_FILE}}
+
+The runner reads that file, opens an issue labeled ai in each matched
+repository, and commits a Markdown copy under tasks/ in this
+repository. You must not create issues, call GitHub or GitLab, or
+write the tasks/ files yourself. Do not commit the JSON file.
+
+If this issue or pull/merge request was itself opened as a related
+follow-up (its description contains ai-worker-related-task), write
+{"tasks":[]} and stop. Records already in tasks/ are not a reason to
+skip a new change.
+
+Include a project only when all of these are true:
+
+- Its name is in the registered list above.
+- Documentation in this repository names that service.
+- The change you just made affects a contract that service depends on
+  (API, event, schema, or shared behavior). Mentioning a service is
+  not enough.
+
+Each task must be specific enough for another engineer to implement
+without seeing this repository. Never include secrets.
+
+Schema:
+
+{
+  "tasks": [
+    {
+      "project": "exact-registered-name",
+      "title": "Short imperative issue title",
+      "summary": "What to change in that repository.",
+      "why": "Which doc says this service is affected, and how.",
+      "doc": "path or heading in this repository",
+      "acceptance": ["Checkable outcome"]
+    }
+  ]
+}
+
+When no other registered service is affected, write exactly:
+
+{"tasks":[]}
+
+The file is required either way.

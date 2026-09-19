@@ -80,7 +80,7 @@ With the worker running as a systemd service (recommended), you only touch GitLa
 
 | What you want | Where | What you do | What the worker does |
 |---------------|-------|-------------|----------------------|
-| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. **Waits** if that same repo already has an agent running or any open PR/MR. Other repos are not blocked. |
+| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. If project docs say this change affects another registered service, also opens an **`ai`** issue there and commits `tasks/*.md`. **Waits** if that same repo already has an agent running or any open PR/MR. Other repos are not blocked. |
 | Create next draft/upcoming release | GitHub (`projects.conf`) or GitLab (`gitlab-projects.conf`) | Open an issue titled **`new release`** or **`new tag`**, add label **`ai`** | Skips AI → fetch/pull + tags → bumps past highest `vMAJOR.MINOR.PATCH` from git tags **or** forge releases (GitHub drafts / GitLab upcoming) → **pushes a real git tag** (so tag-based Actions CI runs) → creates draft (GitHub) or upcoming (GitLab) release → comments + closes the issue → `ai-pr` / `ai-failed` |
 | AI-review a PR | GitHub project in `projects.conf` | Add label **`ai-review`** on an open PR | Reviews diff + linked issues → posts PR comment → `ai-reviewed` / `ai-review-failed` |
 | AI-review an MR | GitLab project in `gitlab-projects.conf` | Add label **`ai-review`** on an open MR | Reviews diff + linked issues → posts MR comment → `ai-reviewed` / `ai-review-failed` |
@@ -825,11 +825,26 @@ If labels are missing on a repo, the worker cannot find or update the item — r
 
 ## What the AI agent does vs. what the scripts do
 
-**Issue runs:** The AI agent (Cursor or Claude Code) implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. It also writes merge notes to `.ai-pr-notes.md` (GitHub) or `.ai-mr-notes.md` (GitLab) covering what changed, env/config to add, deploy steps, and how to verify. The runners handle staging, secret checks, commit, push, PR/MR creation, posting those notes as a PR/MR comment, and cleanup back to `main`. Notes files are never committed.
+**Issue runs:** The AI agent (Cursor or Claude Code) implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. It also writes merge notes to `.ai-pr-notes.md` (GitHub) or `.ai-mr-notes.md` (GitLab) covering what changed, env/config to add, deploy steps, and how to verify. The runners handle staging, secret checks, commit, push, PR/MR creation, posting those notes as a PR/MR comment, and cleanup back to `main`. Notes files are never committed. After a real code change, the runner may also open follow-up issues in related repositories — see [Related services](#related-services).
 
-**PR/MR implement runs:** Same notes file + comment flow when updating an existing PR/MR labeled `ai`.
+**PR/MR implement runs:** Same notes file, related-service follow-ups, and comment flow when updating an existing PR/MR labeled `ai`.
 
 **PR/MR review runs:** The AI agent inspects the branch/diff and writes a Markdown review to `.ai-pr-review.md` (GitHub) or `.ai-mr-review.md` (GitLab). If the title/description links issues (`Closes #1`, `Fixes #123`, `Related to #45`, etc.), the runner fetches those issues first and includes them as acceptance criteria in the prompt. The runner posts the review as a PR/MR comment, then discards the file and returns to `main`. The agent must not change product code or call forge APIs.
+
+## Related services
+
+A feature in one repository can require a matching change in another service. On issue and PR/MR implement runs, the worker does this after the agent changes code:
+
+1. The agent reads this repository's documentation (README, `docs/`, architecture notes) and the names in `projects.conf` and `gitlab-projects.conf`.
+2. It writes `.ai-related-tasks.json` (never committed). An empty `{"tasks":[]}` means nothing else is affected.
+3. For each listed name that matches a conf entry, the runner opens an issue labeled **`ai`** in that repository. The normal poll loop then implements it. An open PR/MR in that other repo still makes the new issue wait.
+4. The same follow-up is committed in the source repository as `tasks/<date>-<project>-<slug>.md`, so the pull/merge request documents it. The PR/MR notes comment lists the issues that were opened.
+
+The conf **name** (the left side of `name=/path`) must be the name used in the project's docs. Run `./setup-labels.sh` so the `ai` label exists on those repos.
+
+Each follow-up issue description contains `ai-worker-related-task`. The worker does not open another round of related issues from those follow-ups.
+
+If the docs name a service that is not in either conf file, the markdown file is still written and the log says no issue was created.
 
 ## Safety
 
@@ -858,6 +873,7 @@ ai-worker/
 ├── .env.example              # GITLAB_HOST / GITLAB_TOKEN template
 ├── lib/
 │   ├── common.sh
+│   ├── related-tasks.sh      # Cross-repo follow-up issues + tasks/*.md
 │   ├── ai.sh                 # Modular AI provider interface
 │   ├── ai/
 │   │   ├── cursor.sh         # Cursor CLI (--force, --trust, etc.)

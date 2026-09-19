@@ -3,6 +3,8 @@
 #   cp gitlab-projects.conf.example gitlab-projects.conf
 #
 # Format: name=/absolute/path/to/local/clone
+# The name is what related-service detection matches in project docs.
+# Use the same name the documentation uses for that service.
 # Not mixed with GitHub projects.conf.
 
 # my-service=/home/ubuntu/dev/my-service

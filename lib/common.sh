@@ -866,7 +866,8 @@ ai_implement_notes_basenames() {
         '.ai-pr-notes.md' \
         '.ai-mr-notes.md' \
         '.ai-pr-review.md' \
-        '.ai-mr-review.md'
+        '.ai-mr-review.md' \
+        '.ai-related-tasks.json'
 }
 
 # Move implement notes out of the project tree before git add/commit.

@@ -15,6 +15,8 @@ LOG_DIR="$BASE_DIR/logs"
 source "$BASE_DIR/lib/common.sh"
 # shellcheck source=lib/prompts.sh
 source "$BASE_DIR/lib/prompts.sh"
+# shellcheck source=lib/related-tasks.sh
+source "$BASE_DIR/lib/related-tasks.sh"
 # shellcheck source=lib/ai.sh
 source "$BASE_DIR/lib/ai.sh"
 # shellcheck source=lib/gitlab.sh
@@ -62,6 +64,7 @@ PROMPT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.prom
 RESULT_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.result.txt"
 ISSUES_FILE="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}.issues.txt"
 NOTES_SAVED="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}-notes.md"
+RELATED_TASKS_SAVED="$LOG_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}-${TIMESTAMP}-related-tasks.json"
 STATE_FILE="$STATE_DIR/${PROJECT}-gitlab-mr-implement-${MR_IID}.running"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -72,6 +75,7 @@ MR_URL=""
 SOURCE_BRANCH=""
 TARGET_BRANCH=""
 NOTES_FILE=""
+RELATED_TASKS_FILE=""
 NOTES_COMMENT_URL=""
 
 cleanup() {
@@ -200,6 +204,8 @@ fi
 
 NOTES_FILE="$PROJECT_DIR/.ai-mr-notes.md"
 rm -f "$NOTES_FILE"
+RELATED_TASKS_FILE="$PROJECT_DIR/.ai-related-tasks.json"
+rm -f "$RELATED_TASKS_FILE"
 
 ai_prompt_clear
 ai_prompt_set REPO_PATH "$REPO_PATH"
@@ -214,6 +220,9 @@ ai_prompt_set MR_BODY "$MR_BODY"
 ai_prompt_set MR_COMMENTS_TEXT "$MR_COMMENTS_TEXT"
 ai_prompt_set LINKED_ISSUES "$(cat "$ISSUES_FILE")"
 ai_prompt_set NOTES_FILE "$NOTES_FILE"
+ai_prompt_set RELATED_TASKS_FILE "$RELATED_TASKS_FILE"
+ai_prompt_set SOURCE_PROJECT "$PROJECT"
+ai_prompt_set REGISTERED_PROJECTS "$(ai_registered_projects_text)"
 
 ai_prompt_render "gitlab-mr-implement.txt" "$PROMPT_FILE"
 
@@ -234,11 +243,18 @@ fi
 git -C "$PROJECT_DIR" status --short
 
 ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
+ai_capture_related_tasks_file "$RELATED_TASKS_FILE" "$RELATED_TASKS_SAVED" || true
 
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo "ERROR: Agent completed but made no changes."
     exit 20
 fi
+
+ai_apply_related_tasks \
+    "$RELATED_TASKS_SAVED" \
+    "$PROJECT" \
+    "GitLab merge request !${MR_IID} (${MR_URL})" \
+    "${MR_BODY}"$'\n'"$(cat "$ISSUES_FILE" 2>/dev/null || true)" || true
 
 git -C "$PROJECT_DIR" add -A
 ai_unstage_ai_artifact_files "$PROJECT_DIR"
