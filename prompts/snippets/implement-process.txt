@@ -2,6 +2,10 @@
 PROCESS
 ============================================================
 
+0. Decide whether to implement at all (see WHEN NOT TO IMPLEMENT).
+   If you decline, skip steps 1–9, leave the working tree clean,
+   write the declined notes file, write {"tasks":[]}, and finish.
+
 1. Inspect the relevant architecture and existing implementation.
    List the files and classes the issue actually requires. Do not
    edit anything outside that list.

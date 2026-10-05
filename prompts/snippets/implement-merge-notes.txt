@@ -14,7 +14,39 @@ Write practical notes for the human who will review and merge.
 Be concrete. Prefer checklists. If a section does not apply, write
 `None` — do not invent work.
 
-Required structure:
+If you declined the task (see WHEN NOT TO IMPLEMENT), write this
+structure instead of the usual sections. The runner puts this
+explanation on the pull/merge request (new empty-commit PR/MR for
+issues; a comment on an existing PR/MR).
+
+## Why this was not implemented
+
+State which case applies: unrelated to this repository, not
+acceptable, or not useful. Then explain with specifics from the
+issue or comments and what you inspected in the repo.
+
+## What this change does
+
+No code changes. Empty pull/merge request for the record.
+
+## Before merging / deploying
+
+None. Close this PR/MR after reading the explanation unless a human
+explicitly wants the empty commit.
+
+## Configuration / environment
+
+None
+
+## How to verify
+
+The PR/MR diff should contain no product-file changes.
+
+## Risks / limitations
+
+None
+
+Otherwise, when you did implement, use this structure:
 
 ## What this change does
 

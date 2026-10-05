@@ -38,8 +38,10 @@ LINKED ISSUES / TASKS
 YOUR JOB
 ============================================================
 
-Implement the work requested in the PR comments and linked issue comments.
-Comments are the primary source of requirements; follow them over the PR/issue title and description.
+If the requested work is related to this repository and is acceptable
+and useful, implement it. Comments are the primary source of
+requirements; follow them over the PR/issue title and description.
+Otherwise decline it as instructed below — do not invent work.
 
 You are running unattended. Do not ask questions or wait for approval.
 
@@ -50,7 +52,9 @@ You MUST NOT edit files or classes that are not required by the issue or comment
 You MUST NOT reformat, restyle, or pretty-print unrelated lines, classes, or files.
 
 Leave completed changes UNCOMMITTED in the working tree.
+If you declined, leave the working tree with no product-file changes.
 
+{{INCLUDE:snippets/decline-unrelated-task.txt}}
 {{INCLUDE:snippets/minimal-changes.txt}}
 {{INCLUDE:snippets/test-coverage.txt}}
 {{INCLUDE:snippets/implement-merge-notes.txt}}
@@ -60,6 +64,6 @@ Leave completed changes UNCOMMITTED in the working tree.
 FINAL RESPONSE
 ============================================================
 
-Report: Summary, files changed, tests run, coverage of this change (tool, command, percent of changed lines; must be above 80%), problems/limitations.
+Report: Summary (if declined, restated why), files changed, tests run, coverage of this change (tool, command, percent of changed lines; must be above 80%), problems/limitations.
 Confirm that {{NOTES_FILE}} was written.
 Confirm that {{RELATED_TASKS_FILE}} was written.

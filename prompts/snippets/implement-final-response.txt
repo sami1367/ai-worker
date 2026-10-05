@@ -8,6 +8,8 @@ At the end report:
 
 Summary:
 
+If you declined: say so, and restated why (same as {{NOTES_FILE}}).
+
 Files changed:
 
 Tests run and results:

@@ -28,7 +28,9 @@ ISSUE COMMENTS / DISCUSSION (read first — overrides title/description)
 YOUR JOB
 ============================================================
 
-Implement this issue completely and carefully.
+If the issue is related to this repository and is acceptable and
+useful, implement it completely and carefully. Otherwise decline it
+as instructed below — do not invent work.
 
 You are running unattended.
 
@@ -81,7 +83,9 @@ A separate automation script handles:
 - pull requests
 
 Leave your completed code changes in the working tree when finished.
+If you declined, leave the working tree with no product-file changes.
 
+{{INCLUDE:snippets/decline-unrelated-task.txt}}
 {{INCLUDE:snippets/minimal-changes.txt}}
 {{INCLUDE:snippets/implement-process.txt}}
 {{INCLUDE:snippets/implement-final-response.txt}}

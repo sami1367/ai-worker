@@ -245,37 +245,47 @@ git -C "$PROJECT_DIR" status --short
 ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
 ai_capture_related_tasks_file "$RELATED_TASKS_FILE" "$RELATED_TASKS_SAVED" || true
 
+DECLINED_NO_CHANGES=0
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-    echo "ERROR: Agent completed but made no changes."
-    exit 20
+    if ai_notes_explain_no_implementation "$NOTES_SAVED"; then
+        DECLINED_NO_CHANGES=1
+        echo "Agent declined the request (no product-file changes)."
+        echo "Posting the explanation on the existing merge request; no new commit."
+        COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+    else
+        echo "ERROR: Agent completed but made no changes."
+        exit 20
+    fi
 fi
 
-ai_apply_related_tasks \
-    "$RELATED_TASKS_SAVED" \
-    "$PROJECT" \
-    "GitLab merge request !${MR_IID} (${MR_URL})" \
-    "${MR_BODY}"$'\n'"$(cat "$ISSUES_FILE" 2>/dev/null || true)" || true
+if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
+    ai_apply_related_tasks \
+        "$RELATED_TASKS_SAVED" \
+        "$PROJECT" \
+        "GitLab merge request !${MR_IID} (${MR_URL})" \
+        "${MR_BODY}"$'\n'"$(cat "$ISSUES_FILE" 2>/dev/null || true)" || true
 
-git -C "$PROJECT_DIR" add -A
-ai_unstage_ai_artifact_files "$PROJECT_DIR"
-CHANGED_FILES="$(git -C "$PROJECT_DIR" diff --cached --name-only)"
+    git -C "$PROJECT_DIR" add -A
+    ai_unstage_ai_artifact_files "$PROJECT_DIR"
+    CHANGED_FILES="$(git -C "$PROJECT_DIR" diff --cached --name-only)"
 
-if ai_has_secret_files "$CHANGED_FILES"; then
-    echo "ERROR: Potential secret file staged."
-    exit 30
+    if ai_has_secret_files "$CHANGED_FILES"; then
+        echo "ERROR: Potential secret file staged."
+        exit 30
+    fi
+
+    if git -C "$PROJECT_DIR" diff --cached --quiet; then
+        echo "ERROR: Nothing staged after agent changes."
+        exit 21
+    fi
+
+    git -C "$PROJECT_DIR" commit -m "fix: address feedback on MR !${MR_IID}"
+
+    COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+
+    echo "Pushing branch $SOURCE_BRANCH..."
+    git -C "$PROJECT_DIR" push origin "$SOURCE_BRANCH"
 fi
-
-if git -C "$PROJECT_DIR" diff --cached --quiet; then
-    echo "ERROR: Nothing staged after agent changes."
-    exit 21
-fi
-
-git -C "$PROJECT_DIR" commit -m "fix: address feedback on MR !${MR_IID}"
-
-COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
-
-echo "Pushing branch $SOURCE_BRANCH..."
-git -C "$PROJECT_DIR" push origin "$SOURCE_BRANCH"
 
 if [[ -f "$NOTES_SAVED" ]]; then
     if NOTES_COMMENT_URL="$(ai_post_gitlab_mr_notes "$REPO_PATH" "$MR_IID" "$NOTES_SAVED")"; then

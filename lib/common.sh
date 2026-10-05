@@ -908,6 +908,15 @@ ai_capture_implement_notes() {
     return 0
 }
 
+# True when captured notes explain a declined / no-code-change run.
+# Usage: ai_notes_explain_no_implementation <notes_path>
+ai_notes_explain_no_implementation() {
+    local notes_file="$1"
+
+    [[ -n "$notes_file" && -f "$notes_file" ]] || return 1
+    grep -qiE '^##[[:space:]]+Why this was not implemented' "$notes_file"
+}
+
 # Remove known AI artifact files from a project directory (untracked leftovers).
 ai_remove_ai_artifact_files() {
     local project_dir="$1"

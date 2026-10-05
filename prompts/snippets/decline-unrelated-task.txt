@@ -1,0 +1,34 @@
+============================================================
+WHEN NOT TO IMPLEMENT
+============================================================
+
+Before writing any product code, decide whether this task belongs in
+THIS repository and is acceptable to implement here.
+
+Do not implement it when any of these is true:
+
+- It is not related to this repository (wrong project, another
+  service, a ticket that cannot be done in this working tree).
+- It is not acceptable (harmful, illegal, secret-exposing,
+  destructive, or clearly against project/safety rules).
+- It is not useful (spam, joke/noise, duplicate of existing
+  behavior with no real change, or too vague to produce a safe,
+  reviewable change).
+
+Do not invent a feature, refactor "while here", or make cosmetic
+edits just to produce a diff.
+
+If you decline:
+
+1. Revert any product-file edits so the working tree has no code,
+   test, or docs changes from this run.
+2. Write {{NOTES_FILE}} using the declined structure in the merge
+   notes section. That explanation is placed in the pull/merge
+   request. You must not create the PR/MR, commit, or push; the
+   runner opens an empty-commit PR/MR and posts your notes.
+3. Write {{RELATED_TASKS_FILE}} as exactly {"tasks":[]}.
+4. In your final response, say you declined and summarize why.
+   Files changed: none. Tests: not run.
+
+If the request is related to this repo and is acceptable and useful,
+ignore this section and implement it fully.

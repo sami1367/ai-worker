@@ -827,7 +827,9 @@ If labels are missing on a repo, the worker cannot find or update the item — r
 
 **Issue runs:** The AI agent (Cursor or Claude Code) implements the issue and leaves **uncommitted** changes. It must not run Git, `gh`, or GitLab API commands. It also writes merge notes to `.ai-pr-notes.md` (GitHub) or `.ai-mr-notes.md` (GitLab) covering what changed, env/config to add, deploy steps, and how to verify. The runners handle staging, secret checks, commit, push, PR/MR creation, posting those notes as a PR/MR comment, and cleanup back to `main`. Notes files are never committed. After a real code change, the runner may also open follow-up issues in related repositories — see [Related services](#related-services).
 
-**PR/MR implement runs:** Same notes file, related-service follow-ups, and comment flow when updating an existing PR/MR labeled `ai`.
+If the issue is unrelated to the repository, not acceptable, or not useful, the agent must not invent a change. It leaves the working tree clean and writes **Why this was not implemented** in the notes file. The runner then opens a PR/MR with an **empty commit**, puts that explanation in the PR/MR description (and as the notes comment), and does not auto-close the issue.
+
+**PR/MR implement runs:** Same notes file, related-service follow-ups, and comment flow when updating an existing PR/MR labeled `ai`. If the requested follow-up is declined, the runner posts the explanation as a comment and does not create a new commit.
 
 **PR/MR review runs:** The AI agent inspects the branch/diff and writes a Markdown review to `.ai-pr-review.md` (GitHub) or `.ai-mr-review.md` (GitLab). If the title/description links issues (`Closes #1`, `Fixes #123`, `Related to #45`, etc.), the runner fetches those issues first and includes them as acceptance criteria in the prompt. The runner posts the review as a PR/MR comment, then discards the file and returns to `main`. The agent must not change product code or call forge APIs.
 

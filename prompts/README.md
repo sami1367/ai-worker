@@ -25,6 +25,7 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 |---------|---------|
 | `comments-priority.txt` | Comments override title/description |
 | `followup-review.txt` | Re-review after human replies; role handling |
+| `decline-unrelated-task.txt` | Skip implementation; empty PR/MR with explanation |
 | `implement-process.txt` | Issue implementation steps |
 | `test-coverage.txt` | Tests must cover more than 80% of the lines this task changed |
 | `implement-final-response.txt` | What to report after implementing |

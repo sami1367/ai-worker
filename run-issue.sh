@@ -633,59 +633,69 @@ git -C "$PROJECT_DIR" status --short
 ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
 ai_capture_related_tasks_file "$RELATED_TASKS_FILE" "$RELATED_TASKS_SAVED" || true
 
+DECLINED_NO_CHANGES=0
 if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-
-    echo
-    echo "ERROR:"
-    echo "Cursor completed but made no changes."
-
-    exit 20
+    if ai_notes_explain_no_implementation "$NOTES_SAVED"; then
+        DECLINED_NO_CHANGES=1
+        echo
+        echo "Agent declined the issue (no product-file changes)."
+        echo "Opening an empty-commit pull request with the explanation."
+    else
+        echo
+        echo "ERROR:"
+        echo "Cursor completed but made no changes."
+        exit 20
+    fi
 fi
 
-ai_apply_related_tasks \
-    "$RELATED_TASKS_SAVED" \
-    "$PROJECT" \
-    "GitHub issue #${ISSUE_NUMBER} (${ISSUE_URL})" \
-    "$ISSUE_BODY" || true
+if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
+    ai_apply_related_tasks \
+        "$RELATED_TASKS_SAVED" \
+        "$PROJECT" \
+        "GitHub issue #${ISSUE_NUMBER} (${ISSUE_URL})" \
+        "$ISSUE_BODY" || true
+fi
 
 # ============================================================
 # Stage changes
 # ============================================================
 
-echo
-echo "Staging changes..."
-
-git -C "$PROJECT_DIR" add -A
-ai_unstage_ai_artifact_files "$PROJECT_DIR"
-
-CHANGED_FILES="$(
-    git -C "$PROJECT_DIR" diff \
-        --cached \
-        --name-only
-)"
-
-echo
-echo "Files to commit:"
-
-printf '%s\n' "$CHANGED_FILES"
-
-# ============================================================
-# Basic secret/private-key protection
-# ============================================================
-
-if ai_has_secret_files "$CHANGED_FILES"; then
+if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
     echo
-    echo "ERROR: A potential secret/private-key file is staged."
-    echo "Refusing to continue."
-    exit 30
-fi
+    echo "Staging changes..."
 
-if git -C "$PROJECT_DIR" diff --cached --quiet; then
+    git -C "$PROJECT_DIR" add -A
+    ai_unstage_ai_artifact_files "$PROJECT_DIR"
+
+    CHANGED_FILES="$(
+        git -C "$PROJECT_DIR" diff \
+            --cached \
+            --name-only
+    )"
 
     echo
-    echo "ERROR: Nothing staged after Cursor changes."
+    echo "Files to commit:"
 
-    exit 21
+    printf '%s\n' "$CHANGED_FILES"
+
+    # ============================================================
+    # Basic secret/private-key protection
+    # ============================================================
+
+    if ai_has_secret_files "$CHANGED_FILES"; then
+        echo
+        echo "ERROR: A potential secret/private-key file is staged."
+        echo "Refusing to continue."
+        exit 30
+    fi
+
+    if git -C "$PROJECT_DIR" diff --cached --quiet; then
+
+        echo
+        echo "ERROR: Nothing staged after Cursor changes."
+
+        exit 21
+    fi
 fi
 
 # ============================================================
@@ -695,8 +705,14 @@ fi
 echo
 echo "Creating commit..."
 
-git -C "$PROJECT_DIR" commit \
-    -m "fix: resolve issue #${ISSUE_NUMBER}"
+if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+    git -C "$PROJECT_DIR" commit \
+        --allow-empty \
+        -m "chore: no code changes for issue #${ISSUE_NUMBER}"
+else
+    git -C "$PROJECT_DIR" commit \
+        -m "fix: resolve issue #${ISSUE_NUMBER}"
+fi
 
 COMMIT_SHA="$(
     git -C "$PROJECT_DIR" rev-parse HEAD
@@ -722,7 +738,28 @@ git -C "$PROJECT_DIR" push \
 
 PR_BODY_FILE="$STATE_DIR/${PROJECT}-issue-${ISSUE_NUMBER}-${TIMESTAMP}-pr.md"
 
-cat > "$PR_BODY_FILE" <<EOF
+if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+    cat > "$PR_BODY_FILE" <<EOF
+## Not implemented
+
+This pull request contains **no product-file changes**. The agent judged the issue unrelated to this repository, not acceptable, or not useful to implement.
+
+**Issue:** $ISSUE_URL
+
+**Branch:** \`$BRANCH\`
+
+**Commit:** \`$COMMIT_SHA\`
+
+Related to #$ISSUE_NUMBER
+
+### Why this was not implemented
+
+$(cat "$NOTES_SAVED")
+
+The automation never merges pull requests automatically.
+EOF
+else
+    cat > "$PR_BODY_FILE" <<EOF
 ## Automated implementation
 
 This pull request was created automatically by the server-side Cursor issue worker.
@@ -741,6 +778,7 @@ Please review the implementation and CI results before merging.
 
 The automation never merges pull requests automatically.
 EOF
+fi
 
 # ============================================================
 # Create Pull Request
@@ -749,11 +787,17 @@ EOF
 echo
 echo "Creating pull request..."
 
+if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+    PR_TITLE="No changes for #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+else
+    PR_TITLE="Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+fi
+
 gh pr create \
     --repo "$REPO" \
     --base main \
     --head "$BRANCH" \
-    --title "Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
+    --title "$PR_TITLE" \
     --body-file "$PR_BODY_FILE"
 
 # Verify PR actually exists.
