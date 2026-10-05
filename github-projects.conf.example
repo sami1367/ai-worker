@@ -1,0 +1,28 @@
+# GitHub projects for the AI worker.
+# Copy to github-projects.conf and edit:
+#   cp github-projects.conf.example github-projects.conf
+#
+# Format: JSON array of objects.
+# Required fields: name, path
+# Optional fields:
+#   block_on_open_pr — if true (default), do not start a new `ai` issue
+#                      while this repo has any open pull request.
+#                      Set false to allow new issues even with open PRs.
+#                      (ai-working and a running agent still block.)
+#
+# The name is what related-service detection matches in project docs.
+# Use the same name the documentation uses for that service.
+# Not mixed with GitLab gitlab-projects.conf.
+
+[
+  {
+    "name": "my-app",
+    "path": "/home/ubuntu/dev/my-app",
+    "block_on_open_pr": true
+  },
+  {
+    "name": "other-app",
+    "path": "/home/ubuntu/dev/other-app",
+    "block_on_open_pr": false
+  }
+]

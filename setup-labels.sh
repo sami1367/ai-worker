@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 BASE_DIR="/home/ubuntu/ai-worker"
-PROJECTS_FILE="$BASE_DIR/projects.conf"
+PROJECTS_FILE="$BASE_DIR/github-projects.conf"
 GITLAB_SETUP="$BASE_DIR/setup-gitlab-labels.sh"
 
 # shellcheck source=lib/common.sh

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 umask 077
 
 BASE_DIR="/home/ubuntu/ai-worker"
-PROJECTS_FILE="$BASE_DIR/projects.conf"
+PROJECTS_FILE="$BASE_DIR/github-projects.conf"
 GITLAB_PROJECTS_FILE="$BASE_DIR/gitlab-projects.conf"
 LOG_DIR="$BASE_DIR/logs"
 STATE_DIR="$BASE_DIR/state"
@@ -78,7 +78,8 @@ echo "============================================================"
 # that repository already has:
 #   - an agent running, or
 #   - an open issue labeled ai-working, or
-#   - any open pull request / merge request
+#   - any open pull request / merge request (unless the project
+#     sets "block_on_open_pr": false)
 # Updating or reviewing an existing PR/MR is still allowed when
 # that repository's agent is idle.
 # ============================================================
@@ -244,9 +245,11 @@ github_find_open_pr() {
 }
 
 # Print a reason if this GitHub project already has in-flight issue work.
+# When block_on_open_pr is 0, open PRs are ignored (ai-working still blocks).
 github_in_flight_issue_reason() {
     local project="$1"
     local project_dir="$2"
+    local block_on_open_pr="${3:-1}"
     local repo number pr_desc
 
     repo="$(github_repo_from_dir "$project_dir")"
@@ -260,6 +263,10 @@ github_in_flight_issue_reason() {
         return 0
     fi
 
+    if [[ "$block_on_open_pr" == "0" ]]; then
+        return 0
+    fi
+
     pr_desc="$(github_find_open_pr "$repo")"
     if [[ -n "$pr_desc" ]]; then
         printf 'github %s: open pull request %s' "$project" "$pr_desc"
@@ -268,9 +275,11 @@ github_in_flight_issue_reason() {
 }
 
 # Print a reason if this GitLab project already has in-flight issue work.
+# When block_on_open_pr is 0, open MRs are ignored (ai-working still blocks).
 gitlab_in_flight_issue_reason() {
     local project="$1"
     local project_dir="$2"
+    local block_on_open_pr="${3:-1}"
     local repo_path number mr_desc
 
     if ! gitlab_configured; then
@@ -285,6 +294,10 @@ gitlab_in_flight_issue_reason() {
     number="$(gitlab_find_open_issue_with_label "$repo_path" "ai-working" 2>/dev/null || true)"
     if [[ -n "$number" ]]; then
         printf 'gitlab %s: open issue #%s is labeled ai-working' "$project" "$number"
+        return 0
+    fi
+
+    if [[ "$block_on_open_pr" == "0" ]]; then
         return 0
     fi
 
@@ -759,6 +772,7 @@ gitlab_mr_review_job() {
 process_github_project() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
+    local BLOCK_ON_OPEN_PR="${3:-1}"
     local REPO ISSUE_NUMBER in_flight
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
@@ -790,7 +804,7 @@ process_github_project() {
         return 0
     fi
 
-    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
+    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR")"
     if [[ -n "$in_flight" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
         return 0
@@ -807,6 +821,7 @@ process_github_project() {
 process_gitlab_project() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
+    local BLOCK_ON_OPEN_PR="${3:-1}"
     local REPO_PATH ISSUE_NUMBER in_flight
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
@@ -834,7 +849,7 @@ process_gitlab_project() {
         return 0
     fi
 
-    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR")"
+    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR")"
     if [[ -n "$in_flight" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
         return 0
@@ -1009,9 +1024,10 @@ process_gitlab_mr_review() {
 #
 # Each idle repository can start one task per cycle. Tasks in
 # different repositories run at the same time. A repository with
-# a running agent, an ai-working issue, or any open PR/MR does
-# not start a new issue. Sleep when nothing is running; wake
-# early when an agent finishes so that repo can take its next task.
+# a running agent or an ai-working issue does not start a new
+# issue. Open PRs/MRs also block new issues unless that project
+# sets "block_on_open_pr": false. Sleep when nothing is running;
+# wake early when an agent finishes so that repo can take its next task.
 # ============================================================
 
 while true; do

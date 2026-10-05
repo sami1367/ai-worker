@@ -45,7 +45,7 @@ Templates use `{{NAME}}` placeholders filled at runtime, for example:
 - `{{REVIEW_FILE}}` — path where the agent must write the review
 - `{{NOTES_FILE}}` — path where the agent must write merge/PR notes (posted as a comment)
 - `{{RELATED_TASKS_FILE}}` — JSON list of follow-up tasks for other registered repos
-- `{{REGISTERED_PROJECTS}}` — names from `projects.conf` and `gitlab-projects.conf`
+- `{{REGISTERED_PROJECTS}}` — names from `github-projects.conf` and `gitlab-projects.conf`
 - `{{SOURCE_PROJECT}}` — conf name of the repository being changed
 
 Rendered prompts are also saved to `logs/*.prompt.txt` for debugging.

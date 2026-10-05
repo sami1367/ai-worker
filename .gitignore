@@ -4,7 +4,7 @@
 !.env.example
 
 # Local project registries (host-specific absolute clone paths)
-projects.conf
+github-projects.conf
 gitlab-projects.conf
 
 # Created / updated while the worker runs

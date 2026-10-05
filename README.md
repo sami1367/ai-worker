@@ -26,9 +26,9 @@ nano .env
 #   GITLAB_TOKEN=<personal access token with api scope>
 
 # 3) Register local clones (see sections below)
-cp -n projects.conf.example projects.conf
+cp -n github-projects.conf.example github-projects.conf
 cp -n gitlab-projects.conf.example gitlab-projects.conf
-nano projects.conf
+nano github-projects.conf
 nano gitlab-projects.conf
 
 # 4) Choose AI provider (see "AI providers" section below)
@@ -80,20 +80,20 @@ With the worker running as a systemd service (recommended), you only touch GitLa
 
 | What you want | Where | What you do | What the worker does |
 |---------------|-------|-------------|----------------------|
-| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. If project docs say this change affects another registered service, also opens an **`ai`** issue there and commits `tasks/*.md`. **Waits** if that same repo already has an agent running or any open PR/MR. Other repos are not blocked. |
-| Create next draft/upcoming release | GitHub (`projects.conf`) or GitLab (`gitlab-projects.conf`) | Open an issue titled **`new release`** or **`new tag`**, add label **`ai`** | Skips AI → fetch/pull + tags → bumps past highest `vMAJOR.MINOR.PATCH` from git tags **or** forge releases (GitHub drafts / GitLab upcoming) → **pushes a real git tag** (so tag-based Actions CI runs) → creates draft (GitHub) or upcoming (GitLab) release → comments + closes the issue → `ai-pr` / `ai-failed` |
-| AI-review a PR | GitHub project in `projects.conf` | Add label **`ai-review`** on an open PR | Reviews diff + linked issues → posts PR comment → `ai-reviewed` / `ai-review-failed` |
+| Implement an issue | GitHub or GitLab project listed in conf | Add label **`ai`** on an open issue | Implements → opens PR/MR → `ai-pr` / `ai-failed`. If project docs say this change affects another registered service, also opens an **`ai`** issue there and commits `tasks/*.md`. **Waits** if that same repo already has an agent running or (by default) any open PR/MR. Set `"block_on_open_pr": false` on a project to allow new issues while PRs/MRs are open. Other repos are not blocked. |
+| Create next draft/upcoming release | GitHub (`github-projects.conf`) or GitLab (`gitlab-projects.conf`) | Open an issue titled **`new release`** or **`new tag`**, add label **`ai`** | Skips AI → fetch/pull + tags → bumps past highest `vMAJOR.MINOR.PATCH` from git tags **or** forge releases (GitHub drafts / GitLab upcoming) → **pushes a real git tag** (so tag-based Actions CI runs) → creates draft (GitHub) or upcoming (GitLab) release → comments + closes the issue → `ai-pr` / `ai-failed` |
+| AI-review a PR | GitHub project in `github-projects.conf` | Add label **`ai-review`** on an open PR | Reviews diff + linked issues → posts PR comment → `ai-reviewed` / `ai-review-failed` |
 | AI-review an MR | GitLab project in `gitlab-projects.conf` | Add label **`ai-review`** on an open MR | Reviews diff + linked issues → posts MR comment → `ai-reviewed` / `ai-review-failed` |
 
 **PR/MR review automation (end-to-end):**
 
-1. List each project once in [`projects.conf`](projects.conf.example) (GitHub) and/or [`gitlab-projects.conf`](gitlab-projects.conf.example) (GitLab).
+1. List each project once in [`github-projects.conf`](github-projects.conf.example) (GitHub) and/or [`gitlab-projects.conf`](gitlab-projects.conf.example) (GitLab).
 2. Ensure labels exist (`./setup-labels.sh`) and, for GitLab, `.env` has `GITLAB_TOKEN`.
 3. Keep `ai-worker` running under systemd.
 4. On any open PR/MR in those projects, add **`ai-review`**.
 5. Within ~60s the worker claims it (`ai-reviewing`), runs the review, posts a comment, then sets `ai-reviewed`.
 
-It polls every ~60s when idle. **Repositories run at the same time** (one agent per repository). A repository never runs two tasks at once. **New issues** in a repo wait if that repo already has an agent running, an issue labeled `ai-working`, or **any open pull/merge request**. An open PR/MR in another repo does not block this one. After every PR/MR in that repo is merged or closed, the next `ai` issue there is picked up. Labeling an existing PR/MR with `ai` or `ai-review` is not blocked by that open PR/MR, but it still waits if that same repo already has an agent running.
+It polls every ~60s when idle. **Repositories run at the same time** (one agent per repository). A repository never runs two tasks at once. **New issues** in a repo wait if that repo already has an agent running, an issue labeled `ai-working`, or (by default) **any open pull/merge request**. Set `"block_on_open_pr": false` on that project to skip the open-PR/MR wait. An open PR/MR in another repo does not block this one. After every PR/MR in that repo is merged or closed (when blocking is enabled), the next `ai` issue there is picked up. Labeling an existing PR/MR with `ai` or `ai-review` is not blocked by that open PR/MR, but it still waits if that same repo already has an agent running.
 
 **Review queue example:** label three open PRs in **three different repos** with `ai-review` → those reviews run at the same time. Three open PRs in the **same** repo are reviewed one at a time, oldest first.
 
@@ -143,9 +143,9 @@ sudo -u ubuntu cp .env.example .env
 sudo -u ubuntu nano .env   # GITLAB_HOST + GITLAB_TOKEN
 
 # Register clones
-sudo -u ubuntu cp -n projects.conf.example projects.conf
+sudo -u ubuntu cp -n github-projects.conf.example github-projects.conf
 sudo -u ubuntu cp -n gitlab-projects.conf.example gitlab-projects.conf
-sudo -u ubuntu nano projects.conf
+sudo -u ubuntu nano github-projects.conf
 sudo -u ubuntu nano gitlab-projects.conf
 
 # Create labels on all registered repos
@@ -289,11 +289,28 @@ Notes:
 
 2. Ensure `origin` points at GitHub and default branch is `main`.
 
-3. Add one line to [`projects.conf`](projects.conf.example):
+3. Add a project object to [`github-projects.conf`](github-projects.conf.example):
 
-   ```conf
-   my-app=/home/ubuntu/dev/my-app
+   ```json
+   [
+     {
+       "name": "my-app",
+       "path": "/home/ubuntu/dev/my-app"
+     }
+   ]
    ```
+
+   To allow new `ai` issues even while this repo has open PRs:
+
+   ```json
+   {
+     "name": "my-app",
+     "path": "/home/ubuntu/dev/my-app",
+     "block_on_open_pr": false
+   }
+   ```
+
+   The same `block_on_open_pr` flag works for every GitHub project in `github-projects.conf`.
 
 4. Create labels on that repo:
 
@@ -324,11 +341,18 @@ Requirements: `gh` authenticated with access to the repo (`gh auth login`, `gh a
 
 2. Ensure `origin` is the GitLab remote and default branch is `main`.
 
-3. Add one line to [`gitlab-projects.conf`](gitlab-projects.conf.example) (**not** `projects.conf`):
+3. Add a project object to [`gitlab-projects.conf`](gitlab-projects.conf.example) (**not** `github-projects.conf`):
 
-   ```conf
-   my-service=/home/ubuntu/dev/my-service
+   ```json
+   [
+     {
+       "name": "my-service",
+       "path": "/home/ubuntu/dev/my-service"
+     }
+   ]
    ```
+
+   Optional per project: `"block_on_open_pr": false` to start new `ai` issues while merge requests are still open. Same flag as GitHub.
 
 4. Configure token (once):
 
@@ -364,7 +388,7 @@ Requirements: `gh` authenticated with access to the repo (`gh auth login`, `gh a
    - **Implement:** open an issue → add label **`ai`**.
    - **Review an MR:** open a merge request → add label **`ai-review`**.
 
-   For GitHub PRs on repos in `projects.conf`, add **`ai-review`** the same way.
+   For GitHub PRs on repos in `github-projects.conf`, add **`ai-review`** the same way.
 
 Without `GITLAB_TOKEN`, GitHub still works; GitLab projects are skipped with a warning.
 
@@ -692,7 +716,7 @@ flowchart LR
 
 1. **`worker.sh`** polls every 60 seconds while idle, and also wakes as soon as a running agent finishes.
 2. Inside one repository the priority is: GitHub issues → GitHub PR implement → GitHub PR reviews, then the same order for GitLab. **Different repositories start together.**
-3. **One task at a time per repo:** a new `ai` issue is not started while that repo has an agent running, an `ai-working` issue, or any open pull/merge request. Other repos are not blocked. Follow-up (`ai` on an existing PR/MR) and reviews still run when that repo's agent is idle.
+3. **One task at a time per repo:** a new `ai` issue is not started while that repo has an agent running, an `ai-working` issue, or (by default) any open pull/merge request. Set `"block_on_open_pr": false` on the project to disable the open-PR/MR wait. Other repos are not blocked. Follow-up (`ai` on an existing PR/MR) and reviews still run when that repo's agent is idle.
 4. After an agent finishes, the worker **immediately** looks for the next allowed item in that repo and any other idle repo. It sleeps only when nothing is running.
 5. Issue path: label becomes `ai-working` → AI agent implements → opens a PR/MR → `ai-pr` or `ai-failed`. **Exception (GitHub + GitLab):** if the issue title is `new release` or `new tag`, the worker skips AI, takes the highest `vMAJOR.MINOR.PATCH` from git tags **and** forge releases (GitHub drafts / GitLab upcoming, which may not have a fetchable git tag yet), bumps the patch by one, **pushes a real git tag** on current `main` (GitHub: so `on: push: tags` workflows run; draft-only releases do not create tags), then creates a **draft** GitHub release on that tag (`gh release create … --draft --generate-notes`) or an **upcoming** GitLab release (`released_at` far in the future), comments on the issue, and closes it.
 6. PR/MR review path: label becomes `ai-reviewing` → AI agent reviews linked issues + diff → posts a comment → `ai-reviewed` or `ai-review-failed`.
@@ -730,7 +754,7 @@ ai  →  ai-working  →  ai-pr      (success — PR/MR created)
                  ↘  ai-failed   (failure — not auto-retried)
 ```
 
-The worker runs **one task at a time in each repository**, and **different repositories at the same time**. While an issue in a repo is `ai-working`, or while any pull/merge request is still open in that repo, further `ai` issues in **that same repo** stay queued. Other registered repos are not blocked. Merge or close the open PR/MR to unblock the next issue there. If a run crashes and leaves `ai-working` on an issue, remove that label (add `ai` again to retry) or new issues in that repo will wait.
+The worker runs **one task at a time in each repository**, and **different repositories at the same time**. While an issue in a repo is `ai-working`, or while any pull/merge request is still open in that repo (unless `"block_on_open_pr": false`), further `ai` issues in **that same repo** stay queued. Other registered repos are not blocked. Merge or close the open PR/MR to unblock the next issue there when blocking is enabled. If a run crashes and leaves `ai-working` on an issue, remove that label (add `ai` again to retry) or new issues in that repo will wait.
 
 ### PR / MR review labels
 
@@ -763,7 +787,7 @@ Failed issues/reviews are **not** re-queued automatically (avoids infinite loops
 
 ### Create labels on all registered repos
 
-From the worker directory, after `projects.conf` / `gitlab-projects.conf` (and `.env` for GitLab) are configured:
+From the worker directory, after `github-projects.conf` / `gitlab-projects.conf` (and `.env` for GitLab) are configured:
 
 ```bash
 cd /home/ubuntu/ai-worker
@@ -774,7 +798,7 @@ cd /home/ubuntu/ai-worker
 
 What that does:
 
-- **GitHub:** uses `gh label create ... --force` for every path in `projects.conf`
+- **GitHub:** uses `gh label create ... --force` for every path in `github-projects.conf`
 - **GitLab:** calls `./setup-gitlab-labels.sh`, which creates or updates labels via the GitLab API for every path in `gitlab-projects.conf`
 
 ### Create labels on GitHub only
@@ -783,7 +807,7 @@ Requirements: `gh` installed and authenticated (`gh auth login`).
 
 ```bash
 cd /home/ubuntu/ai-worker
-# Ensure the repo is listed in projects.conf, then:
+# Ensure the repo is listed in github-projects.conf, then:
 ./setup-labels.sh
 ```
 
@@ -810,7 +834,7 @@ Or create them manually in GitLab: **Project → Manage → Labels → New label
 1. Open (or create) an issue on a registered GitHub or GitLab project.
 2. Add the **`ai`** label only.
 3. Wait (~60s). Labels become **`ai-working`**, then **`ai-pr`** or **`ai-failed`**.
-4. On success, review and merge (or close) the PR/MR. The worker will **not** start another `ai` issue in that repo while any PR/MR is still open there. Other repos can start immediately.
+4. On success, review and merge (or close) the PR/MR. By default the worker will **not** start another `ai` issue in that repo while any PR/MR is still open there (override with `"block_on_open_pr": false`). Other repos can start immediately.
 5. On failure, inspect `logs/` and add **`ai`** again to retry.
 
 **Pull / merge requests (AI review):**
@@ -837,12 +861,12 @@ If the issue is unrelated to the repository, not acceptable, or not useful, the 
 
 A feature in one repository can require a matching change in another service. On issue and PR/MR implement runs, the worker does this after the agent changes code:
 
-1. The agent reads this repository's documentation (README, `docs/`, architecture notes) and the names in `projects.conf` and `gitlab-projects.conf`.
+1. The agent reads this repository's documentation (README, `docs/`, architecture notes) and the names in `github-projects.conf` and `gitlab-projects.conf`.
 2. It writes `.ai-related-tasks.json` (never committed). An empty `{"tasks":[]}` means nothing else is affected.
 3. For each listed name that matches a conf entry, the runner opens an issue labeled **`ai`** in that repository. The normal poll loop then implements it. An open PR/MR in that other repo still makes the new issue wait.
 4. The same follow-up is committed in the source repository as `tasks/<date>-<project>-<slug>.md`, so the pull/merge request documents it. The PR/MR notes comment lists the issues that were opened.
 
-The conf **name** (the left side of `name=/path`) must be the name used in the project's docs. Run `./setup-labels.sh` so the `ai` label exists on those repos.
+The conf **name** field must be the name used in the project's docs. Run `./setup-labels.sh` so the `ai` label exists on those repos.
 
 Each follow-up issue description contains `ai-worker-related-task`. The worker does not open another round of related issues from those follow-ups.
 
@@ -855,7 +879,7 @@ If the docs name a service that is not in either conf file, the markdown file is
 - No auto-merge
 - Single worker process via file lock
 - One task per repository at a time; other repositories run in parallel
-- No new `ai` issue while that repo has an open pull/merge request or an issue labeled `ai-working`
+- No new `ai` issue while that repo has an issue labeled `ai-working`, or (by default) an open pull/merge request — disable per project with `"block_on_open_pr": false`
 - Local task branch deleted after push; remote branch kept for the PR/MR
 
 ## Directory layout
@@ -870,8 +894,8 @@ ai-worker/
 ├── setup-labels.sh           # Labels on GitHub + GitLab
 ├── setup-gitlab-labels.sh    # GitLab labels only (issues + MR review)
 ├── ai-worker.service         # systemd unit (copy to /etc/systemd/system/)
-├── projects.conf.example     # template → copy to projects.conf
-├── gitlab-projects.conf.example  # template → copy to gitlab-projects.conf
+├── github-projects.conf.example  # JSON GitHub template → copy to github-projects.conf
+├── gitlab-projects.conf.example  # JSON GitLab template → copy to gitlab-projects.conf
 ├── .env.example              # GITLAB_HOST / GITLAB_TOKEN template
 ├── lib/
 │   ├── common.sh

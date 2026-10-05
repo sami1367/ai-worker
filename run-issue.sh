@@ -7,7 +7,7 @@ PROJECT="${1:-}"
 ISSUE_NUMBER="${2:-}"
 
 BASE_DIR="/home/ubuntu/ai-worker"
-PROJECTS_FILE="$BASE_DIR/projects.conf"
+PROJECTS_FILE="$BASE_DIR/github-projects.conf"
 STATE_DIR="$BASE_DIR/state"
 LOG_DIR="$BASE_DIR/logs"
 
@@ -54,17 +54,7 @@ ai_require_cmds git gh jq tee || exit 1
 # Resolve project
 # ============================================================
 
-PROJECT_DIR="$(
-    awk -F= -v project="$PROJECT" '
-        /^[[:space:]]*#/ { next }
-
-        NF >= 2 && $1 == project {
-            sub(/^[^=]*=/, "")
-            print
-            exit
-        }
-    ' "$PROJECTS_FILE"
-)"
+PROJECT_DIR="$(ai_resolve_project_dir "$PROJECTS_FILE" "$PROJECT")"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"

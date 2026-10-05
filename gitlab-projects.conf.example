@@ -2,9 +2,27 @@
 # Copy to gitlab-projects.conf and edit:
 #   cp gitlab-projects.conf.example gitlab-projects.conf
 #
-# Format: name=/absolute/path/to/local/clone
+# Format: JSON array of objects.
+# Required fields: name, path
+# Optional fields:
+#   block_on_open_pr — if true (default), do not start a new `ai` issue
+#                      while this repo has any open merge request.
+#                      Set false to allow new issues even with open MRs.
+#                      (ai-working and a running agent still block.)
+#
 # The name is what related-service detection matches in project docs.
 # Use the same name the documentation uses for that service.
-# Not mixed with GitHub projects.conf.
+# Not mixed with GitHub github-projects.conf.
 
-# my-service=/home/ubuntu/dev/my-service
+[
+  {
+    "name": "my-service",
+    "path": "/home/ubuntu/dev/my-service",
+    "block_on_open_pr": true
+  },
+  {
+    "name": "other-service",
+    "path": "/home/ubuntu/dev/other-service",
+    "block_on_open_pr": false
+  }
+]

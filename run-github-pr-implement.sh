@@ -7,7 +7,7 @@ PROJECT="${1:-}"
 PR_NUMBER="${2:-}"
 
 BASE_DIR="/home/ubuntu/ai-worker"
-PROJECTS_FILE="$BASE_DIR/projects.conf"
+PROJECTS_FILE="$BASE_DIR/github-projects.conf"
 STATE_DIR="$BASE_DIR/state"
 LOG_DIR="$BASE_DIR/logs"
 

@@ -20,14 +20,29 @@ git_repo "$TMP/api"
 git_repo "$TMP/billing"
 git_repo "$TMP/bale"
 
-cat > "$BASE_DIR/projects.conf" <<EOF
-# comment
-api=$TMP/api
-billing=$TMP/billing
+cat > "$BASE_DIR/github-projects.conf" <<EOF
+[
+  {
+    "name": "api",
+    "path": "$TMP/api",
+    "block_on_open_pr": true
+  },
+  {
+    "name": "billing",
+    "path": "$TMP/billing",
+    "block_on_open_pr": false
+  }
+]
 EOF
 
 cat > "$BASE_DIR/gitlab-projects.conf" <<EOF
-bale-service=$TMP/bale
+[
+  {
+    "name": "bale-service",
+    "path": "$TMP/bale",
+    "block_on_open_pr": false
+  }
+]
 EOF
 
 # shellcheck source=../lib/common.sh
@@ -47,6 +62,22 @@ found="$(ai_lookup_registered_project "BILLING")" || fail "lookup BILLING"
 
 found="$(ai_lookup_registered_project "org/bale-service")" || fail "lookup basename"
 [[ "$(jq -r '.forge' <<<"$found")" == "gitlab" ]] || fail "gitlab forge"
+
+# JSON option parsing (GitHub + GitLab).
+billing_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "billing")" \
+    || fail "resolve billing entry"
+[[ "$(ai_project_entry_bool "$billing_entry" "block_on_open_pr" 1)" == "0" ]] \
+    || fail "billing should disable block_on_open_pr"
+
+api_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "api")" \
+    || fail "resolve api entry"
+[[ "$(ai_project_entry_bool "$api_entry" "block_on_open_pr" 1)" == "1" ]] \
+    || fail "api should keep block_on_open_pr enabled"
+
+bale_entry="$(ai_resolve_project_entry "$BASE_DIR/gitlab-projects.conf" "bale-service")" \
+    || fail "resolve bale-service entry"
+[[ "$(ai_project_entry_bool "$bale_entry" "block_on_open_pr" 1)" == "0" ]] \
+    || fail "bale-service should disable block_on_open_pr"
 
 if ai_lookup_registered_project "missing-service" >/dev/null; then
     fail "unknown project should not match"

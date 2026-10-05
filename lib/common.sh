@@ -70,25 +70,141 @@ ai_detect_cursor() {
     ai_cursor_detect
 }
 
-# Resolve project path from a conf file: name=path
-ai_resolve_project_dir() {
+# Emit one JSON object per registered project (NDJSON).
+# Fields: name, path, block_on_open_pr (bool; default true).
+# File must be a JSON array of objects. Leading blank/# comment lines are allowed.
+ai_list_project_entries() {
+    local projects_file="$1"
+    local json_body
+
+    if [[ ! -f "$projects_file" ]]; then
+        return 0
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "ERROR: jq is required to parse projects file: $projects_file" >&2
+        return 1
+    fi
+
+    json_body="$(
+        awk '
+            BEGIN { p = 0; err = 0 }
+            {
+                gsub(/\r$/, "")
+                if (!p) {
+                    line = $0
+                    sub(/^[[:space:]]+/, "", line)
+                    if (line == "" || line ~ /^#/) next
+                    if (line ~ /^\[/) p = 1
+                    else {
+                        print "ERROR: projects file must be a JSON array (got: " line ")" > "/dev/stderr"
+                        err = 1
+                        exit 2
+                    }
+                }
+                if (p) print
+            }
+            END {
+                if (err) exit 2
+                if (!p) {
+                    print "ERROR: projects file has no JSON array" > "/dev/stderr"
+                    exit 2
+                }
+            }
+        ' "$projects_file"
+    )" || return 1
+
+    jq -c '
+        if type != "array" then
+            error("projects file must be a JSON array")
+        else . end
+        | .[]
+        | select(type == "object")
+        | {
+            name: (.name // "" | tostring),
+            path: ((.path // .dir // "") | tostring),
+            block_on_open_pr: (
+                (if has("block_on_open_pr") then .block_on_open_pr else true end)
+                | if type == "boolean" then .
+                  elif (tostring | ascii_downcase) == "false" then false
+                  elif tostring == "0" then false
+                  elif (tostring | ascii_downcase) == "no" then false
+                  elif (tostring | ascii_downcase) == "off" then false
+                  else true end
+            )
+          }
+        | select(.name != "" and .path != "")
+    ' <<<"$json_body"
+}
+
+# Normalize a project option to 0/1. Missing/empty defaults to the given default (0 or 1).
+# Usage: ai_project_option_bool <value> <default_0_or_1>
+ai_project_option_bool() {
+    local value="${1:-}"
+    local default="${2:-1}"
+    local norm
+
+    if [[ -z "$value" || "$value" == "null" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+
+    norm="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+    case "$norm" in
+        1|true|yes|on) printf '1' ;;
+        0|false|no|off) printf '0' ;;
+        *) printf '%s' "$default" ;;
+    esac
+}
+
+# Resolve one project entry JSON by name (exact match). Prints nothing and returns 1 if missing.
+# Usage: ai_resolve_project_entry <projects_file> <project_name>
+ai_resolve_project_entry() {
     local projects_file="$1"
     local project="$2"
+    local entry name
 
     if [[ ! -f "$projects_file" ]]; then
         echo "ERROR: Projects file not found: $projects_file" >&2
         return 1
     fi
 
-    awk -F= -v project="$project" '
-        /^[[:space:]]*#/ { next }
-        NF >= 2 && $1 == project {
-            sub(/^[^=]*=/, "")
-            gsub(/\r$/, "")
-            print
-            exit
-        }
-    ' "$projects_file"
+    while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+        [[ -z "$entry" ]] && continue
+        if command -v jq >/dev/null 2>&1; then
+            name="$(jq -r '.name // empty' <<<"$entry")"
+        else
+            name=""
+        fi
+        if [[ "$name" == "$project" ]]; then
+            printf '%s\n' "$entry"
+            return 0
+        fi
+    done < <(ai_list_project_entries "$projects_file")
+
+    return 1
+}
+
+# Resolve project path from a conf/JSON file.
+ai_resolve_project_dir() {
+    local projects_file="$1"
+    local project="$2"
+    local entry
+
+    entry="$(ai_resolve_project_entry "$projects_file" "$project")" || return 1
+    jq -r '.path // empty' <<<"$entry"
+}
+
+# Read a boolean project option (prints 0 or 1). Default is 1 when unset.
+# Usage: ai_project_entry_bool <entry_json> <key> [default_0_or_1]
+ai_project_entry_bool() {
+    local entry="$1"
+    local key="$2"
+    local default="${3:-1}"
+    local value
+
+    value="$(jq -r --arg key "$key" '.[$key] | if . == null then empty else tostring end' <<<"$entry" 2>/dev/null || true)"
+    ai_project_option_bool "$value" "$default"
 }
 
 # Validate a project directory is a usable git repo.
@@ -164,32 +280,33 @@ ai_git_tag_exists() {
     git -C "$project_dir" rev-parse -q --verify "refs/tags/${tag}" >/dev/null
 }
 
-# Iterate conf lines. Calls callback as: callback <project> <project_dir>
-# Skips blank lines and comments. A non-zero callback return stops the scan.
+# Iterate registered projects. Calls:
+#   callback <project> <project_dir> <block_on_open_pr_0_or_1> <entry_json>
+# Skips invalid checkouts. A non-zero callback return stops the scan.
 ai_foreach_project() {
     local projects_file="$1"
     local callback="$2"
-    local project project_dir
+    local entry project project_dir block_on_open_pr
 
     if [[ ! -f "$projects_file" ]]; then
         return 0
     fi
 
-    while IFS='=' read -r project project_dir || [[ -n "${project:-}" ]]; do
-        project="${project%$'\r'}"
-        project_dir="${project_dir%$'\r'}"
+    while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+        [[ -z "$entry" ]] && continue
 
-        [[ -z "$project" ]] && continue
-        [[ "$project" =~ ^[[:space:]]*# ]] && continue
+        project="$(jq -r '.name // empty' <<<"$entry")"
+        project_dir="$(jq -r '.path // empty' <<<"$entry")"
+        block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
 
         if ! ai_validate_project_dir "$project" "$project_dir"; then
             continue
         fi
 
-        if ! "$callback" "$project" "$project_dir"; then
+        if ! "$callback" "$project" "$project_dir" "$block_on_open_pr" "$entry"; then
             return 1
         fi
-    done < "$projects_file"
+    done < <(ai_list_project_entries "$projects_file")
 
     return 0
 }

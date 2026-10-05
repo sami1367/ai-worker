@@ -1,9 +1,0 @@
-# GitHub projects for the AI worker.
-# Copy to projects.conf and edit:
-#   cp projects.conf.example projects.conf
-#
-# Format: name=/absolute/path/to/local/clone
-# The name is what related-service detection matches in project docs.
-# Use the same name the documentation uses for that service.
-
-# my-app=/home/ubuntu/dev/my-app

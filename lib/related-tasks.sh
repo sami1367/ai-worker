@@ -2,26 +2,25 @@
 # Cross-repo follow-ups. Source after lib/common.sh.
 #
 # The agent writes .ai-related-tasks.json. These helpers match project
-# names to projects.conf / gitlab-projects.conf, open an issue labeled
+# names to github-projects.conf / gitlab-projects.conf, open an issue labeled
 # "ai" in each related repo, and write tasks/*.md in the source repo.
 
 # Text list of registered project names for the implement prompt.
 ai_registered_projects_text() {
-    local file project project_dir found=0
+    local file entry project found=0
 
-    printf '%s\n' "GitHub (projects.conf):"
-    file="${BASE_DIR}/projects.conf"
+    printf '%s\n' "GitHub (github-projects.conf):"
+    file="${BASE_DIR}/github-projects.conf"
     found=0
     if [[ -f "$file" ]]; then
-        while IFS='=' read -r project project_dir || [[ -n "${project:-}" ]]; do
-            project="${project%$'\r'}"
-            [[ -z "$project" ]] && continue
-            [[ "$project" =~ ^[[:space:]]*# ]] && continue
+        while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+            [[ -z "$entry" ]] && continue
+            project="$(jq -r '.name // empty' <<<"$entry")"
             project="$(ai_related_trim "$project")"
             [[ -z "$project" ]] && continue
             printf '%s\n' "- ${project}"
             found=1
-        done < "$file"
+        done < <(ai_list_project_entries "$file")
     fi
     if [[ "$found" -eq 0 ]]; then
         printf '%s\n' "- (none)"
@@ -31,15 +30,14 @@ ai_registered_projects_text() {
     file="${BASE_DIR}/gitlab-projects.conf"
     found=0
     if [[ -f "$file" ]]; then
-        while IFS='=' read -r project project_dir || [[ -n "${project:-}" ]]; do
-            project="${project%$'\r'}"
-            [[ -z "$project" ]] && continue
-            [[ "$project" =~ ^[[:space:]]*# ]] && continue
+        while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+            [[ -z "$entry" ]] && continue
+            project="$(jq -r '.name // empty' <<<"$entry")"
             project="$(ai_related_trim "$project")"
             [[ -z "$project" ]] && continue
             printf '%s\n' "- ${project}"
             found=1
-        done < "$file"
+        done < <(ai_list_project_entries "$file")
     fi
     if [[ "$found" -eq 0 ]]; then
         printf '%s\n' "- (none)"
@@ -86,17 +84,16 @@ ai_related_one_line() {
 ai_conf_match_project() {
     local file="$1"
     local want="$2"
-    local want_lc project project_dir project_lc
+    local want_lc entry project project_dir project_lc
 
     want_lc="$(printf '%s' "$want" | tr '[:upper:]' '[:lower:]')"
     [[ -n "$want_lc" ]] || return 1
     [[ -f "$file" ]] || return 1
 
-    while IFS='=' read -r project project_dir || [[ -n "${project:-}" ]]; do
-        project="${project%$'\r'}"
-        project_dir="${project_dir%$'\r'}"
-        [[ -z "$project" ]] && continue
-        [[ "$project" =~ ^[[:space:]]*# ]] && continue
+    while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+        [[ -z "$entry" ]] && continue
+        project="$(jq -r '.name // empty' <<<"$entry")"
+        project_dir="$(jq -r '.path // empty' <<<"$entry")"
         project="$(ai_related_trim "$project")"
         project_dir="$(ai_related_trim "$project_dir")"
         [[ -z "$project" || -z "$project_dir" ]] && continue
@@ -105,7 +102,7 @@ ai_conf_match_project() {
             printf '%s\t%s\n' "$project" "$project_dir"
             return 0
         fi
-    done < "$file"
+    done < <(ai_list_project_entries "$file")
 
     return 1
 }
@@ -115,14 +112,14 @@ ai_lookup_registered_project_exact() {
     local want="$1"
     local file match name dir rc
 
-    file="${BASE_DIR}/projects.conf"
+    file="${BASE_DIR}/github-projects.conf"
     rc=0
     match="$(ai_conf_match_project "$file" "$want")" || rc=$?
     if [[ "$rc" -eq 0 ]]; then
         name="${match%%$'\t'*}"
         dir="${match#*$'\t'}"
         if ! ai_validate_project_dir "$name" "$dir" >/dev/null; then
-            echo "WARNING: Project '$name' in projects.conf is not a usable clone: $dir" >&2
+            echo "WARNING: Project '$name' in github-projects.conf is not a usable clone: $dir" >&2
             return 3
         fi
         jq -nc \
@@ -524,7 +521,7 @@ ai_apply_related_tasks() {
             reason="listed in the project conf, but the local clone is missing or is not a git repo"
             echo "WARNING: Not opening an issue for ${project}: ${reason}." >&2
         else
-            reason="not listed in projects.conf or gitlab-projects.conf"
+            reason="not listed in github-projects.conf or gitlab-projects.conf"
             echo "WARNING: Not opening an issue for ${project}: ${reason}." >&2
         fi
 
