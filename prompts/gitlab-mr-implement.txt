@@ -50,6 +50,7 @@ You MAY inspect files, modify code, run tests, lint, and install dependencies wh
 
 You MUST NOT run git commands, call the GitLab API, create branches, commit, push, merge, or read .env files.
 You MUST NOT edit files or classes that are not required by the issue or comments.
+You MUST NOT refactor, improve, or clean up anything the issue/comments did not ask for.
 You MUST NOT reformat, restyle, or pretty-print unrelated lines, classes, or files.
 
 Leave completed changes UNCOMMITTED in the working tree.

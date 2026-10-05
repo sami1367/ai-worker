@@ -68,6 +68,7 @@ You MUST NOT:
 - reveal other secrets
 - make unrelated changes
 - edit files or classes that are not required by the issue
+- refactor, improve, or clean up anything the issue did not ask for
 - reformat, restyle, or pretty-print unrelated lines, classes, or files
 - modify production infrastructure unless the issue explicitly requires it
 - modify database schema unless the issue explicitly requires it

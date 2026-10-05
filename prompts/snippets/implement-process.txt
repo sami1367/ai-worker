@@ -12,9 +12,10 @@ PROCESS
 
 2. Inspect existing tests and project conventions.
 
-3. Implement the issue using the smallest reasonable scope.
-   Change only required files and classes. Do not reformat or
-   pretty-print unrelated lines, classes, or files.
+3. Implement only what the issue asked, using the smallest reasonable
+   scope. Change only required files and classes. Do not refactor,
+   improve, reformat, or pretty-print anything the issue did not ask
+   for.
 
 4. Add, edit, or revise tests for the code this task changed.
    Follow the coverage rules below. Tests for this change are required.
@@ -26,11 +27,12 @@ PROCESS
    Do not run whole-file formatters that rewrite unrelated lines unless
    CI would fail without it.
 
-7. Fix failures caused by your implementation.
+7. Fix failures caused by your implementation. Do not use a failing
+   test as a reason to refactor unrelated code.
 
 8. Review all files you changed. Confirm you did not restyle
-   neighboring code and did not touch classes the issue did not
-   require.
+   neighboring code, did not refactor unless asked, and did not touch
+   classes the issue did not require.
 
 9. Make sure no unrelated files, classes, or lines were changed.
    If a file is not required by the issue, revert any edits to it.

@@ -1,19 +1,31 @@
 ============================================================
-SCOPE AND MINIMAL CHANGES (STRICT)
+REQUIRED CHANGE ONLY — NO EXTRA WORK (STRICT)
 ============================================================
 
-Work only on the files and classes the issue (or PR/MR comments)
-actually requires. You may READ other files for context. You must
-NOT WRITE or edit files that are not required to complete the task.
+Do exactly what this issue / PR / MR (and its comments) asked.
+Nothing else.
+
+If the request is a bugfix, fix that bug only.
+If it is a small change, make that change only.
+Do not improve, polish, or "also fix" anything until a later
+issue or comment explicitly asks for it.
+
+Related is not in scope. Code in the same file, feature, or module
+that you did not need to touch stays unchanged — even if it looks
+wrong, outdated, inconsistent, or easy to improve.
+
+You MAY READ other files for context.
+You MUST NOT WRITE or edit files, classes, functions, or lines
+that are not required to complete the requested work.
 
 Before editing:
-- Identify the smallest set of files and classes that implement
-  the request.
-- Do not open extra files to "improve" them while you are there.
+- Restate the requested outcome in one sentence.
+- List the smallest set of files and symbols that implement it.
+- Treat everything outside that list as off-limits.
 
 You MAY change:
 - files named in the issue/comments, or that must change for the
-  feature/bugfix to work
+  requested feature/bugfix to work
 - classes, methods, and lines inside those files that are needed
   for the task
 - tests that cover this task's changed code (required when you
@@ -21,6 +33,12 @@ You MAY change:
 
 You MUST NOT:
 
+- do extra work "while you are there"
+- improve, optimize, or clean up unrelated or neighboring code
+- refactor, extract, rename, restructure, or redesign unless the
+  issue/comments explicitly ask for that refactor
+- expand the task into a larger rewrite because a related area
+  "should" change too
 - create, edit, or delete files that are not required by the issue
 - edit other classes in a required file if those classes are not
   part of the task
@@ -28,8 +46,6 @@ You MUST NOT:
 - rewrite surrounding code for cleanliness, consistency, or taste
 - reorder imports, rename identifiers, add/remove comments, or fix
   unrelated style on code you did not need to touch
-- refactor or expand classes/functions that already work, unless the
-  task explicitly requires it
 - change whitespace, wrapping, or indentation on unchanged lines
 - apply a "while I'm here" cleanup to neighboring files or classes
 
@@ -40,3 +56,7 @@ new style on neighboring code.
 If a formatter would rewrite an entire file, do not run it unless the
 project's tests or CI would fail without it. Prefer the smallest
 possible diff: fewest files, fewest classes, fewest lines.
+
+If you notice other bugs or improvements, do not implement them.
+Leave them out of this change. Mention them only in notes if needed;
+do not turn them into extra diffs.

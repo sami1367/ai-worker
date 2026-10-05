@@ -30,7 +30,7 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | `test-coverage.txt` | Tests must cover more than 80% of the lines this task changed |
 | `implement-final-response.txt` | What to report after implementing |
 | `implement-merge-notes.txt` | Write `.ai-*-notes.md` for the PR/MR comment (env, deploy, verify) |
-| `minimal-changes.txt` | Only edit files/classes the issue requires; no extra diffs |
+| `minimal-changes.txt` | Required change only: no extra files, refactors, or improvements unless the issue asks |
 | `related-services.txt` | From project docs, list other registered repos this change affects |
 | `review-tests.txt` | On PR/MR review, read and run tests and report coverage of the change |
 | `review-output-guidelines.txt` | Markdown structure for review comments |
