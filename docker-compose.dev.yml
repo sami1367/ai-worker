@@ -1,0 +1,10 @@
+services:
+  web:
+    environment:
+      NODE_ENV: development
+    ports:
+      - "${WEB_BIND:-127.0.0.1:8080}:3000"
+
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"

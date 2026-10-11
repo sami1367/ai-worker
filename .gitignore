@@ -19,3 +19,21 @@ gitlab-projects.conf
 *.bak
 *.swp
 *.tmp
+
+# Nuxt / Node
+node_modules/
+.nuxt/
+.output/
+.data/
+dist/
+*.log
+.DS_Store
+
+# Platform runtime (never commit)
+/data/
+.env
+.env.*
+!.env.example
+coverage/
+playwright-report/
+test-results/

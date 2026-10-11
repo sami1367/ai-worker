@@ -1,0 +1,56 @@
+{
+  "name": "ai-worker-platform",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "pnpm exec nuxi typecheck",
+    "lint": "pnpm exec eslint .",
+    "test": "pnpm exec vitest run",
+    "test:unit": "pnpm exec vitest run tests/unit",
+    "test:integration": "pnpm exec vitest run tests/integration",
+    "test:e2e": "pnpm exec vitest run tests/e2e",
+    "test:worker": "bash worker/tests/related-tasks.sh",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "pnpm exec tsx database/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "migrate:config": "pnpm exec tsx scripts/migrate-config.ts",
+    "diagnostics": "pnpm exec tsx scripts/diagnostics.ts",
+    "backup": "bash scripts/backup.sh",
+    "restore": "bash scripts/restore.sh",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "health": "curl -fsS http://127.0.0.1:${PORT:-8080}/api/v1/health"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.68",
+    "@node-rs/argon2": "^2.0.2",
+    "@nuxt/ui": "^3.3.4",
+    "drizzle-orm": "^0.44.5",
+    "nuxt": "^3.17.6",
+    "postgres": "^3.4.7",
+    "vue": "^3.5.21",
+    "vue-router": "^4.5.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.9.0",
+    "@types/node": "^22.18.1",
+    "drizzle-kit": "^0.31.4",
+    "eslint": "^9.35.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^2.2.12"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

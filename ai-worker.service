@@ -1,5 +1,7 @@
+# Host systemd unit (legacy). Docker Compose is preferred for the full platform.
+# Adjust User/paths if the repo is not installed at /home/ubuntu/ai-worker.
 [Unit]
-Description=Cursor AI Issue Worker (GitHub + GitLab)
+Description=AI Worker Platform — execution engine (GitHub + GitLab)
 After=network-online.target
 Wants=network-online.target
 
@@ -9,12 +11,13 @@ Type=simple
 User=ubuntu
 Group=ubuntu
 
-WorkingDirectory=/home/ubuntu/ai-worker
+WorkingDirectory=/home/ubuntu/ai-worker/worker
 
 Environment=HOME=/home/ubuntu
+Environment=AI_WORKER_BASE_DIR=/home/ubuntu/ai-worker/worker
 Environment=PATH=/home/ubuntu/.local/bin:/home/ubuntu/.cursor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-ExecStart=/home/ubuntu/ai-worker/worker.sh
+ExecStart=/home/ubuntu/ai-worker/worker/worker.sh
 
 Restart=on-failure
 RestartSec=10

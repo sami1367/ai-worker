@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+:root {
+  --aw-font-display: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --aw-font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --aw-bg-0: #f3f6f4;
+  --aw-bg-1: #e7eee9;
+  --aw-ink: #14201a;
+  --aw-accent: #0f6b4c;
+  --aw-accent-2: #c45c26;
+  --aw-panel: rgba(255, 255, 255, 0.78);
+  --aw-line: rgba(20, 32, 26, 0.12);
+}
+
+.dark {
+  --aw-bg-0: #0d1411;
+  --aw-bg-1: #16221c;
+  --aw-ink: #e7f0ea;
+  --aw-accent: #3ecf9a;
+  --aw-accent-2: #e08a4f;
+  --aw-panel: rgba(18, 28, 23, 0.82);
+  --aw-line: rgba(231, 240, 234, 0.12);
+}
+
+html, body, #__nuxt {
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--aw-font-body);
+  color: var(--aw-ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, var(--aw-accent) 18%, transparent), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in oklab, var(--aw-accent-2) 14%, transparent), transparent 55%),
+    linear-gradient(180deg, var(--aw-bg-0), var(--aw-bg-1));
+  background-attachment: fixed;
+}
+
+.font-display {
+  font-family: var(--aw-font-display);
+}
+
+.aw-panel {
+  background: var(--aw-panel);
+  border: 1px solid var(--aw-line);
+  backdrop-filter: blur(10px);
+}
+
+.aw-fade-in {
+  animation: awFade 420ms ease-out both;
+}
+
+@keyframes awFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.aw-pulse-dot {
+  animation: awPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes awPulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
