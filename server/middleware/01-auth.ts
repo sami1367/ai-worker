@@ -9,6 +9,8 @@ const PUBLIC_PREFIXES = [
   '/api/v1/auth/setup-status',
   '/api/v1/auth/bootstrap',
   '/api/v1/worker/internal/',
+  // OAuth provider redirects (CSRF protected by one-time state + PKCE)
+  '/api/v1/connections/oauth/',
 ]
 
 export default defineEventHandler(async (event) => {

@@ -5,6 +5,7 @@ const { api } = useApi()
 
 const links = [
   { to: '/', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' },
+  { to: '/connections', label: 'Connections', icon: 'i-lucide-link' },
   { to: '/repositories', label: 'Repositories', icon: 'i-lucide-git-branch' },
   { to: '/tasks', label: 'Tasks', icon: 'i-lucide-list-checks' },
   { to: '/providers', label: 'Providers', icon: 'i-lucide-bot' },

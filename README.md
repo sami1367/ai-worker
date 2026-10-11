@@ -8,6 +8,8 @@ The Bash worker remains the execution engine. The Nuxt management app provides a
 
 - Secure admin dashboard (Nuxt 3 + Nuxt UI)
 - PostgreSQL persistence (Drizzle migrations)
+- GitHub / GitLab OAuth connections with encrypted token storage
+- Automatic repository discovery, selection, and persistent workspace clones
 - Repository management with per-repo `block_on_open_pr`
 - Cursor + Claude provider status/config
 - Task history + SSE log streaming
@@ -82,10 +84,28 @@ Services: `db`, `migrate`, `web`, `worker`. Volumes: Postgres data, config expor
 
 Terminate TLS in front of `127.0.0.1:8080`. Set `APP_BASE_URL` to the public HTTPS URL.
 
-## GitHub / GitLab / AI providers
+## GitHub / GitLab connections (recommended)
 
-- **GitHub:** `gh auth` volume or `GH_TOKEN` / `GITHUB_TOKEN` in worker env
-- **GitLab:** `GITLAB_HOST` + `GITLAB_TOKEN`
+1. Open **Connections** in the UI.
+2. **GitHub:** paste a personal access token (classic `repo` scope, or fine-grained with Contents/Issues/PRs). Optional browser OAuth if `GITHUB_OAUTH_CLIENT_*` is set.
+3. **GitLab:** enter server URL + personal access token (`api` scope).
+4. Multi-select repositories → **Add selected** → wait for workspace `ready` → **Enable processing**.
+
+Tokens are encrypted at rest (`SECRET_ENCRYPTION_KEY`) and never returned to the browser after connect. The web service materializes forge credentials into `/data/config/forge-credentials.env` (mode `0600`) for the worker entrypoint. Compose env `GH_TOKEN` / `GITLAB_TOKEN` remain a fallback.
+
+### Optional GitHub OAuth App
+
+1. GitHub → Settings → Developer settings → OAuth Apps → New.
+2. Authorization callback URL: `${APP_BASE_URL}/api/v1/connections/oauth/github/callback`
+3. Set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`.
+4. Requested scopes: `repo`, `read:user`, `user:email`.
+
+### GitLab self-managed notes
+
+For private/self-managed hosts, add hostnames to `GITLAB_TRUSTED_HOSTS`. HTTP is denied unless `GITLAB_ALLOW_HTTP=true` **and** the host is allowlisted.
+
+### AI providers
+
 - **Cursor:** `agent` / `cursor-agent` on PATH; authenticate via Cursor’s mechanism
 - **Claude:** `claude` on PATH + `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`
 
@@ -93,7 +113,9 @@ Provider health checks detect binaries; they do **not** claim authentication mer
 
 ## Repository registration
 
-Use **Repositories → Add repository** in the UI. Guided flow validates remotes, configures `block_on_open_pr`, optionally activates, then supports connection test and label setup.
+**Preferred:** Connections → discover → select → clone into `/data/workspaces/<workspaceId>`.
+
+**Manual:** Repositories → Manual add (remote URL + optional host path for legacy imports). Removing a registration does not delete the workspace unless you explicitly choose that action.
 
 ## Existing configuration migration
 

@@ -30,6 +30,8 @@ export async function listRepositories(opts: {
   forgeType?: 'github' | 'gitlab'
   enabled?: boolean
   includeArchived?: boolean
+  workspaceStatus?: string
+  connectionId?: string
 }) {
   const db = getDb()
   const page = Math.max(1, opts.page)
@@ -40,6 +42,13 @@ export async function listRepositories(opts: {
   if (!opts.includeArchived) conditions.push(eq(repositories.isArchived, false))
   if (opts.forgeType) conditions.push(eq(repositories.forgeType, opts.forgeType))
   if (opts.enabled !== undefined) conditions.push(eq(repositories.isEnabled, opts.enabled))
+  if (opts.workspaceStatus) {
+    conditions.push(eq(
+      repositories.workspaceStatus,
+      opts.workspaceStatus as typeof repositories.$inferSelect.workspaceStatus,
+    ))
+  }
+  if (opts.connectionId) conditions.push(eq(repositories.connectionId, opts.connectionId))
   if (opts.q) {
     conditions.push(or(
       ilike(repositories.name, `%${opts.q}%`),
@@ -70,6 +79,15 @@ export function publicRepo(row: typeof repositories.$inferSelect) {
     blockOnOpenPr: row.blockOnOpenPr,
     defaultAiProvider: row.defaultAiProvider,
     settings: row.settings,
+    connectionId: row.connectionId,
+    discoveredRepositoryId: row.discoveredRepositoryId,
+    providerRepoId: row.providerRepoId,
+    instanceUrl: row.instanceUrl,
+    visibility: row.visibility,
+    workspaceStatus: row.workspaceStatus,
+    lastSyncAt: row.lastSyncAt,
+    lastCloneAt: row.lastCloneAt,
+    lastError: row.lastError,
     lastHealthCheckAt: row.lastHealthCheckAt,
     healthStatus: row.healthStatus,
     healthMessage: row.healthMessage,
@@ -190,11 +208,30 @@ export async function setRepositoryEnabled(
   ipHash?: string,
 ) {
   const db = getDb()
+  const [existing] = await db.select().from(repositories).where(and(
+    eq(repositories.id, id),
+    eq(repositories.isArchived, false),
+  )).limit(1)
+  if (!existing) throw new AppError(404, 'Repository not found', 'not_found')
+
+  if (enabled) {
+    if (!existing.localPath) {
+      throw new AppError(400, 'Repository has no workspace path', 'workspace_missing')
+    }
+    // Allow legacy not_cloned host paths; block failed/in-progress managed clones
+    if (['failed', 'queued', 'cloning', 'syncing', 'inaccessible'].includes(existing.workspaceStatus)) {
+      throw new AppError(
+        400,
+        `Workspace is ${existing.workspaceStatus}; clone or repair before enabling`,
+        'workspace_not_ready',
+      )
+    }
+  }
+
   const [row] = await db.update(repositories).set({
     isEnabled: enabled,
     updatedAt: new Date(),
-  }).where(and(eq(repositories.id, id), eq(repositories.isArchived, false))).returning()
-  if (!row) throw new AppError(404, 'Repository not found', 'not_found')
+  }).where(eq(repositories.id, id)).returning()
 
   await writeAudit({
     actorUserId: actor.id,
@@ -279,10 +316,19 @@ export async function testRepositoryConnection(id: string) {
     healthMessage = 'Local path missing or inaccessible'
   }
 
+  const workspaceStatus: typeof repositories.$inferSelect.workspaceStatus
+    = healthStatus === 'healthy' || healthStatus === 'degraded'
+      ? 'ready'
+      : row.workspaceStatus === 'ready'
+        ? 'failed'
+        : row.workspaceStatus
+
   const [updated] = await db.update(repositories).set({
     healthStatus,
-    healthMessage,
+    healthMessage: healthMessage ? healthMessage.slice(0, 2000) : healthMessage,
     lastHealthCheckAt: new Date(),
+    workspaceStatus,
+    lastError: healthStatus === 'unhealthy' ? healthMessage : null,
     updatedAt: new Date(),
   }).where(eq(repositories.id, id)).returning()
 

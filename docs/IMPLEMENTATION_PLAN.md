@@ -65,18 +65,31 @@
 - [~] Full browser e2e / live forge AI runs — require credentials (documented)
 - [x] Security + ops docs
 
+## Phase I — Forge connections, discovery, persistent workspaces
+
+- [x] Schema migration `0001_forge_connections` (connections, discovery, workspace ops)
+- [x] GitHub + GitLab OAuth (PKCE, state, encrypted tokens)
+- [x] GitLab custom URL + SSRF protections / trusted host allowlist
+- [x] Repository discovery, selection, registration (legacy-safe matching)
+- [x] Async workspace clone/sync manager + UI status
+- [x] Worker credential materialization (`forge-credentials.env`) + entrypoint source
+- [x] Connections / discovery UI; repositories workspace status
+- [x] Docs (README, ARCHITECTURE, SECURITY, MIGRATION) + unit tests
+
 ## Test results (2026-10-11)
 
 | Suite | Result |
 |-------|--------|
-| `pnpm test:unit` | 8 passed |
+| `pnpm test:unit` | 30 passed (was 8; connections feature added coverage) |
 | `pnpm test:worker` | passed |
-| `pnpm build` | succeeded |
-| `docker compose build` | succeeded |
+| `pnpm build` / `nuxt build` | succeeded |
+| DB migrate `0001_forge_connections` | succeeded against running Postgres |
+| `docker compose build` | succeeded (earlier acceptance) |
 | Compose up + health/ready | succeeded |
 | Bootstrap + login + repo CRUD + logout | succeeded |
 | Web recreate persistence | succeeded |
 | Worker heartbeat / poll loop | succeeded |
+| Live OAuth against GitHub/GitLab | requires operator-created OAuth apps (not run here) |
 
 ## Structure cleanup (follow-up task)
 
@@ -95,3 +108,5 @@
 2. Pin/install Cursor + Claude CLIs in image when reproducible installers are available.
 3. Expand automated browser e2e when desired.
 4. Wire `CHECK_INTERVAL` from DB settings into worker env on export/reload (env override already works).
+5. Rebuild/restart running Compose `web`/`worker` images to pick up Phase I code (migration already applied to the live DB in this environment).
+6. Create GitHub/GitLab OAuth apps and set client credentials in `.env` before using Connections UI.

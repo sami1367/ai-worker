@@ -16,6 +16,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'state/' \
     --exclude 'github-projects.conf' \
     --exclude 'gitlab-projects.conf' \
+    --exclude 'forge-credentials.env' \
     --exclude '.env' \
     "$SRC/" "$DEST/"
 else
@@ -38,5 +39,12 @@ fi
 export AI_WORKER_BASE_DIR="$DEST"
 export LOGS_DIR="${LOGS_DIR:-$DEST/logs}"
 export STATE_DIR="${STATE_DIR:-$DEST/state}"
+
+# Load forge credentials materialized by the web control plane (0600 env file).
+# Never logs file contents. Compose env vars remain a fallback when the file is absent.
+if [[ -f "$DEST/forge-credentials.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$DEST/forge-credentials.env"
+fi
 
 exec bash "$DEST/platform-wrapper.sh"

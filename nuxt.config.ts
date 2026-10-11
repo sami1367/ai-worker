@@ -32,6 +32,12 @@ export default defineNuxtConfig({
     githubToken: process.env.GITHUB_TOKEN || '',
     gitlabHost: process.env.GITLAB_HOST || '',
     gitlabToken: process.env.GITLAB_TOKEN || '',
+    githubOauthClientId: process.env.GITHUB_OAUTH_CLIENT_ID || '',
+    githubOauthClientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || '',
+    gitlabOauthClientId: process.env.GITLAB_OAUTH_CLIENT_ID || '',
+    gitlabOauthClientSecret: process.env.GITLAB_OAUTH_CLIENT_SECRET || '',
+    gitlabTrustedHosts: process.env.GITLAB_TRUSTED_HOSTS || '',
+    gitlabAllowHttp: process.env.GITLAB_ALLOW_HTTP || 'false',
     appVersion: process.env.APP_VERSION || '1.0.0',
     public: {
       appBaseUrl: process.env.APP_BASE_URL || 'http://127.0.0.1:8080',

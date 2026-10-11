@@ -1,4 +1,5 @@
 import { checkDatabaseConnectivity } from '#utils/db'
+import { startWorkspaceOperationWorker } from '#services/workspace-manager'
 
 export default defineNitroPlugin(async () => {
   const required = ['DATABASE_URL', 'NUXT_SESSION_PASSWORD']
@@ -28,6 +29,12 @@ export default defineNitroPlugin(async () => {
     }
   } catch (err) {
     console.warn('[startup] Database check skipped:', err instanceof Error ? err.message : err)
+  }
+
+  try {
+    startWorkspaceOperationWorker()
+  } catch (err) {
+    console.warn('[startup] Workspace worker not started:', err instanceof Error ? err.message : err)
   }
 
   void required

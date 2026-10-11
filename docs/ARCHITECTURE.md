@@ -103,6 +103,46 @@ See [STRUCTURE_AUDIT.md](./STRUCTURE_AUDIT.md) for duplicate disposition.
   workspaces/      # managed clones (repo UUID directories)
 ```
 
+## Forge connections and persistent workspaces
+
+The product uses an **administrator-managed shared connection model** (same trust boundary as existing shared repositories). Operators can view; admins connect/disconnect and register repos.
+
+```text
+UI Connections → OAuth (PKCE) → forge_connections (encrypted tokens)
+                 → discovery sync → discovered_repositories
+                 → register selected → repositories + workspace_operations
+                 → async clone/sync into WORKSPACE_ROOT/<workspaceId>
+                 → exportWorkerConfig + forge-credentials.env
+                 → Bash worker polls labels using path + GH_TOKEN/GITLAB_TOKEN
+```
+
+| Table | Role |
+|-------|------|
+| `forge_connections` | Provider account, instance URL, encrypted access/refresh tokens, sync status |
+| `oauth_states` | Short-lived OAuth CSRF state + PKCE verifier |
+| `discovered_repositories` | Cached provider catalog (not every page hit) |
+| `repositories` | Registered automation targets (+ workspace status, provider identity) |
+| `workspace_operations` | Queued clone/sync/verify/delete jobs |
+
+### Workspace rules
+
+- One deterministic directory per `workspace_id` under `WORKSPACE_ROOT`
+- Paths validated against escape; clone/fetch use `execFile` argument arrays
+- Routine sync fetches and fast-forwards only when the tree is clean — never `git reset --hard`
+- Concurrent ops on the same repo are serialized; tokens stripped from stored remotes and logs
+- Worker continues to consume `{ name, path, block_on_open_pr }` conf; DB remains source of truth
+
+### Credential path to the worker
+
+1. Tokens encrypted in PostgreSQL with `SECRET_ENCRYPTION_KEY` (AES-256-GCM).
+2. On connect/disconnect/refresh, web writes `/data/config/forge-credentials.env` (0600).
+3. `scripts/worker-entrypoint.sh` sources that file before `platform-wrapper.sh`.
+4. Project conf JSON never contains tokens.
+
+### SSRF policy for GitLab URLs
+
+User-supplied GitLab instance URLs are normalized, require HTTPS by default, block localhost/metadata/private ranges unless listed in `GITLAB_TRUSTED_HOSTS`, resolve DNS before fetch, and refuse redirects that leave the approved origin.
+
 ## Security boundaries
 
 - No Docker socket in any service
@@ -112,5 +152,7 @@ See [STRUCTURE_AUDIT.md](./STRUCTURE_AUDIT.md) for duplicate disposition.
 - Path validation for workspaces; reject `..`, odd URL schemes, embedded credentials
 - Logs escaped as text in UI; never executed
 - Secrets encrypted at rest; never returned by API
+- OAuth tokens never returned to browser clients after connection
+- GitLab instance URL SSRF protections (see above)
 
 See `docs/SECURITY.md` for the operational checklist.

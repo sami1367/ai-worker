@@ -12,5 +12,7 @@ export default defineEventHandler((event) => handleApi(event, async () => {
     forgeType: q.forgeType === 'github' || q.forgeType === 'gitlab' ? q.forgeType : undefined,
     enabled: q.enabled === undefined ? undefined : q.enabled === 'true',
     includeArchived: q.includeArchived === 'true',
+    workspaceStatus: q.workspaceStatus ? String(q.workspaceStatus) : undefined,
+    connectionId: q.connectionId ? String(q.connectionId) : undefined,
   })
 }))

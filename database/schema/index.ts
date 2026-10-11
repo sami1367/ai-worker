@@ -42,6 +42,35 @@ export const controlStatusEnum = pgEnum('control_status', [
   'cancelled',
 ])
 export const workerStatusEnum = pgEnum('worker_status', ['unknown', 'starting', 'running', 'stopping', 'stopped', 'error'])
+export const connectionStatusEnum = pgEnum('connection_status', [
+  'pending',
+  'active',
+  'error',
+  'disconnected',
+  'expired',
+])
+export const workspaceStatusEnum = pgEnum('workspace_status', [
+  'not_cloned',
+  'queued',
+  'cloning',
+  'ready',
+  'syncing',
+  'failed',
+  'inaccessible',
+])
+export const workspaceOperationTypeEnum = pgEnum('workspace_operation_type', [
+  'clone',
+  'sync',
+  'verify',
+  'delete_workspace',
+])
+export const workspaceOperationStatusEnum = pgEnum('workspace_operation_status', [
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+])
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -68,6 +97,70 @@ export const sessions = pgTable('sessions', {
   index('sessions_expires_idx').on(t.expiresAt),
 ])
 
+export const forgeConnections = pgTable('forge_connections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  provider: forgeTypeEnum('provider').notNull(),
+  displayName: varchar('display_name', { length: 128 }),
+  instanceUrl: text('instance_url').notNull(),
+  accountId: varchar('account_id', { length: 128 }).notNull(),
+  accountLogin: varchar('account_login', { length: 256 }),
+  accountName: varchar('account_name', { length: 256 }),
+  scopes: text('scopes'),
+  accessTokenCiphertext: text('access_token_ciphertext'),
+  refreshTokenCiphertext: text('refresh_token_ciphertext'),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  status: connectionStatusEnum('status').notNull().default('pending'),
+  lastError: text('last_error'),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  lastValidatedAt: timestamp('last_validated_at', { withTimezone: true }),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('forge_connections_provider_instance_account_uidx').on(t.provider, t.instanceUrl, t.accountId),
+  index('forge_connections_provider_idx').on(t.provider),
+  index('forge_connections_status_idx').on(t.status),
+])
+
+export const oauthStates = pgTable('oauth_states', {
+  state: varchar('state', { length: 128 }).primaryKey(),
+  provider: forgeTypeEnum('provider').notNull(),
+  instanceUrl: text('instance_url').notNull(),
+  codeVerifier: text('code_verifier').notNull(),
+  redirectPath: varchar('redirect_path', { length: 512 }).notNull().default('/connections'),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  connectionId: uuid('connection_id').references(() => forgeConnections.id, { onDelete: 'cascade' }),
+  displayName: varchar('display_name', { length: 128 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('oauth_states_expires_idx').on(t.expiresAt),
+])
+
+export const discoveredRepositories = pgTable('discovered_repositories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  connectionId: uuid('connection_id').notNull().references(() => forgeConnections.id, { onDelete: 'cascade' }),
+  providerRepoId: varchar('provider_repo_id', { length: 128 }).notNull(),
+  fullName: varchar('full_name', { length: 512 }).notNull(),
+  ownerLogin: varchar('owner_login', { length: 256 }).notNull(),
+  name: varchar('name', { length: 256 }).notNull(),
+  description: text('description'),
+  visibility: varchar('visibility', { length: 32 }).notNull().default('private'),
+  defaultBranch: varchar('default_branch', { length: 128 }).notNull().default('main'),
+  cloneUrlHttps: text('clone_url_https').notNull(),
+  htmlUrl: text('html_url'),
+  permissions: jsonb('permissions').$type<Record<string, unknown>>().notNull().default({}),
+  isArchived: boolean('is_archived').notNull().default(false),
+  isFork: boolean('is_fork').notNull().default(false),
+  lastDiscoveredAt: timestamp('last_discovered_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('discovered_repos_connection_provider_uidx').on(t.connectionId, t.providerRepoId),
+  index('discovered_repos_full_name_idx').on(t.fullName),
+  index('discovered_repos_connection_idx').on(t.connectionId),
+])
+
 export const repositories = pgTable('repositories', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 128 }).notNull(),
@@ -82,6 +175,15 @@ export const repositories = pgTable('repositories', {
   blockOnOpenPr: boolean('block_on_open_pr').notNull().default(true),
   defaultAiProvider: varchar('default_ai_provider', { length: 32 }),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+  connectionId: uuid('connection_id').references(() => forgeConnections.id, { onDelete: 'set null' }),
+  discoveredRepositoryId: uuid('discovered_repository_id').references(() => discoveredRepositories.id, { onDelete: 'set null' }),
+  providerRepoId: varchar('provider_repo_id', { length: 128 }),
+  instanceUrl: text('instance_url'),
+  visibility: varchar('visibility', { length: 32 }),
+  workspaceStatus: workspaceStatusEnum('workspace_status').notNull().default('not_cloned'),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  lastCloneAt: timestamp('last_clone_at', { withTimezone: true }),
+  lastError: text('last_error'),
   lastHealthCheckAt: timestamp('last_health_check_at', { withTimezone: true }),
   healthStatus: healthStatusEnum('health_status').notNull().default('unknown'),
   healthMessage: text('health_message'),
@@ -92,6 +194,28 @@ export const repositories = pgTable('repositories', {
   uniqueIndex('repositories_workspace_uidx').on(t.workspaceId),
   index('repositories_enabled_idx').on(t.isEnabled),
   index('repositories_forge_idx').on(t.forgeType),
+  index('repositories_connection_idx').on(t.connectionId),
+  index('repositories_workspace_status_idx').on(t.workspaceStatus),
+  index('repositories_provider_identity_idx').on(t.forgeType, t.instanceUrl, t.providerRepoId),
+])
+
+export const workspaceOperations = pgTable('workspace_operations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  repositoryId: uuid('repository_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
+  operationType: workspaceOperationTypeEnum('operation_type').notNull(),
+  status: workspaceOperationStatusEnum('status').notNull().default('queued'),
+  requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  errorSummary: text('error_summary'),
+  logExcerpt: text('log_excerpt'),
+  correlationId: varchar('correlation_id', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('workspace_operations_repo_idx').on(t.repositoryId),
+  index('workspace_operations_status_idx').on(t.status),
+  index('workspace_operations_created_idx').on(t.createdAt),
 ])
 
 export const providerConfigs = pgTable('provider_configs', {

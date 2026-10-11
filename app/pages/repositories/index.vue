@@ -62,9 +62,15 @@ async function toggle(repo: any, enable: boolean) {
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 class="font-display text-3xl tracking-tight">Repositories</h1>
-        <p class="mt-1 text-sm opacity-70">Register and configure automation targets</p>
+        <p class="mt-1 text-sm opacity-70">
+          Registered automation targets and workspace status.
+          Prefer <NuxtLink to="/connections" class="underline">Connections</NuxtLink> for discovery and cloning.
+        </p>
       </div>
-      <UButton icon="i-lucide-plus" @click="showCreate = true">Add repository</UButton>
+      <div class="flex gap-2">
+        <UButton variant="soft" icon="i-lucide-link" to="/connections">Connections</UButton>
+        <UButton icon="i-lucide-plus" @click="showCreate = true">Manual add</UButton>
+      </div>
     </div>
 
     <div class="aw-panel flex flex-wrap gap-3 rounded-xl p-4">
@@ -91,9 +97,9 @@ async function toggle(repo: any, enable: boolean) {
           <tr>
             <th class="px-4 py-3 font-medium">Name</th>
             <th class="px-4 py-3 font-medium">Forge</th>
+            <th class="px-4 py-3 font-medium">Workspace</th>
             <th class="px-4 py-3 font-medium">Enabled</th>
             <th class="px-4 py-3 font-medium">Health</th>
-            <th class="px-4 py-3 font-medium">Block open PR</th>
             <th class="px-4 py-3 font-medium">Actions</th>
           </tr>
         </thead>
@@ -101,16 +107,23 @@ async function toggle(repo: any, enable: boolean) {
           <tr v-for="repo in data.items" :key="repo.id" class="border-b border-[var(--aw-line)] last:border-0">
             <td class="px-4 py-3">
               <NuxtLink :to="`/repositories/${repo.id}`" class="font-medium hover:underline">{{ repo.name }}</NuxtLink>
-              <p class="max-w-xs truncate opacity-60">{{ repo.remoteUrl }}</p>
+              <p class="max-w-xs truncate opacity-60">{{ repo.canonicalProjectIdentifier || repo.remoteUrl }}</p>
             </td>
             <td class="px-4 py-3">{{ repo.forgeType }}</td>
+            <td class="px-4 py-3">
+              <UBadge
+                :color="repo.workspaceStatus === 'ready' ? 'success' : repo.workspaceStatus === 'failed' ? 'error' : 'warning'"
+                variant="subtle"
+              >
+                {{ repo.workspaceStatus || 'unknown' }}
+              </UBadge>
+            </td>
             <td class="px-4 py-3">
               <UBadge :color="repo.isEnabled ? 'success' : 'neutral'" variant="subtle">
                 {{ repo.isEnabled ? 'enabled' : 'disabled' }}
               </UBadge>
             </td>
             <td class="px-4 py-3">{{ repo.healthStatus }}</td>
-            <td class="px-4 py-3">{{ repo.blockOnOpenPr ? 'yes' : 'no' }}</td>
             <td class="px-4 py-3">
               <div class="flex gap-2">
                 <UButton size="xs" variant="soft" @click="toggle(repo, !repo.isEnabled)">

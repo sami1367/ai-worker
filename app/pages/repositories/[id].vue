@@ -9,18 +9,27 @@ const { data, pending, refresh } = await useAsyncData(
   { watch: [id] },
 )
 
+const { data: operations, refresh: refreshOps } = await useAsyncData(
+  () => `repo-ops-${id.value}`,
+  () => api<any>(`/api/v1/repositories/${id.value}/operations`),
+  { watch: [id] },
+)
+
 const busy = ref('')
 const message = ref('')
+const messageError = ref(false)
 
-async function action(path: string, label: string) {
+async function action(path: string, label: string, body?: Record<string, unknown>) {
   busy.value = label
   message.value = ''
+  messageError.value = false
   try {
-    await api(`/api/v1/repositories/${id.value}/${path}`, { method: 'POST' })
+    await api(`/api/v1/repositories/${id.value}/${path}`, { method: 'POST', body })
     message.value = `${label} completed`
-    await refresh()
+    await Promise.all([refresh(), refreshOps()])
   } catch (e: any) {
     message.value = e?.data?.message || e?.statusMessage || `${label} failed`
+    messageError.value = true
   } finally {
     busy.value = ''
   }
@@ -40,13 +49,46 @@ async function save() {
       },
     })
     message.value = 'Saved (worker config will be re-exported for future tasks)'
+    messageError.value = false
     await refresh()
   } catch (e: any) {
     message.value = e?.data?.message || 'Save failed'
+    messageError.value = true
   } finally {
     busy.value = ''
   }
 }
+
+async function unregister(deleteWorkspace: boolean) {
+  const msg = deleteWorkspace
+    ? 'Remove this registration AND delete the managed workspace directory? This cannot be undone.'
+    : 'Remove this registration? The workspace directory and forge connection will be kept.'
+  if (!confirm(msg)) return
+  await action('unregister', 'Unregister', { deleteWorkspace })
+}
+
+function workspaceColor(status: string) {
+  if (status === 'ready') return 'success'
+  if (status === 'failed' || status === 'inaccessible') return 'error'
+  if (status === 'cloning' || status === 'syncing' || status === 'queued') return 'warning'
+  return 'neutral'
+}
+
+// Poll while clone/sync is in progress
+const stopPoll = ref<null | (() => void)>(null)
+watch(() => data.value?.workspaceStatus, (status) => {
+  stopPoll.value?.()
+  stopPoll.value = null
+  if (status && ['queued', 'cloning', 'syncing'].includes(status)) {
+    const timer = setInterval(() => {
+      void refresh()
+      void refreshOps()
+    }, 2500)
+    stopPoll.value = () => clearInterval(timer)
+  }
+}, { immediate: true })
+
+onBeforeUnmount(() => stopPoll.value?.())
 </script>
 
 <template>
@@ -59,24 +101,30 @@ async function save() {
             <NuxtLink to="/repositories" class="hover:underline">Repositories</NuxtLink>
           </p>
           <h1 class="font-display text-3xl tracking-tight">{{ data.name }}</h1>
-          <p class="mt-1 text-sm opacity-70">{{ data.forgeType }} · {{ data.remoteUrl }}</p>
+          <p class="mt-1 text-sm opacity-70">
+            {{ data.forgeType }} · {{ data.canonicalProjectIdentifier || data.remoteUrl }}
+          </p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <UButton :loading="busy==='Test'" variant="soft" @click="action('test', 'Test')">Test connection</UButton>
+          <UButton :loading="busy==='Clone'" variant="soft" @click="action('clone', 'Clone')">
+            {{ data.workspaceStatus === 'failed' ? 'Retry clone' : 'Clone / repair' }}
+          </UButton>
+          <UButton :loading="busy==='Sync'" variant="soft" @click="action('sync', 'Sync')">Sync workspace</UButton>
+          <UButton :loading="busy==='Test'" variant="soft" @click="action('test', 'Test')">Test</UButton>
           <UButton :loading="busy==='Labels'" variant="soft" @click="action('setup-labels', 'Labels')">Setup labels</UButton>
           <UButton
             :loading="busy==='Enable' || busy==='Disable'"
             @click="action(data.isEnabled ? 'disable' : 'enable', data.isEnabled ? 'Disable' : 'Enable')"
           >
-            {{ data.isEnabled ? 'Disable' : 'Enable' }}
+            {{ data.isEnabled ? 'Disable processing' : 'Enable processing' }}
           </UButton>
-          <UButton color="error" variant="soft" :loading="busy==='Archive'" @click="action('archive', 'Archive')">
-            Archive
+          <UButton color="error" variant="soft" :loading="busy==='Unregister'" @click="unregister(false)">
+            Remove registration
           </UButton>
         </div>
       </div>
 
-      <UAlert v-if="message" :title="message" color="neutral" />
+      <UAlert v-if="message" :title="message" :color="messageError ? 'error' : 'neutral'" />
 
       <div class="grid gap-4 lg:grid-cols-2">
         <div class="aw-panel space-y-3 rounded-xl p-4">
@@ -98,13 +146,44 @@ async function save() {
         </div>
 
         <div class="aw-panel space-y-2 rounded-xl p-4 text-sm">
-          <h2 class="font-display text-xl">Status</h2>
+          <h2 class="font-display text-xl">Workspace status</h2>
+          <p class="flex items-center gap-2">
+            <span class="opacity-60">Status:</span>
+            <UBadge :color="workspaceColor(data.workspaceStatus)" variant="subtle">
+              {{ data.workspaceStatus }}
+            </UBadge>
+          </p>
           <p><span class="opacity-60">Enabled:</span> {{ data.isEnabled }}</p>
+          <p><span class="opacity-60">Visibility:</span> {{ data.visibility || 'n/a' }}</p>
+          <p><span class="opacity-60">Provider repo ID:</span> {{ data.providerRepoId || 'manual' }}</p>
+          <p><span class="opacity-60">Instance:</span> {{ data.instanceUrl || 'n/a' }}</p>
           <p><span class="opacity-60">Workspace ID:</span> {{ data.workspaceId }}</p>
           <p><span class="opacity-60">Local path:</span> {{ data.localPath || 'unavailable' }}</p>
+          <p><span class="opacity-60">Last clone:</span> {{ data.lastCloneAt || 'never' }}</p>
+          <p><span class="opacity-60">Last sync:</span> {{ data.lastSyncAt || 'never' }}</p>
           <p><span class="opacity-60">Health:</span> {{ data.healthStatus }} — {{ data.healthMessage || 'n/a' }}</p>
-          <p><span class="opacity-60">Last check:</span> {{ data.lastHealthCheckAt || 'never' }}</p>
+          <p v-if="data.lastError" class="text-red-700 dark:text-red-300">{{ data.lastError }}</p>
+          <div class="pt-2">
+            <UButton size="xs" color="error" variant="ghost" @click="unregister(true)">
+              Delete managed workspace…
+            </UButton>
+          </div>
         </div>
+      </div>
+
+      <div class="aw-panel rounded-xl p-4">
+        <h2 class="font-display text-xl">Workspace operations</h2>
+        <div v-if="!operations?.items?.length" class="mt-3 text-sm opacity-60">No clone/sync operations yet.</div>
+        <ul v-else class="mt-3 divide-y divide-[var(--aw-line)]">
+          <li v-for="op in operations.items" :key="op.id" class="py-2 text-sm">
+            <div class="flex justify-between gap-3">
+              <span>{{ op.operationType }} · {{ op.status }}</span>
+              <span class="opacity-60">{{ op.createdAt }}</span>
+            </div>
+            <p v-if="op.errorSummary" class="text-xs text-red-700 dark:text-red-300">{{ op.errorSummary }}</p>
+            <pre v-if="op.logExcerpt" class="mt-1 max-h-24 overflow-auto text-xs opacity-60">{{ op.logExcerpt }}</pre>
+          </li>
+        </ul>
       </div>
 
       <div class="aw-panel rounded-xl p-4">
