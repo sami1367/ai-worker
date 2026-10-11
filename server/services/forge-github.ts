@@ -85,7 +85,11 @@ export async function exchangeGitHubCode(opts: {
   }
 }
 
-async function githubApi<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+async function githubApiRaw(
+  path: string,
+  token: string,
+  init?: RequestInit,
+): Promise<{ data: unknown, headers: Headers }> {
   const url = path.startsWith('http') ? path : `${GITHUB_API}${path}`
   const res = await safeFetch(url, {
     ...init,
@@ -110,73 +114,109 @@ async function githubApi<T>(path: string, token: string, init?: RequestInit): Pr
     const text = redactSecrets(await res.text())
     throw new AppError(502, `GitHub API error (${res.status}): ${text.slice(0, 200)}`, 'forge_api_error')
   }
-  return res.json() as Promise<T>
+  return { data: await res.json(), headers: res.headers }
+}
+
+async function githubApi<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const { data } = await githubApiRaw(path, token, init)
+  return data as T
+}
+
+function parseOAuthScopes(header: string | null): string[] {
+  if (!header) return []
+  return header.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/** Classic PATs expose X-OAuth-Scopes. Fine-grained PATs usually leave it empty. */
+export function githubClassicTokenCanAccessPrivate(scopes: string[]): boolean | null {
+  if (!scopes.length) return null
+  if (scopes.includes('repo')) return true
+  return false
+}
+
+export const GITHUB_PRIVATE_ACCESS_HINT
+  = 'Token cannot access private repositories. Use a classic PAT with the full "repo" scope (not only public_repo), '
+  + 'or a fine-grained PAT with Repository access covering those private repos (for org repos, create the token '
+  + 'with that organization as the resource owner) and at least Metadata: Read.'
+
+export const GITHUB_FINE_GRAINED_NO_PRIVATE_HINT
+  = 'GitHub returned no private repositories for this fine-grained token. If you expected private repos: '
+  + '(1) recreate as a classic PAT with the full "repo" scope (most reliable), or '
+  + '(2) recreate the fine-grained PAT with Repository access = All repositories '
+  + '(for organization private repos, create the token with that organization as the resource owner, not your user).'
+
+function mapGitHubRepo(r: {
+  id: number
+  full_name: string
+  owner?: { login?: string }
+  name: string
+  description?: string | null
+  private?: boolean
+  default_branch?: string
+  clone_url?: string
+  html_url?: string
+  permissions?: { admin?: boolean, push?: boolean, pull?: boolean }
+  archived?: boolean
+  fork?: boolean
+}): ForgeRepo {
+  return {
+    providerRepoId: String(r.id),
+    fullName: String(r.full_name),
+    ownerLogin: String(r.owner?.login || ''),
+    name: String(r.name),
+    description: r.description ? String(r.description) : null,
+    visibility: r.private ? 'private' : 'public',
+    defaultBranch: String(r.default_branch || 'main'),
+    cloneUrlHttps: String(r.clone_url || `https://github.com/${r.full_name}.git`),
+    htmlUrl: r.html_url ? String(r.html_url) : null,
+    permissions: {
+      admin: Boolean(r.permissions?.admin),
+      push: Boolean(r.permissions?.push),
+      pull: Boolean(r.permissions?.pull),
+    },
+    isArchived: Boolean(r.archived),
+    isFork: Boolean(r.fork),
+  }
 }
 
 export async function fetchGitHubAccount(token: string): Promise<ForgeAccount> {
-  const user = await githubApi<{ id: number, login: string, name: string | null }>(
-    '/user',
-    token,
-  )
+  const { data, headers } = await githubApiRaw('/user', token)
+  const user = data as { id: number, login: string, name: string | null }
+  const scopes = parseOAuthScopes(headers.get('x-oauth-scopes'))
   return {
     accountId: String(user.id),
     accountLogin: user.login,
     accountName: user.name,
-    scopes: GITHUB_OAUTH_SCOPES,
+    scopes: scopes.length ? scopes.join(', ') : null,
   }
 }
 
 export async function listGitHubRepositories(token: string): Promise<ForgeRepo[]> {
-  const repos: ForgeRepo[] = []
+  const repos = new Map<string, ForgeRepo>()
   let page = 1
   const perPage = 100
 
+  // visibility=all is required so classic/public_repo-limited tokens are not silently
+  // treated as "all accessible repos" when affiliation is set.
   while (page <= 50) {
-    const batch = await githubApi<Array<{
-      id: number
-      full_name: string
-      owner?: { login?: string }
-      name: string
-      description?: string | null
-      private?: boolean
-      default_branch?: string
-      clone_url?: string
-      html_url?: string
-      permissions?: { admin?: boolean, push?: boolean, pull?: boolean }
-      archived?: boolean
-      fork?: boolean
-    }>>(
-      `/user/repos?per_page=${perPage}&page=${page}&affiliation=owner,collaborator,organization_member&sort=full_name`,
+    const batch = await githubApi<Array<Parameters<typeof mapGitHubRepo>[0]>>(
+      `/user/repos?per_page=${perPage}&page=${page}`
+      + '&affiliation=owner,collaborator,organization_member'
+      + '&visibility=all&sort=full_name',
       token,
     )
     if (!batch.length) break
 
     for (const r of batch) {
-      repos.push({
-        providerRepoId: String(r.id),
-        fullName: String(r.full_name),
-        ownerLogin: String(r.owner?.login || ''),
-        name: String(r.name),
-        description: r.description ? String(r.description) : null,
-        visibility: r.private ? 'private' : 'public',
-        defaultBranch: String(r.default_branch || 'main'),
-        cloneUrlHttps: String(r.clone_url || `https://github.com/${r.full_name}.git`),
-        htmlUrl: r.html_url ? String(r.html_url) : null,
-        permissions: {
-          admin: Boolean(r.permissions?.admin),
-          push: Boolean(r.permissions?.push),
-          pull: Boolean(r.permissions?.pull),
-        },
-        isArchived: Boolean(r.archived),
-        isFork: Boolean(r.fork),
-      })
+      const mapped = mapGitHubRepo(r)
+      repos.set(mapped.providerRepoId, mapped)
     }
 
     if (batch.length < perPage) break
     page += 1
   }
 
-  return repos
+  return [...repos.values()]
 }
 
 export async function revokeGitHubToken(token: string): Promise<void> {
@@ -204,10 +244,56 @@ export async function revokeGitHubToken(token: string): Promise<void> {
   }
 }
 
-export async function testGitHubToken(token: string): Promise<{ ok: boolean, message: string, account?: ForgeAccount }> {
+export async function testGitHubToken(token: string): Promise<{
+  ok: boolean
+  message: string
+  account?: ForgeAccount
+  canAccessPrivate?: boolean | null
+  oauthScopes?: string[]
+}> {
   try {
     const account = await fetchGitHubAccount(token)
-    return { ok: true, message: `Authenticated as ${account.accountLogin}`, account }
+    const oauthScopes = account.scopes
+      ? account.scopes.split(',').map((s) => s.trim()).filter(Boolean)
+      : []
+    const classicPrivate = githubClassicTokenCanAccessPrivate(oauthScopes)
+
+    if (classicPrivate === false) {
+      return {
+        ok: false,
+        message: GITHUB_PRIVATE_ACCESS_HINT,
+        account,
+        canAccessPrivate: false,
+        oauthScopes,
+      }
+    }
+
+    // Fine-grained PATs omit X-OAuth-Scopes; probe whether private listing works.
+    let canAccessPrivate: boolean | null = classicPrivate
+    let message = `Authenticated as ${account.accountLogin}`
+    const isFineGrained = token.startsWith('github_pat_')
+    if (classicPrivate === null || isFineGrained) {
+      const privateBatch = await githubApi<unknown[]>(
+        '/user/repos?per_page=1&visibility=private&affiliation=owner,collaborator,organization_member',
+        token,
+      )
+      canAccessPrivate = privateBatch.length > 0 ? true : false
+      if (isFineGrained && canAccessPrivate === false) {
+        message = `${message}. ${GITHUB_FINE_GRAINED_NO_PRIVATE_HINT}`
+      }
+    }
+
+    return {
+      ok: true,
+      message,
+      account: {
+        ...account,
+        scopes: account.scopes || (isFineGrained ? 'fine-grained' : null),
+      },
+      canAccessPrivate,
+      oauthScopes,
+      tokenKind: isFineGrained ? 'fine-grained' as const : oauthScopes.length ? 'classic' as const : 'unknown' as const,
+    }
   } catch (err) {
     return {
       ok: false,

@@ -1,23 +1,27 @@
 <script setup lang="ts">
 const { api } = useApi()
 const q = ref('')
-const forgeType = ref<string>('')
-const enabled = ref<string>('')
+const provider = ref<string>('')
+const registered = ref<string>('')
 const page = ref(1)
+const selected = ref<string[]>([])
+const busy = ref('')
+const message = ref('')
+const messageError = ref(false)
 
 const query = computed(() => {
   const p = new URLSearchParams()
   p.set('page', String(page.value))
-  p.set('pageSize', '20')
+  p.set('pageSize', '50')
   if (q.value) p.set('q', q.value)
-  if (forgeType.value) p.set('forgeType', forgeType.value)
-  if (enabled.value) p.set('enabled', enabled.value)
+  if (provider.value) p.set('provider', provider.value)
+  if (registered.value) p.set('registered', registered.value)
   return p.toString()
 })
 
 const { data, pending, refresh } = await useAsyncData(
-  'repos',
-  () => api<any>(`/api/v1/repositories?${query.value}`),
+  'repos-discovered',
+  () => api<any>(`/api/v1/discovered-repositories?${query.value}`),
   { watch: [query] },
 )
 
@@ -35,6 +39,56 @@ const form = reactive({
   localPath: '',
 })
 
+watch([q, provider, registered], () => {
+  page.value = 1
+  selected.value = []
+})
+
+function forgeLabel(value?: string | null) {
+  if (value === 'github') return 'GitHub'
+  if (value === 'gitlab') return 'GitLab'
+  return value || '—'
+}
+
+function toggle(repoId: string, isRegistered: boolean) {
+  if (isRegistered) return
+  if (selected.value.includes(repoId)) {
+    selected.value = selected.value.filter((x) => x !== repoId)
+  } else {
+    selected.value = [...selected.value, repoId]
+  }
+}
+
+function selectVisible() {
+  const ids = (data.value?.items || [])
+    .filter((r: any) => !r.isRegistered)
+    .map((r: any) => r.id)
+  selected.value = Array.from(new Set([...selected.value, ...ids]))
+}
+
+async function addSelected() {
+  if (!selected.value.length) return
+  busy.value = 'register'
+  message.value = ''
+  try {
+    const res = await api<any>('/api/v1/discovered-repositories/register', {
+      method: 'POST',
+      body: { discoveredRepositoryIds: selected.value, enable: false },
+    })
+    const created = res.created?.length || 0
+    const skipped = res.skipped?.length || 0
+    message.value = `Registered ${created} repositories${skipped ? `, skipped ${skipped}` : ''}. Clones queued.`
+    messageError.value = false
+    selected.value = []
+    await refresh()
+  } catch (e: any) {
+    message.value = e?.data?.message || 'Registration failed'
+    messageError.value = true
+  } finally {
+    busy.value = ''
+  }
+}
+
 async function createRepo() {
   createError.value = ''
   creating.value = true
@@ -50,11 +104,6 @@ async function createRepo() {
     creating.value = false
   }
 }
-
-async function toggle(repo: any, enable: boolean) {
-  await api(`/api/v1/repositories/${repo.id}/${enable ? 'enable' : 'disable'}`, { method: 'POST' })
-  await refresh()
-}
 </script>
 
 <template>
@@ -63,74 +112,114 @@ async function toggle(repo: any, enable: boolean) {
       <div>
         <h1 class="font-display text-3xl tracking-tight">Repositories</h1>
         <p class="mt-1 text-sm opacity-70">
-          Registered automation targets and workspace status.
-          Prefer <NuxtLink to="/connections" class="underline">Connections</NuxtLink> for discovery and cloning.
+          All repositories discovered from your
+          <NuxtLink to="/connections" class="underline">Connections</NuxtLink>
+          (GitHub and GitLab). Select repos to register for automation.
         </p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <UButton variant="soft" icon="i-lucide-link" to="/connections">Connections</UButton>
-        <UButton icon="i-lucide-plus" @click="showCreate = true">Manual add</UButton>
+        <UButton
+          :disabled="!selected.length"
+          :loading="busy === 'register'"
+          icon="i-lucide-plus"
+          @click="addSelected"
+        >
+          Add selected ({{ selected.length }})
+        </UButton>
+        <UButton variant="ghost" icon="i-lucide-plus" @click="showCreate = true">Manual add</UButton>
       </div>
     </div>
 
+    <UAlert v-if="message" :color="messageError ? 'error' : 'success'" :title="message" variant="subtle" />
+
     <div class="aw-panel flex flex-wrap gap-3 rounded-xl p-4">
-      <UInput v-model="q" placeholder="Search…" icon="i-lucide-search" class="min-w-56" />
+      <UInput v-model="q" placeholder="Search name, path, namespace…" icon="i-lucide-search" class="min-w-64" />
       <USelect
-        v-model="forgeType"
-        :items="[{ label: 'All forges', value: '' }, { label: 'GitHub', value: 'github' }, { label: 'GitLab', value: 'gitlab' }]"
+        v-model="provider"
+        :items="[
+          { label: 'All forges', value: '' },
+          { label: 'GitHub', value: 'github' },
+          { label: 'GitLab', value: 'gitlab' },
+        ]"
         class="w-40"
       />
       <USelect
-        v-model="enabled"
-        :items="[{ label: 'Any state', value: '' }, { label: 'Enabled', value: 'true' }, { label: 'Disabled', value: 'false' }]"
-        class="w-40"
+        v-model="registered"
+        :items="[
+          { label: 'All', value: '' },
+          { label: 'Not registered', value: 'false' },
+          { label: 'Already registered', value: 'true' },
+        ]"
+        class="w-48"
       />
+      <UButton size="sm" variant="ghost" @click="selectVisible">Select visible</UButton>
+      <UButton size="sm" variant="ghost" @click="selected = []">Clear selection</UButton>
     </div>
 
     <div v-if="pending && !data" class="aw-panel h-48 animate-pulse rounded-xl" />
     <div v-else-if="!data?.items?.length" class="aw-panel rounded-xl p-8 text-center text-sm opacity-70">
-      No repositories yet. Add one to begin.
+      No repositories discovered yet.
+      <NuxtLink to="/connections" class="underline">Connect GitHub or GitLab</NuxtLink>
+      and refresh from the provider.
     </div>
     <div v-else class="aw-panel overflow-x-auto rounded-xl">
       <table class="min-w-full text-sm">
         <thead class="border-b border-[var(--aw-line)] text-left opacity-70">
           <tr>
-            <th class="px-4 py-3 font-medium">Name</th>
+            <th class="px-4 py-3 font-medium">Select</th>
+            <th class="px-4 py-3 font-medium">Repository</th>
             <th class="px-4 py-3 font-medium">Forge</th>
-            <th class="px-4 py-3 font-medium">Workspace</th>
-            <th class="px-4 py-3 font-medium">Enabled</th>
-            <th class="px-4 py-3 font-medium">Health</th>
-            <th class="px-4 py-3 font-medium">Actions</th>
+            <th class="px-4 py-3 font-medium">Connection</th>
+            <th class="px-4 py-3 font-medium">Visibility</th>
+            <th class="px-4 py-3 font-medium">Status</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="repo in data.items" :key="repo.id" class="border-b border-[var(--aw-line)] last:border-0">
+          <tr
+            v-for="repo in data.items"
+            :key="repo.id"
+            class="border-b border-[var(--aw-line)] last:border-0"
+            :class="repo.isRegistered ? 'opacity-70' : ''"
+          >
             <td class="px-4 py-3">
-              <NuxtLink :to="`/repositories/${repo.id}`" class="font-medium hover:underline">{{ repo.name }}</NuxtLink>
-              <p class="max-w-xs truncate opacity-60">{{ repo.canonicalProjectIdentifier || repo.remoteUrl }}</p>
-            </td>
-            <td class="px-4 py-3">{{ repo.forgeType }}</td>
-            <td class="px-4 py-3">
-              <UBadge
-                :color="repo.workspaceStatus === 'ready' ? 'success' : repo.workspaceStatus === 'failed' ? 'error' : 'warning'"
-                variant="subtle"
+              <input
+                type="checkbox"
+                :disabled="repo.isRegistered"
+                :checked="selected.includes(repo.id)"
+                @change="toggle(repo.id, repo.isRegistered)"
               >
-                {{ repo.workspaceStatus || 'unknown' }}
+            </td>
+            <td class="px-4 py-3">
+              <p class="font-medium">{{ repo.fullName }}</p>
+              <p class="max-w-md truncate text-xs opacity-60">{{ repo.cloneUrlHttps }}</p>
+            </td>
+            <td class="px-4 py-3">
+              <UBadge :color="repo.provider === 'gitlab' ? 'warning' : 'info'" variant="subtle">
+                {{ forgeLabel(repo.provider) }}
               </UBadge>
             </td>
             <td class="px-4 py-3">
-              <UBadge :color="repo.isEnabled ? 'success' : 'neutral'" variant="subtle">
-                {{ repo.isEnabled ? 'enabled' : 'disabled' }}
-              </UBadge>
+              <NuxtLink
+                v-if="repo.connectionId"
+                :to="`/connections/${repo.connectionId}`"
+                class="hover:underline"
+              >
+                {{ repo.connectionDisplayName || 'Connection' }}
+              </NuxtLink>
+              <span v-else>—</span>
             </td>
-            <td class="px-4 py-3">{{ repo.healthStatus }}</td>
+            <td class="px-4 py-3">{{ repo.visibility }}</td>
             <td class="px-4 py-3">
-              <div class="flex gap-2">
-                <UButton size="xs" variant="soft" @click="toggle(repo, !repo.isEnabled)">
-                  {{ repo.isEnabled ? 'Disable' : 'Enable' }}
-                </UButton>
-                <UButton size="xs" variant="ghost" :to="`/repositories/${repo.id}`">Open</UButton>
-              </div>
+              <UBadge v-if="repo.isRegistered" color="success" variant="subtle">registered</UBadge>
+              <UBadge v-else color="neutral" variant="subtle">discovered</UBadge>
+              <NuxtLink
+                v-if="repo.registeredRepositoryId"
+                :to="`/repositories/${repo.registeredRepositoryId}`"
+                class="ml-2 text-xs underline opacity-70"
+              >
+                open
+              </NuxtLink>
             </td>
           </tr>
         </tbody>

@@ -9,6 +9,7 @@ import {
   buildGitHubAuthorizeUrl,
   exchangeGitHubCode,
   fetchGitHubAccount,
+  GITHUB_FINE_GRAINED_NO_PRIVATE_HINT,
   GITHUB_INSTANCE_URL,
   githubOAuthConfigured,
   revokeGitHubToken,
@@ -256,16 +257,36 @@ export async function connectGitHubWithToken(
     throw new AppError(400, result.message || 'GitHub token is invalid', 'invalid_token')
   }
 
-  return upsertActiveConnection({
+  const kind = token.startsWith('github_pat_') ? 'fine-grained' : 'classic'
+  const scopeLabel = result.oauthScopes?.length
+    ? `personal_access_token ${kind} ${result.oauthScopes.join(' ')}`
+    : `personal_access_token ${kind}`
+  const connection = await upsertActiveConnection({
     provider: 'github',
     instanceUrl: GITHUB_INSTANCE_URL,
-    account: result.account,
+    account: {
+      ...result.account,
+      scopes: result.account.scopes || scopeLabel,
+    },
     accessToken: token,
-    scopes: 'personal_access_token repo',
+    scopes: scopeLabel,
     displayName: parsed.displayName,
     createdBy: actor.id,
     actorUsername: actor.username,
   })
+
+  // Surface fine-grained private-access gaps immediately after first sync.
+  if (result.canAccessPrivate === false && kind === 'fine-grained') {
+    const db = getDb()
+    await db.update(forgeConnections).set({
+      lastError: GITHUB_FINE_GRAINED_NO_PRIVATE_HINT,
+      updatedAt: new Date(),
+    }).where(eq(forgeConnections.id, connection.id))
+    const [fresh] = await db.select().from(forgeConnections).where(eq(forgeConnections.id, connection.id)).limit(1)
+    return publicConnection(fresh || connection)
+  }
+
+  return connection
 }
 
 export async function connectGitLabWithToken(
@@ -280,12 +301,18 @@ export async function connectGitLabWithToken(
     throw new AppError(400, result.message || 'GitLab token is invalid', 'invalid_token')
   }
 
+  const scopeLabel = result.oauthScopes?.length
+    ? `personal_access_token ${result.oauthScopes.join(' ')}`
+    : 'personal_access_token'
   return upsertActiveConnection({
     provider: 'gitlab',
     instanceUrl,
-    account: result.account,
+    account: {
+      ...result.account,
+      scopes: result.account.scopes || scopeLabel,
+    },
     accessToken: token,
-    scopes: 'personal_access_token api',
+    scopes: scopeLabel,
     displayName: parsed.displayName,
     createdBy: actor.id,
     actorUsername: actor.username,
@@ -466,6 +493,10 @@ export async function testConnection(id: string, actor: { id: string, username: 
     ? await testGitHubToken(token)
     : await testGitLabToken(row.instanceUrl, token)
 
+  const detectedScopes = result.oauthScopes?.length
+    ? `${row.scopes?.includes('personal_access_token') ? 'personal_access_token ' : ''}${result.oauthScopes.join(' ')}`.trim()
+    : result.account?.scopes || null
+
   const db = getDb()
   const [updated] = await db.update(forgeConnections).set({
     status: result.ok ? 'active' : 'error',
@@ -473,6 +504,7 @@ export async function testConnection(id: string, actor: { id: string, username: 
     lastValidatedAt: result.ok ? new Date() : row.lastValidatedAt,
     accountLogin: result.account?.accountLogin ?? row.accountLogin,
     accountName: result.account?.accountName ?? row.accountName,
+    ...(detectedScopes ? { scopes: detectedScopes } : {}),
     updatedAt: new Date(),
   }).where(eq(forgeConnections.id, id)).returning()
 
@@ -539,7 +571,7 @@ export async function oauthStatus() {
     gitlabScopes: 'api read_user read_repository write_repository',
     // Token connect works without OAuth app setup (recommended for self-hosted)
     tokenConnectSupported: true,
-    githubTokenHint: 'Classic PAT with repo scope, or fine-grained PAT with Contents/Issues/Pull requests read-write',
-    gitlabTokenHint: 'Personal access token with api scope (or read_api + write_repository as minimum for worker ops)',
+    githubTokenHint: 'Classic PAT with full "repo" scope (public_repo alone only lists public repos). Fine-grained: All repositories (or selected private ones); for org private repos select the org as resource owner; Metadata + Contents/Issues/PRs.',
+    gitlabTokenHint: 'Personal access token with api scope (read_api minimum to list private projects; api needed for worker ops)',
   }
 }

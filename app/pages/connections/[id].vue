@@ -38,9 +38,15 @@ async function refreshList() {
   busy.value = 'refresh'
   message.value = ''
   try {
-    const res = await api<{ count: number }>(`/api/v1/connections/${id.value}/refresh`, { method: 'POST' })
-    message.value = `Synced ${res.count} repositories`
-    messageError.value = false
+    const res = await api<{ count: number, publicCount?: number, privateCount?: number, accessWarning?: string | null }>(
+      `/api/v1/connections/${id.value}/refresh`,
+      { method: 'POST' },
+    )
+    const pub = res.publicCount ?? '?'
+    const priv = res.privateCount ?? '?'
+    message.value = res.accessWarning
+      || `Synced ${res.count} repositories (${pub} public, ${priv} private)`
+    messageError.value = Boolean(res.accessWarning)
     selected.value = []
     await Promise.all([refresh(), refreshConnection()])
   } catch (e: any) {
@@ -103,6 +109,16 @@ async function addSelected() {
           {{ connection?.provider }} · {{ connection?.instanceUrl }} · last sync
           {{ connection?.lastSyncAt ? new Date(connection.lastSyncAt).toLocaleString() : 'never' }}
         </p>
+        <p v-if="connection?.scopes" class="mt-1 text-xs opacity-50">
+          Token scopes: {{ connection.scopes }}
+        </p>
+        <UAlert
+          v-if="connection?.lastError"
+          class="mt-3"
+          color="warning"
+          variant="subtle"
+          :title="connection.lastError"
+        />
       </div>
       <div class="flex flex-wrap gap-2">
         <UButton variant="soft" :loading="busy === 'refresh'" icon="i-lucide-refresh-cw" @click="refreshList">

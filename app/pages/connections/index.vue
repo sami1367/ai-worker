@@ -195,14 +195,15 @@ function formatTime(v: string | null | undefined) {
       <p class="font-medium">How to connect</p>
       <ul class="mt-2 list-disc space-y-1 pl-5 opacity-80">
         <li>
-          <strong>GitHub:</strong> paste a classic PAT with
-          <code>repo</code> scope (or a fine-grained PAT with Contents, Issues, and Pull requests read/write).
-          Browser OAuth is optional when
-          <code>GITHUB_OAUTH_CLIENT_*</code> is configured.
+          <strong>GitHub:</strong> use a classic PAT with the full <code>repo</code> scope
+          (<code>public_repo</code> alone only lists public repositories). Fine-grained PATs need
+          Repository access to those private repos (for org private repos, create the token with that
+          organization as the resource owner) plus Metadata/Contents/Issues/PRs.
+          Browser OAuth is optional when <code>GITHUB_OAUTH_CLIENT_*</code> is configured.
         </li>
         <li>
           <strong>GitLab:</strong> enter your server URL (e.g. <code>https://gitlab.com</code>) and a personal
-          access token with the <code>api</code> scope.
+          access token with the <code>api</code> scope (<code>read_api</code> is the minimum to list private projects).
         </li>
       </ul>
     </div>
@@ -270,8 +271,11 @@ function formatTime(v: string | null | undefined) {
               <UInput v-model="githubForm.displayName" class="w-full" placeholder="Personal GitHub" />
             </UFormField>
             <p class="text-xs opacity-60">
-              Create at GitHub → Settings → Developer settings → Personal access tokens.
-              Classic: enable <code>repo</code>. Token is stored encrypted and never shown again.
+              Recommended: GitHub → Settings → Developer settings →
+              <strong>Personal access tokens (classic)</strong> → enable the full <code>repo</code> scope.
+              Fine-grained tokens often miss private/org repos unless Repository access is
+              <em>All repositories</em> and org private repos use the organization as resource owner.
+              Token is stored encrypted and never shown again.
             </p>
             <UButton type="submit" block :loading="busy === 'github-token'" :disabled="!githubForm.token">
               Connect with token
@@ -313,7 +317,8 @@ function formatTime(v: string | null | undefined) {
             <UInput v-model="gitlabForm.displayName" class="w-full" placeholder="Work GitLab" />
           </UFormField>
           <p class="text-xs opacity-60">
-            Create a token in GitLab → Preferences → Access Tokens with the <code>api</code> scope.
+            Create a token in GitLab → Preferences → Access Tokens with the <code>api</code> scope
+            (<code>read_api</code> alone can list private projects, but worker ops need <code>api</code>).
             Self-managed hosts may need <code>GITLAB_TRUSTED_HOSTS</code>. Token is stored encrypted.
           </p>
           <div class="flex justify-end gap-2">

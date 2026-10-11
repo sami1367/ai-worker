@@ -4,15 +4,38 @@ import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { redactSecrets } from '#utils/redact'
 import { getConnectionAccessToken } from './connections'
-import { listGitHubRepositories } from './forge-github'
-import { listGitLabProjects } from './forge-gitlab'
+import {
+  GITHUB_FINE_GRAINED_NO_PRIVATE_HINT,
+  GITHUB_PRIVATE_ACCESS_HINT,
+  fetchGitHubAccount,
+  githubClassicTokenCanAccessPrivate,
+  listGitHubRepositories,
+} from './forge-github'
+import {
+  GITLAB_PRIVATE_ACCESS_HINT,
+  fetchGitLabAccount,
+  gitlabTokenCanAccessPrivate,
+  listGitLabProjects,
+} from './forge-gitlab'
 import { writeAudit } from './audit'
 import type { ForgeRepo } from './forge-types'
 
-export function publicDiscovered(row: typeof discoveredRepositories.$inferSelect, registeredRepoId?: string | null) {
+export function publicDiscovered(
+  row: typeof discoveredRepositories.$inferSelect,
+  registeredRepoId?: string | null,
+  connection?: {
+    provider: 'github' | 'gitlab'
+    displayName: string | null
+    accountLogin: string | null
+    instanceUrl: string
+  } | null,
+) {
   return {
     id: row.id,
     connectionId: row.connectionId,
+    provider: connection?.provider ?? null,
+    connectionDisplayName: connection?.displayName || connection?.accountLogin || null,
+    instanceUrl: connection?.instanceUrl ?? null,
     providerRepoId: row.providerRepoId,
     fullName: row.fullName,
     ownerLogin: row.ownerLogin,
@@ -41,10 +64,28 @@ export async function syncConnectionRepositories(
   }
 
   let repos: ForgeRepo[]
+  let detectedScopes: string | null = connection.scopes
+  const isPat = Boolean(connection.scopes?.includes('personal_access_token'))
+  const isGitHubFineGrained = connection.provider === 'github' && token.startsWith('github_pat_')
   try {
-    repos = connection.provider === 'github'
-      ? await listGitHubRepositories(token)
-      : await listGitLabProjects(connection.instanceUrl, token)
+    // Refresh real token scopes (older connects may have stored a guessed label).
+    if (connection.provider === 'github') {
+      const account = await fetchGitHubAccount(token)
+      if (isGitHubFineGrained) {
+        detectedScopes = isPat
+          ? `personal_access_token fine-grained${account.scopes ? ` ${account.scopes}` : ''}`
+          : `fine-grained${account.scopes ? ` ${account.scopes}` : ''}`
+      } else if (account.scopes) {
+        detectedScopes = isPat ? `personal_access_token classic ${account.scopes}` : account.scopes
+      }
+      repos = await listGitHubRepositories(token)
+    } else {
+      const account = await fetchGitLabAccount(connection.instanceUrl, token)
+      if (account.scopes) {
+        detectedScopes = isPat ? `personal_access_token ${account.scopes}` : account.scopes
+      }
+      repos = await listGitLabProjects(connection.instanceUrl, token)
+    }
   } catch (err) {
     const db = getDb()
     const message = redactSecrets(err instanceof Error ? err.message : 'Repository sync failed')
@@ -133,11 +174,35 @@ export async function syncConnectionRepositories(
     }
   }
 
+  const privateCount = repos.filter((r) => r.visibility === 'private' || r.visibility === 'internal').length
+  const publicCount = repos.length - privateCount
+  const scopeParts = (detectedScopes || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter((s) => s && s !== 'personal_access_token')
+  let accessWarning: string | null = null
+  // Only warn when scopes prove private listing is impossible (not when the account simply has none).
+  if (connection.provider === 'github' && !isGitHubFineGrained && githubClassicTokenCanAccessPrivate(scopeParts) === false) {
+    accessWarning = GITHUB_PRIVATE_ACCESS_HINT
+  } else if (
+    connection.provider === 'github'
+    && isGitHubFineGrained
+    && privateCount === 0
+  ) {
+    accessWarning = GITHUB_FINE_GRAINED_NO_PRIVATE_HINT
+  } else if (
+    connection.provider === 'gitlab'
+    && gitlabTokenCanAccessPrivate(scopeParts.length ? scopeParts : null) === false
+  ) {
+    accessWarning = GITLAB_PRIVATE_ACCESS_HINT
+  }
+
   await db.update(forgeConnections).set({
     status: 'active',
-    lastError: null,
+    lastError: accessWarning,
     lastSyncAt: now,
     lastValidatedAt: now,
+    ...(detectedScopes ? { scopes: detectedScopes } : {}),
     updatedAt: now,
   }).where(eq(forgeConnections.id, connectionId))
 
@@ -148,15 +213,16 @@ export async function syncConnectionRepositories(
       action: 'connection.refresh_repos',
       targetType: 'forge_connection',
       targetId: connectionId,
-      metadata: { count: repos.length },
+      metadata: { count: repos.length, privateCount, publicCount, accessWarning: Boolean(accessWarning) },
     })
   }
 
-  return { count: repos.length, syncedAt: now }
+  return { count: repos.length, publicCount, privateCount, syncedAt: now, accessWarning }
 }
 
 export async function listDiscoveredRepositories(opts: {
   connectionId?: string
+  provider?: 'github' | 'gitlab'
   q?: string
   visibility?: string
   registered?: boolean
@@ -170,6 +236,7 @@ export async function listDiscoveredRepositories(opts: {
 
   const conditions = []
   if (opts.connectionId) conditions.push(eq(discoveredRepositories.connectionId, opts.connectionId))
+  if (opts.provider) conditions.push(eq(forgeConnections.provider, opts.provider))
   if (opts.visibility) conditions.push(eq(discoveredRepositories.visibility, opts.visibility))
   if (opts.q) {
     conditions.push(or(
@@ -180,17 +247,26 @@ export async function listDiscoveredRepositories(opts: {
   }
 
   const where = conditions.length ? and(...conditions) : undefined
-  const items = await db.select().from(discoveredRepositories)
+  const rows = await db.select({
+    discovered: discoveredRepositories,
+    provider: forgeConnections.provider,
+    connectionDisplayName: forgeConnections.displayName,
+    connectionAccountLogin: forgeConnections.accountLogin,
+    instanceUrl: forgeConnections.instanceUrl,
+  }).from(discoveredRepositories)
+    .innerJoin(forgeConnections, eq(discoveredRepositories.connectionId, forgeConnections.id))
     .where(where)
     .orderBy(desc(discoveredRepositories.lastDiscoveredAt))
     .limit(pageSize)
     .offset(offset)
 
-  const [totalRow] = await db.select({ c: count() }).from(discoveredRepositories).where(where)
+  const [totalRow] = await db.select({ c: count() })
+    .from(discoveredRepositories)
+    .innerJoin(forgeConnections, eq(discoveredRepositories.connectionId, forgeConnections.id))
+    .where(where)
 
   // Map registered repos for this page
-  const discIds = items.map((i) => i.id)
-  const registered = discIds.length
+  const registered = rows.length
     ? await db.select({
       id: repositories.id,
       providerRepoId: repositories.providerRepoId,
@@ -209,11 +285,16 @@ export async function listDiscoveredRepositories(opts: {
     }
   }
 
-  let mapped = items.map((row) => {
-    const rid = regMap.get(`disc:${row.id}`)
-      || regMap.get(`${row.connectionId}:${row.providerRepoId}`)
+  let mapped = rows.map(({ discovered, provider, connectionDisplayName, connectionAccountLogin, instanceUrl }) => {
+    const rid = regMap.get(`disc:${discovered.id}`)
+      || regMap.get(`${discovered.connectionId}:${discovered.providerRepoId}`)
       || null
-    return publicDiscovered(row, rid)
+    return publicDiscovered(discovered, rid, {
+      provider,
+      displayName: connectionDisplayName,
+      accountLogin: connectionAccountLogin,
+      instanceUrl,
+    })
   })
 
   if (opts.registered === true) mapped = mapped.filter((m) => m.isRegistered)

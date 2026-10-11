@@ -166,17 +166,42 @@ async function gitlabApi<T>(
   return { data: await res.json() as T, headers: res.headers }
 }
 
+export const GITLAB_PRIVATE_ACCESS_HINT
+  = 'Token cannot list private projects. Use a personal access token with the "api" scope '
+  + '(or at least "read_api"). "read_repository" alone is not enough to discover private projects.'
+
+async function fetchGitLabTokenScopes(instanceUrl: string, token: string): Promise<string[] | null> {
+  try {
+    const { data } = await gitlabApi<{ scopes?: string[] }>(
+      instanceUrl,
+      '/personal_access_tokens/self',
+      token,
+    )
+    return Array.isArray(data.scopes) ? data.scopes.map(String) : null
+  } catch {
+    // OAuth tokens and older GitLab versions may not support this endpoint.
+    return null
+  }
+}
+
+export function gitlabTokenCanAccessPrivate(scopes: string[] | null): boolean | null {
+  if (!scopes) return null
+  if (scopes.includes('api') || scopes.includes('read_api')) return true
+  return false
+}
+
 export async function fetchGitLabAccount(instanceUrl: string, token: string): Promise<ForgeAccount> {
   const { data } = await gitlabApi<{ id: number, username: string, name: string | null }>(
     instanceUrl,
     '/user',
     token,
   )
+  const scopes = await fetchGitLabTokenScopes(instanceUrl, token)
   return {
     accountId: String(data.id),
     accountLogin: data.username,
     accountName: data.name,
-    scopes: GITLAB_OAUTH_SCOPES,
+    scopes: scopes?.length ? scopes.join(' ') : null,
   }
 }
 
@@ -186,6 +211,8 @@ export async function listGitLabProjects(instanceUrl: string, token: string): Pr
   const perPage = 100
 
   while (page <= 50) {
+    // membership=true returns projects the token can access (incl. private).
+    // Do not set visibility= — omitting it returns public + internal + private.
     const { data: batch, headers } = await gitlabApi<Array<{
       id: number
       path_with_namespace?: string
@@ -205,7 +232,8 @@ export async function listGitLabProjects(instanceUrl: string, token: string): Pr
       forked_from_project?: unknown
     }>>(
       instanceUrl,
-      `/projects?membership=true&simple=false&per_page=${perPage}&page=${page}&order_by=path&sort=asc`,
+      `/projects?membership=true&with_shared=true&simple=false`
+      + `&per_page=${perPage}&page=${page}&order_by=path&sort=asc`,
       token,
     )
     if (!batch.length) break
@@ -269,10 +297,37 @@ export async function revokeGitLabToken(instanceUrl: string, token: string): Pro
 export async function testGitLabToken(
   instanceUrl: string,
   token: string,
-): Promise<{ ok: boolean, message: string, account?: ForgeAccount }> {
+): Promise<{
+  ok: boolean
+  message: string
+  account?: ForgeAccount
+  canAccessPrivate?: boolean | null
+  oauthScopes?: string[]
+}> {
   try {
     const account = await fetchGitLabAccount(instanceUrl, token)
-    return { ok: true, message: `Authenticated as ${account.accountLogin}`, account }
+    const oauthScopes = account.scopes
+      ? account.scopes.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+      : []
+    const canAccessPrivate = gitlabTokenCanAccessPrivate(oauthScopes.length ? oauthScopes : null)
+
+    if (canAccessPrivate === false) {
+      return {
+        ok: false,
+        message: GITLAB_PRIVATE_ACCESS_HINT,
+        account,
+        canAccessPrivate: false,
+        oauthScopes,
+      }
+    }
+
+    return {
+      ok: true,
+      message: `Authenticated as ${account.accountLogin}`,
+      account,
+      canAccessPrivate,
+      oauthScopes,
+    }
   } catch (err) {
     return {
       ok: false,
