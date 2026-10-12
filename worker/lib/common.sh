@@ -216,23 +216,25 @@ ai_project_entry_bool() {
 }
 
 # Validate a project directory is a usable git repo.
-# Usage: ai_validate_project_dir <project_name> <project_dir>
+# Usage: ai_validate_project_dir <project_name> <project_dir> [quiet]
+# Pass quiet=1 to suppress warnings (lazy-clone polls expect missing dirs).
 ai_validate_project_dir() {
     local project="$1"
     local project_dir="$2"
+    local quiet="${3:-0}"
 
     if [[ -z "$project_dir" ]]; then
-        echo "WARNING: Empty project path for: $project"
+        [[ "$quiet" == "1" ]] || echo "WARNING: Empty project path for: $project"
         return 1
     fi
 
     if [[ ! -d "$project_dir" ]]; then
-        echo "WARNING: Project directory does not exist: $project_dir"
+        [[ "$quiet" == "1" ]] || echo "WARNING: Project directory does not exist: $project_dir"
         return 1
     fi
 
     if ! git -C "$project_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "WARNING: Not a Git repository: $project_dir"
+        [[ "$quiet" == "1" ]] || echo "WARNING: Not a Git repository: $project_dir"
         return 1
     fi
 
@@ -310,9 +312,10 @@ ai_foreach_project() {
         remote_url="$(jq -r '.remote_url // empty' <<<"$entry")"
         block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
 
-        if ! ai_validate_project_dir "$project" "$project_dir"; then
-            # Lazy workspace: still poll forge APIs when we know the repo identity.
+        # Quiet check: missing dirs are normal until an AI job triggers lazy clone.
+        if ! ai_validate_project_dir "$project" "$project_dir" 1; then
             if [[ -z "$full_name" && -z "$remote_url" ]]; then
+                echo "WARNING: Skipping $project — no local workspace and no full_name/remote_url to poll"
                 continue
             fi
         fi
@@ -343,7 +346,7 @@ ai_ensure_project_workspace() {
     local wait_seconds="${AI_ENSURE_WAIT_SECONDS:-0}"
     local attempt max_attempts sleep_s=5
 
-    if ai_validate_project_dir "$project_name" "$project_dir" >/dev/null 2>&1; then
+    if ai_validate_project_dir "$project_name" "$project_dir" 1; then
         return 0
     fi
 
@@ -384,8 +387,8 @@ ai_ensure_project_workspace() {
         )"
         status="$(jq -r '.workspaceStatus // empty' <<<"$body" 2>/dev/null || true)"
 
-        if [[ "$status" == "ready" ]] || ai_validate_project_dir "$project_name" "$project_dir" >/dev/null 2>&1; then
-            if ai_validate_project_dir "$project_name" "$project_dir" >/dev/null 2>&1; then
+        if [[ "$status" == "ready" ]] || ai_validate_project_dir "$project_name" "$project_dir" 1; then
+            if ai_validate_project_dir "$project_name" "$project_dir" 1; then
                 echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Workspace ready for $project_name"
                 return 0
             fi
