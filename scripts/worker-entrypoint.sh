@@ -17,6 +17,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'github-projects.conf' \
     --exclude 'gitlab-projects.conf' \
     --exclude 'forge-credentials.env' \
+    --exclude 'provider-credentials.env' \
     --exclude '.env' \
     "$SRC/" "$DEST/"
 else
@@ -45,6 +46,12 @@ export STATE_DIR="${STATE_DIR:-$DEST/state}"
 if [[ -f "$DEST/forge-credentials.env" ]]; then
   # shellcheck disable=SC1091
   source "$DEST/forge-credentials.env"
+fi
+
+# Load AI provider credentials (CURSOR_API_KEY / ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN).
+if [[ -f "$DEST/provider-credentials.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$DEST/provider-credentials.env"
 fi
 
 exec bash "$DEST/platform-wrapper.sh"

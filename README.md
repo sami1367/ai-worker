@@ -11,7 +11,7 @@ The Bash worker remains the execution engine. The Nuxt management app provides a
 - GitHub / GitLab OAuth connections with encrypted token storage
 - Automatic repository discovery, selection, and persistent workspace clones
 - Repository management with per-repo `block_on_open_pr`
-- Cursor + Claude provider status/config
+- Cursor + Claude CLIs installed in the Docker image; connect/manage keys in Providers UI
 - Task history + SSE log streaming
 - Worker heartbeat and control requests (reload/start/stop/restart)
 - Atomic config export to worker JSON registries
@@ -27,7 +27,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Logical services: **web**, **w
 - Node.js 20+ and pnpm 9+ (development)
 - Docker + Docker Compose (deployment)
 - GitHub CLI auth and/or GitLab token for forge automation
-- Cursor CLI and/or Claude Code CLI for AI execution
+- Docker build installs Cursor Agent CLI + Claude Code CLI (or install locally via `scripts/install-ai-clis.sh`)
 
 ## Quick start (Docker)
 
@@ -87,8 +87,8 @@ Terminate TLS in front of `127.0.0.1:8080`. Set `APP_BASE_URL` to the public HTT
 ## GitHub / GitLab connections (recommended)
 
 1. Open **Connections** in the UI.
-2. **GitHub:** paste a personal access token (classic `repo` scope, or fine-grained with Contents/Issues/PRs). Optional browser OAuth if `GITHUB_OAUTH_CLIENT_*` is set.
-3. **GitLab:** enter server URL + personal access token (`api` scope).
+2. **GitHub:** paste a personal access token with the full classic `repo` scope (`public_repo` alone only lists public repos). Fine-grained: grant private repository access (org private repos need the org as resource owner) plus Metadata/Contents/Issues/PRs. Optional browser OAuth if `GITHUB_OAUTH_CLIENT_*` is set.
+3. **GitLab:** enter server URL + personal access token (`api` scope; `read_api` minimum to list private projects).
 4. Multi-select repositories → **Add selected** → wait for workspace `ready` → **Enable processing**.
 
 Tokens are encrypted at rest (`SECRET_ENCRYPTION_KEY`) and never returned to the browser after connect. The web service materializes forge credentials into `/data/config/forge-credentials.env` (mode `0600`) for the worker entrypoint. Compose env `GH_TOKEN` / `GITLAB_TOKEN` remain a fallback.
@@ -106,10 +106,19 @@ For private/self-managed hosts, add hostnames to `GITLAB_TRUSTED_HOSTS`. HTTP is
 
 ### AI providers
 
-- **Cursor:** `agent` / `cursor-agent` on PATH; authenticate via Cursor’s mechanism
-- **Claude:** `claude` on PATH + `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`
+Docker images install both CLIs at build time (`scripts/install-ai-clis.sh`):
 
-Provider health checks detect binaries; they do **not** claim authentication merely because a binary exists.
+- **Cursor:** `agent` / `cursor-agent` on PATH
+- **Claude:** `claude` on PATH
+
+Connect credentials in **Providers** (admin):
+
+| Provider | Secret | Worker env |
+|----------|--------|------------|
+| Cursor | Cursor API key | `CURSOR_API_KEY` |
+| Claude | Anthropic API key or Claude OAuth token | `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` |
+
+Secrets are encrypted with `SECRET_ENCRYPTION_KEY`, never returned to the browser, and materialized to `/data/config/provider-credentials.env` (mode `0600`) for the worker. Disconnect clears the stored secret. Compose env vars remain a fallback. Health checks detect binaries and whether credential material is configured — they do not call the provider APIs.
 
 ## Repository registration
 

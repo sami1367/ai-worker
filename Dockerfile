@@ -27,12 +27,6 @@ RUN useradd --create-home --uid 10001 --shell /bin/bash appuser \
     && mkdir -p /data/config /data/workspaces /data/logs /data/state /app \
     && chown -R appuser:appuser /data /app
 
-# Provider CLIs are optional at image build time; document secure install/auth.
-# Attempt reproducible cursor-agent / claude installs when network allows during build.
-# Failures here must not break the image — binaries can be mounted or installed later.
-RUN set -eux; \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg >/dev/null 2>&1 || true
-
 COPY --from=build --chown=appuser:appuser /app/.output ./.output
 COPY --from=build --chown=appuser:appuser /app/package.json ./package.json
 COPY --from=build --chown=appuser:appuser /app/database ./database
@@ -43,6 +37,12 @@ COPY --from=build --chown=appuser:appuser /app/node_modules ./node_modules
 RUN chmod +x /app/worker/*.sh /app/scripts/*.sh 2>/dev/null || true \
     && ln -sf /app/worker /data/config/worker-src
 
+# Install Cursor Agent + Claude Code CLIs into the image (required for worker + health checks).
+# Auth secrets are NOT baked in — connect keys from the Providers UI (or env vars).
+ENV AI_CLI_HOME=/home/appuser
+RUN bash /app/scripts/install-ai-clis.sh \
+    && chown -R appuser:appuser /home/appuser/.local /home/appuser/.npm-global
+
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
@@ -51,7 +51,9 @@ ENV NODE_ENV=production \
     LOGS_DIR=/data/logs \
     STATE_DIR=/data/state \
     CONFIG_DIR=/data/config \
-    NUXT_TELEMETRY_DISABLED=1
+    NUXT_TELEMETRY_DISABLED=1 \
+    HOME=/home/appuser \
+    PATH=/home/appuser/.local/bin:/home/appuser/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 USER appuser
 EXPOSE 3000

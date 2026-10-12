@@ -26,7 +26,7 @@ This platform can trigger AI agents that modify repository working trees and ope
 - Web bind defaults to loopback
 - Non-root container user
 - No Docker socket mount
-- Forge credentials file on shared volume is mode `0600` and excluded from worker rsync deletes
+- Forge and AI provider credentials files on shared volume are mode `0600` and excluded from worker rsync deletes
 
 ## Production checklist
 
@@ -37,7 +37,7 @@ This platform can trigger AI agents that modify repository working trees and ope
 - [ ] Backups of PostgreSQL + `/data` volumes; encryption key stored offline
 - [ ] Forge OAuth scopes reviewed (`repo` / GitLab `api` are powerful — treat as production secrets)
 - [ ] `GITLAB_TRUSTED_HOSTS` limited to known self-managed instances
-- [ ] Provider CLIs authenticated via secrets/volumes, not image layers
+- [ ] Provider CLIs authenticated via Providers UI secrets or Compose env, not image layers
 - [ ] Disk monitoring for workspaces/logs
 - [ ] Restrict who can reach port 8080
 

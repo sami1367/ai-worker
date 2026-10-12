@@ -49,6 +49,8 @@ services:
       LOGS_DIR: /data/logs
       STATE_DIR: /data/state
       CONFIG_DIR: /data/config
+      HOME: /home/appuser
+      PATH: /home/appuser/.local/bin:/home/appuser/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     ports:
       - "${WEB_BIND:-127.0.0.1:8080}:3000"
     volumes:
@@ -87,15 +89,16 @@ services:
       LOGS_DIR: /data/logs
       STATE_DIR: /data/state
       CONFIG_DIR: /data/config
-      # Ensure worker scripts are available under AI_WORKER_BASE_DIR
-      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/appuser/.local/bin
+      # Ensure Cursor/Claude CLIs (installed under ~/.local/bin) are on PATH
+      PATH: /home/appuser/.local/bin:/home/appuser/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      HOME: /home/appuser
     command: ["bash", "/app/scripts/worker-entrypoint.sh"]
     volumes:
       - configdata:/data/config
       - workspaces:/data/workspaces
       - logsdata:/data/logs
       - statedata:/data/state
-      # Optional: mount host provider credentials (document in README)
+      # Optional: mount host forge CLI config (document in README)
       # - ${HOME}/.config/gh:/home/appuser/.config/gh:ro
     depends_on:
       web:

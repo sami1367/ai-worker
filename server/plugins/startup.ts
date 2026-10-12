@@ -1,5 +1,8 @@
 import { checkDatabaseConnectivity } from '#utils/db'
 import { startWorkspaceOperationWorker } from '#services/workspace-manager'
+import { exportForgeCredentialsForWorker } from '#services/forge-credentials'
+import { exportProviderCredentialsForWorker } from '#services/provider-credentials'
+import { ensureProviderRows } from '#services/providers'
 
 export default defineNitroPlugin(async () => {
   const required = ['DATABASE_URL', 'NUXT_SESSION_PASSWORD']
@@ -26,6 +29,17 @@ export default defineNitroPlugin(async () => {
     const db = await checkDatabaseConnectivity()
     if (!db.ok) {
       console.warn(`[startup] Database not ready: ${db.message}`)
+    } else {
+      try {
+        await ensureProviderRows()
+        await exportForgeCredentialsForWorker()
+        await exportProviderCredentialsForWorker()
+      } catch (err) {
+        console.warn(
+          '[startup] Credential materialization skipped:',
+          err instanceof Error ? err.message : err,
+        )
+      }
     }
   } catch (err) {
     console.warn('[startup] Database check skipped:', err instanceof Error ? err.message : err)

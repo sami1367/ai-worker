@@ -6,6 +6,7 @@ import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { decryptSecret, encryptSecret } from '#utils/crypto'
 import { writeAudit } from './audit'
+import { exportProviderCredentialsForWorker } from './provider-credentials'
 
 const execFileAsync = promisify(execFile)
 
@@ -86,13 +87,25 @@ export async function updateProvider(
     await db.update(providerConfigs).set({ isDefault: false })
   }
 
+  const nextConfig = input.config ?? existing.config
   const [row] = await db.update(providerConfigs).set({
     isEnabled: input.isEnabled ?? existing.isEnabled,
     isDefault: input.isDefault ?? existing.isDefault,
-    config: input.config ?? existing.config,
+    config: nextConfig,
     secretCiphertext,
     updatedAt: new Date(),
   }).where(eq(providerConfigs.providerType, providerType)).returning()
+
+  if (input.secret !== undefined) {
+    try {
+      await exportProviderCredentialsForWorker()
+    } catch (err) {
+      console.warn(
+        '[providers] Failed to export provider credentials for worker:',
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
 
   await writeAudit({
     actorUserId: actor.id,
@@ -104,6 +117,7 @@ export async function updateProvider(
       isEnabled: row.isEnabled,
       isDefault: row.isDefault,
       secretChanged: input.secret !== undefined,
+      credentialType: typeof nextConfig?.credentialType === 'string' ? nextConfig.credentialType : undefined,
     },
     ipHash,
   })
@@ -150,8 +164,14 @@ export async function testProvider(providerType: string) {
       healthStatus = 'unhealthy'
       healthMessage = 'Cursor CLI not found (expected agent or cursor-agent on PATH)'
     } else {
-      healthStatus = 'degraded'
-      healthMessage = `Binary found at ${bin}. Authentication status cannot be verified without launching a task.`
+      const hasCred = Boolean(process.env.CURSOR_API_KEY || existing.secretCiphertext)
+      if (hasCred) {
+        healthStatus = 'healthy'
+        healthMessage = `Binary found at ${bin}. CURSOR_API_KEY is configured (not verified against the API).`
+      } else {
+        healthStatus = 'degraded'
+        healthMessage = `Binary found at ${bin}. Connect a Cursor API key in Providers, or set CURSOR_API_KEY.`
+      }
     }
   } else if (providerType === 'claude') {
     const { bin, version } = await detectBinary(['claude'])
@@ -166,7 +186,7 @@ export async function testProvider(providerType: string) {
         healthMessage = `Binary found at ${bin}. Credential material is configured (not verified against the API).`
       } else {
         healthStatus = 'degraded'
-        healthMessage = `Binary found at ${bin}. No ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN detected.`
+        healthMessage = `Binary found at ${bin}. Connect an Anthropic API key or Claude OAuth token in Providers.`
       }
     }
   } else {

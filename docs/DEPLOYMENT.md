@@ -43,13 +43,9 @@ Prefer mounting authenticated `gh` config or setting `GH_TOKEN` / `GITHUB_TOKEN`
 
 Set `GITLAB_HOST` and `GITLAB_TOKEN` in `.env`.
 
-### Cursor CLI
+### Cursor CLI + Claude Code
 
-Install `agent` / `cursor-agent` into the worker image or mount a binary + auth directory. Presence of the binary alone does **not** mean authenticated.
-
-### Claude Code
-
-Install `claude` and set `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`.
+Both CLIs are installed during `docker compose build` via `scripts/install-ai-clis.sh`. Connect credentials in the **Providers** UI (encrypted → `provider-credentials.env`), or set `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` in Compose as a fallback. Presence of the binary alone does **not** mean authenticated.
 
 ## Updates
 
