@@ -193,6 +193,56 @@ ai_resolve_project_entry() {
     return 1
 }
 
+# Resolve a managed project entry by forge full_name (org/repo or group/project).
+# Falls back to unique short-name match when full_name is missing from older conf.
+# Usage: ai_resolve_project_entry_by_full_name <projects_file> <full_name>
+ai_resolve_project_entry_by_full_name() {
+    local projects_file="$1"
+    local want="$2"
+    local want_lc short entry full name remote matches match_count
+
+    if [[ ! -f "$projects_file" || -z "$want" ]]; then
+        return 1
+    fi
+
+    want_lc="$(printf '%s' "$want" | tr '[:upper:]' '[:lower:]')"
+    short="${want##*/}"
+
+    while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+        [[ -z "$entry" ]] && continue
+        full="$(jq -r '.full_name // .repo // empty' <<<"$entry" | tr '[:upper:]' '[:lower:]')"
+        remote="$(jq -r '.remote_url // empty' <<<"$entry" | tr '[:upper:]' '[:lower:]')"
+        if [[ -n "$full" && "$full" == "$want_lc" ]]; then
+            printf '%s\n' "$entry"
+            return 0
+        fi
+        if [[ -n "$remote" ]] && {
+            [[ "$remote" == *"/${want_lc}.git" ]] || [[ "$remote" == *"/${want_lc}" ]]
+        }; then
+            printf '%s\n' "$entry"
+            return 0
+        fi
+    done < <(ai_list_project_entries "$projects_file")
+
+    # Unique short-name fallback for conf exported before full_name existed
+    matches=()
+    while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+        [[ -z "$entry" ]] && continue
+        name="$(jq -r '.name // empty' <<<"$entry")"
+        if [[ "$name" == "$short" || "$name" == "$want" ]]; then
+            matches+=("$entry")
+        fi
+    done < <(ai_list_project_entries "$projects_file")
+
+    match_count="${#matches[@]}"
+    if [[ "$match_count" -eq 1 ]]; then
+        printf '%s\n' "${matches[0]}"
+        return 0
+    fi
+
+    return 1
+}
+
 # Resolve project path from a conf/JSON file.
 ai_resolve_project_dir() {
     local projects_file="$1"
@@ -312,10 +362,9 @@ ai_foreach_project() {
         remote_url="$(jq -r '.remote_url // empty' <<<"$entry")"
         block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
 
-        # Quiet check: missing dirs are normal until an AI job triggers lazy clone.
+        # Missing dirs are normal (lazy clone). Without forge identity, skip quietly.
         if ! ai_validate_project_dir "$project" "$project_dir" 1; then
             if [[ -z "$full_name" && -z "$remote_url" ]]; then
-                echo "WARNING: Skipping $project — no local workspace and no full_name/remote_url to poll"
                 continue
             fi
         fi

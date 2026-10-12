@@ -526,6 +526,48 @@ gitlab_get_mr() {
     gitlab_api GET "/projects/${encoded}/merge_requests/${mr_iid}"
 }
 
+# Global search: open issues with a label across all accessible projects.
+# Prints TSV lines: project_path<TAB>iid
+# Usage: gitlab_search_open_issues_with_label <label>
+gitlab_search_open_issues_with_label() {
+    local label="$1"
+    local body
+
+    body="$(
+        gitlab_api GET \
+            "/issues?labels=${label}&state=opened&scope=all&order_by=created_at&sort=asc&per_page=50"
+    )" 2>/dev/null || return 0
+
+    jq -r '
+        .[]?
+        | (.references.full // empty) as $ref
+        | select($ref != "")
+        | [($ref | sub("#[0-9]+$"; "")), (.iid | tostring)]
+        | @tsv
+    ' <<<"$body" 2>/dev/null || true
+}
+
+# Global search: open MRs with a label across all accessible projects.
+# Prints TSV lines: project_path<TAB>iid
+# Usage: gitlab_search_open_mrs_with_label <label>
+gitlab_search_open_mrs_with_label() {
+    local label="$1"
+    local body
+
+    body="$(
+        gitlab_api GET \
+            "/merge_requests?labels=${label}&state=opened&scope=all&order_by=created_at&sort=asc&per_page=50"
+    )" 2>/dev/null || return 0
+
+    jq -r '
+        .[]?
+        | (.references.full // empty) as $ref
+        | select($ref != "")
+        | [($ref | sub("![0-9]+$"; "")), (.iid | tostring)]
+        | @tsv
+    ' <<<"$body" 2>/dev/null || true
+}
+
 # Print oldest open MR iid with label "ai" (implement on branch), or empty.
 gitlab_find_ai_mr() {
     local project_path="$1"

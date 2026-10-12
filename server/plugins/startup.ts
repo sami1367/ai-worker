@@ -3,6 +3,7 @@ import { startWorkspaceOperationWorker } from '#services/workspace-manager'
 import { startDiscoveryScheduler } from '#services/discovery-scheduler'
 import { exportForgeCredentialsForWorker } from '#services/forge-credentials'
 import { exportProviderCredentialsForWorker } from '#services/provider-credentials'
+import { exportWorkerConfig } from '#services/config-sync'
 import { ensureProviderRows } from '#services/providers'
 
 export default defineNitroPlugin(async () => {
@@ -35,6 +36,8 @@ export default defineNitroPlugin(async () => {
         await ensureProviderRows()
         await exportForgeCredentialsForWorker()
         await exportProviderCredentialsForWorker()
+        // Ensure project conf includes full_name for work-first discovery / lazy clone
+        await exportWorkerConfig()
       } catch (err) {
         console.warn(
           '[startup] Credential materialization skipped:',
