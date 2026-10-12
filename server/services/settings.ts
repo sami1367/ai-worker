@@ -79,7 +79,7 @@ export async function updateSettings(
   return merged
 }
 
-export async function bumpConfigVersion(_actor?: { id: string, username: string }) {
+export async function bumpConfigVersion(_actor?: { id?: string | null, username: string }) {
   const current = await getSettings()
   const next = current.configVersion + 1
   const db = getDb()

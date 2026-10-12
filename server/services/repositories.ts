@@ -219,8 +219,8 @@ export async function setRepositoryEnabled(
     if (!existing.localPath) {
       throw new AppError(400, 'Repository has no workspace path', 'workspace_missing')
     }
-    // Allow legacy not_cloned host paths; block failed/in-progress managed clones
-    if (['failed', 'queued', 'cloning', 'syncing', 'inaccessible'].includes(existing.workspaceStatus)) {
+    // Lazy clone: not_cloned / ready are OK. Block only hard failures mid-flight.
+    if (['failed', 'inaccessible'].includes(existing.workspaceStatus)) {
       throw new AppError(
         400,
         `Workspace is ${existing.workspaceStatus}; clone or repair before enabling`,

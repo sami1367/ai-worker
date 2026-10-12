@@ -110,7 +110,9 @@ The product uses an **administrator-managed shared connection model** (same trus
 ```text
 UI Connections → OAuth (PKCE) → forge_connections (encrypted tokens)
                  → discovery sync → discovered_repositories
-                 → register selected → repositories + workspace_operations
+                 → auto-register all (enabled, workspace not_cloned)
+                 → 15‑min discovery sync (+ manual Fetch new repos)
+                 → lazy clone on first AI job → workspace_operations
                  → async clone/sync into WORKSPACE_ROOT/<workspaceId>
                  → exportWorkerConfig + forge-credentials.env
                  → Bash worker polls labels using path + GH_TOKEN/GITLAB_TOKEN

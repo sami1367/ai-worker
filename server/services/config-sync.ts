@@ -15,6 +15,22 @@ export interface ExportedProject {
   name: string
   path: string
   block_on_open_pr: boolean
+  /** Forge identity for polling without a local clone (lazy workspace). */
+  full_name: string
+  remote_url: string
+  forge: 'github' | 'gitlab'
+}
+
+/** Derive org/repo (or group/project) from a remote URL when canonical id is missing. */
+export function fullNameFromRemoteUrl(remoteUrl: string): string | null {
+  const cleaned = remoteUrl.trim().replace(/\.git$/i, '')
+  const ssh = cleaned.match(/^git@[^:]+:(.+)$/)
+  if (ssh?.[1]) return ssh[1].replace(/^\/+/, '')
+  const https = cleaned.match(/^https?:\/\/[^/]+\/(.+)$/i)
+  if (https?.[1]) return https[1].replace(/^\/+/, '')
+  const sshUrl = cleaned.match(/^ssh:\/\/git@[^/]+\/(.+)$/i)
+  if (sshUrl?.[1]) return sshUrl[1].replace(/^\/+/, '')
+  return null
 }
 
 async function atomicWriteJson(targetPath: string, data: unknown) {
@@ -34,7 +50,10 @@ async function atomicWriteJson(targetPath: string, data: unknown) {
   await rename(tmp, targetPath)
 }
 
-export async function exportWorkerConfig(actor?: { id: string, username: string }) {
+export async function exportWorkerConfig(
+  actor?: { id?: string | null, username: string },
+  opts?: { forceBump?: boolean },
+) {
   const db = getDb()
   const rows = await db.select().from(repositories).where(eq(repositories.isArchived, false))
 
@@ -44,10 +63,16 @@ export async function exportWorkerConfig(actor?: { id: string, username: string 
   for (const row of rows) {
     if (!row.isEnabled) continue
     if (!row.localPath) continue
+    const fullName = row.canonicalProjectIdentifier
+      || fullNameFromRemoteUrl(row.remoteUrl)
+      || row.name
     const entry: ExportedProject = {
       name: row.name,
       path: row.localPath,
       block_on_open_pr: row.blockOnOpenPr,
+      full_name: fullName,
+      remote_url: row.remoteUrl,
+      forge: row.forgeType,
     }
     if (row.forgeType === 'github') github.push(entry)
     else gitlab.push(entry)
@@ -57,17 +82,22 @@ export async function exportWorkerConfig(actor?: { id: string, username: string 
   const githubPath = join(base, 'github-projects.conf')
   const gitlabPath = join(base, 'gitlab-projects.conf')
 
+  const previous = await readExportedConfig()
+  const changed = JSON.stringify(previous.github) !== JSON.stringify(github)
+    || JSON.stringify(previous.gitlab) !== JSON.stringify(gitlab)
+
   // Never overwrite a valid file with empty arrays if we failed to read DB — we have rows.
   // Writing empty arrays is valid when no repos enabled.
   await atomicWriteJson(githubPath, github)
   await atomicWriteJson(gitlabPath, gitlab)
 
   const settings = await getSettings()
-  const next = await bumpConfigVersion(actor)
+  const shouldBump = opts?.forceBump || changed
+  const next = shouldBump ? await bumpConfigVersion(actor) : settings
 
-  if (actor) {
+  if (actor && shouldBump) {
     await writeAudit({
-      actorUserId: actor.id,
+      actorUserId: actor.id || null,
       actorUsername: actor.username,
       action: 'config.export',
       targetType: 'config',
@@ -76,6 +106,7 @@ export async function exportWorkerConfig(actor?: { id: string, username: string 
         gitlabCount: gitlab.length,
         configVersion: next.configVersion,
         previousVersion: settings.configVersion,
+        changed,
       },
     })
   }
@@ -86,6 +117,7 @@ export async function exportWorkerConfig(actor?: { id: string, username: string 
     githubCount: github.length,
     gitlabCount: gitlab.length,
     configVersion: next.configVersion,
+    changed,
   }
 }
 

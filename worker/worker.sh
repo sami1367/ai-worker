@@ -218,10 +218,63 @@ wait_for_running_agents() {
 github_repo_from_dir() {
     local project_dir="$1"
 
+    if [[ -z "$project_dir" || ! -d "$project_dir" ]]; then
+        return 0
+    fi
+
     (
         cd "$project_dir"
         gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
     )
+}
+
+# Resolve GitHub repo from conf entry full_name, else local checkout.
+github_repo_from_entry() {
+    local entry="${1:-}"
+    local project_dir="${2:-}"
+    local repo
+
+    repo="$(jq -r '.full_name // .repo // empty' <<<"$entry" 2>/dev/null || true)"
+    if [[ -n "$repo" ]]; then
+        printf '%s\n' "$repo"
+        return 0
+    fi
+    github_repo_from_dir "$project_dir"
+}
+
+# Resolve GitLab project path from conf entry, else local origin remote.
+gitlab_repo_from_entry() {
+    local entry="${1:-}"
+    local project_dir="${2:-}"
+    local path remote_url
+
+    path="$(jq -r '.full_name // .repo // empty' <<<"$entry" 2>/dev/null || true)"
+    if [[ -n "$path" ]]; then
+        printf '%s\n' "$path"
+        return 0
+    fi
+
+    remote_url="$(jq -r '.remote_url // empty' <<<"$entry" 2>/dev/null || true)"
+    if [[ -n "$remote_url" ]]; then
+        gitlab_path_from_remote "$remote_url" 2>/dev/null || true
+        return 0
+    fi
+
+    gitlab_resolve_project_path "$project_dir" 2>/dev/null || true
+}
+
+# Ensure workspace for a conf entry. Returns 0 ready, 2 pending (skip cycle), 1 failed.
+# Usage: ensure_entry_workspace <project> <project_dir> <forge> <entry_json>
+ensure_entry_workspace() {
+    local project="$1"
+    local project_dir="$2"
+    local forge="$3"
+    local entry="${4:-}"
+    local full_name rc=0
+
+    full_name="$(jq -r '.full_name // .repo // empty' <<<"$entry" 2>/dev/null || true)"
+    ai_ensure_project_workspace "$project_dir" "$project" "$forge" "$full_name" || rc=$?
+    return "$rc"
 }
 
 github_find_open_issue_with_label() {
@@ -256,9 +309,12 @@ github_in_flight_issue_reason() {
     local project="$1"
     local project_dir="$2"
     local block_on_open_pr="${3:-1}"
-    local repo number pr_desc
+    local repo="${4:-}"
+    local number pr_desc
 
-    repo="$(github_repo_from_dir "$project_dir")"
+    if [[ -z "$repo" ]]; then
+        repo="$(github_repo_from_dir "$project_dir")"
+    fi
     if [[ -z "$repo" ]]; then
         return 0
     fi
@@ -286,13 +342,16 @@ gitlab_in_flight_issue_reason() {
     local project="$1"
     local project_dir="$2"
     local block_on_open_pr="${3:-1}"
-    local repo_path number mr_desc
+    local repo_path="${4:-}"
+    local number mr_desc
 
     if ! gitlab_configured; then
         return 0
     fi
 
-    repo_path="$(gitlab_resolve_project_path "$project_dir" 2>/dev/null || true)"
+    if [[ -z "$repo_path" ]]; then
+        repo_path="$(gitlab_resolve_project_path "$project_dir" 2>/dev/null || true)"
+    fi
     if [[ -z "$repo_path" ]]; then
         return 0
     fi
@@ -779,16 +838,14 @@ process_github_project() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
     local BLOCK_ON_OPEN_PR="${3:-1}"
+    local ENTRY="${4:-}"
     local REPO ISSUE_NUMBER in_flight
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
         return 0
     fi
 
-    REPO="$(
-        cd "$PROJECT_DIR"
-        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
-    )"
+    REPO="$(github_repo_from_entry "$ENTRY" "$PROJECT_DIR")"
 
     if [[ -z "$REPO" ]]; then
         echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
@@ -810,9 +867,15 @@ process_github_project() {
         return 0
     fi
 
-    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR")"
+    in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR" "$REPO")"
     if [[ -n "$in_flight" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+        return 0
+    fi
+
+    if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "github" "$ENTRY"; then
+        # 2 = clone pending (fair skip); other = hard failure. Retry next cycle either way.
+        echo "WARNING: Skipping $PROJECT — workspace not ready for issue #$ISSUE_NUMBER"
         return 0
     fi
 
@@ -828,6 +891,7 @@ process_gitlab_project() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
     local BLOCK_ON_OPEN_PR="${3:-1}"
+    local ENTRY="${4:-}"
     local REPO_PATH ISSUE_NUMBER in_flight
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
@@ -842,7 +906,7 @@ process_gitlab_project() {
         return 0
     fi
 
-    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+    REPO_PATH="$(gitlab_repo_from_entry "$ENTRY" "$PROJECT_DIR")"
 
     if [[ -z "$REPO_PATH" ]]; then
         echo "WARNING: Cannot determine GitLab project for: $PROJECT"
@@ -855,9 +919,14 @@ process_gitlab_project() {
         return 0
     fi
 
-    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR")"
+    in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR" "$REPO_PATH")"
     if [[ -n "$in_flight" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+        return 0
+    fi
+
+    if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "gitlab" "$ENTRY"; then
+        echo "WARNING: Skipping $PROJECT — workspace not ready for issue #$ISSUE_NUMBER"
         return 0
     fi
 
@@ -872,16 +941,15 @@ process_gitlab_project() {
 process_github_pr_implement() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
+    local _BLOCK="${3:-}"
+    local ENTRY="${4:-}"
     local REPO PR_NUMBER
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
         return 0
     fi
 
-    REPO="$(
-        cd "$PROJECT_DIR"
-        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
-    )"
+    REPO="$(github_repo_from_entry "$ENTRY" "$PROJECT_DIR")"
 
     if [[ -z "$REPO" ]]; then
         echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
@@ -903,6 +971,11 @@ process_github_pr_implement() {
         return 0
     fi
 
+    if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "github" "$ENTRY"; then
+        echo "WARNING: Skipping $PROJECT — workspace not ready for PR #$PR_NUMBER"
+        return 0
+    fi
+
     launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_implement_job "$PROJECT" "$REPO" "$PR_NUMBER"
     return 0
 }
@@ -914,16 +987,15 @@ process_github_pr_implement() {
 process_github_pr_review() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
+    local _BLOCK="${3:-}"
+    local ENTRY="${4:-}"
     local REPO PR_NUMBER
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
         return 0
     fi
 
-    REPO="$(
-        cd "$PROJECT_DIR"
-        gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true
-    )"
+    REPO="$(github_repo_from_entry "$ENTRY" "$PROJECT_DIR")"
 
     if [[ -z "$REPO" ]]; then
         echo "WARNING: Cannot determine GitHub repository for: $PROJECT"
@@ -945,6 +1017,11 @@ process_github_pr_review() {
         return 0
     fi
 
+    if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "github" "$ENTRY"; then
+        echo "WARNING: Skipping $PROJECT — workspace not ready for PR review #$PR_NUMBER"
+        return 0
+    fi
+
     launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_review_job "$PROJECT" "$REPO" "$PR_NUMBER"
     return 0
 }
@@ -956,6 +1033,8 @@ process_github_pr_review() {
 process_gitlab_mr_implement() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
+    local _BLOCK="${3:-}"
+    local ENTRY="${4:-}"
     local REPO_PATH MR_IID
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
@@ -970,7 +1049,7 @@ process_gitlab_mr_implement() {
         return 0
     fi
 
-    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+    REPO_PATH="$(gitlab_repo_from_entry "$ENTRY" "$PROJECT_DIR")"
 
     if [[ -z "$REPO_PATH" ]]; then
         echo "WARNING: Cannot determine GitLab project for: $PROJECT"
@@ -980,6 +1059,11 @@ process_gitlab_mr_implement() {
     MR_IID="$(gitlab_find_ai_mr "$REPO_PATH" 2>/dev/null || true)"
 
     if [[ -z "$MR_IID" ]]; then
+        return 0
+    fi
+
+    if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "gitlab" "$ENTRY"; then
+        echo "WARNING: Skipping $PROJECT — workspace not ready for MR !$MR_IID"
         return 0
     fi
 
@@ -994,6 +1078,8 @@ process_gitlab_mr_implement() {
 process_gitlab_mr_review() {
     local PROJECT="$1"
     local PROJECT_DIR="$2"
+    local _BLOCK="${3:-}"
+    local ENTRY="${4:-}"
     local REPO_PATH MR_IID
 
     if repo_agent_running "$PROJECT_DIR" "$PROJECT"; then
@@ -1008,7 +1094,7 @@ process_gitlab_mr_review() {
         return 0
     fi
 
-    REPO_PATH="$(gitlab_resolve_project_path "$PROJECT_DIR" 2>/dev/null || true)"
+    REPO_PATH="$(gitlab_repo_from_entry "$ENTRY" "$PROJECT_DIR")"
 
     if [[ -z "$REPO_PATH" ]]; then
         echo "WARNING: Cannot determine GitLab project for: $PROJECT"
@@ -1018,6 +1104,11 @@ process_gitlab_mr_review() {
     MR_IID="$(gitlab_find_ai_review_mr "$REPO_PATH" 2>/dev/null || true)"
 
     if [[ -z "$MR_IID" ]]; then
+        return 0
+    fi
+
+    if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "gitlab" "$ENTRY"; then
+        echo "WARNING: Skipping $PROJECT — workspace not ready for MR review !$MR_IID"
         return 0
     fi
 

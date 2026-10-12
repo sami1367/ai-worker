@@ -19,6 +19,7 @@ import {
 } from './forge-gitlab'
 import { ensureLabelsForConnectionRepositories } from './ai-labels'
 import { writeAudit } from './audit'
+import { autoRegisterDiscoveredForConnection } from './registration'
 import type { ForgeRepo } from './forge-types'
 
 export function publicDiscovered(
@@ -207,6 +208,11 @@ export async function syncConnectionRepositories(
     updatedAt: now,
   }).where(eq(forgeConnections.id, connectionId))
 
+  // System default: auto-register every discovered repo (no clone until first AI job)
+  const registration = await autoRegisterDiscoveredForConnection(connectionId, opts?.actorUserId
+    ? { id: opts.actorUserId, username: opts.actorUsername || 'user' }
+    : undefined)
+
   // Backfill AI work/review labels on already-registered repos for this connection
   const labels = await ensureLabelsForConnectionRepositories(connectionId)
 
@@ -222,6 +228,8 @@ export async function syncConnectionRepositories(
         privateCount,
         publicCount,
         accessWarning: Boolean(accessWarning),
+        registeredNew: registration.created,
+        registeredSkipped: registration.skipped,
         labelsEnsured: labels.ok,
         labelsFailed: labels.failed,
         labelsCreated: labels.created,
@@ -235,7 +243,67 @@ export async function syncConnectionRepositories(
     privateCount,
     syncedAt: now,
     accessWarning,
+    registeredNew: registration.created,
+    registeredSkipped: registration.skipped,
     labels,
+  }
+}
+
+/** Sync + auto-register for every active connection. */
+export async function syncAllConnections(opts?: {
+  actorUserId?: string
+  actorUsername?: string
+}) {
+  const db = getDb()
+  const connections = await db.select({
+    id: forgeConnections.id,
+    provider: forgeConnections.provider,
+    accountLogin: forgeConnections.accountLogin,
+  }).from(forgeConnections).where(eq(forgeConnections.status, 'active'))
+
+  const results: Array<{
+    connectionId: string
+    provider: string
+    accountLogin: string | null
+    ok: boolean
+    count?: number
+    registeredNew?: number
+    error?: string
+  }> = []
+
+  let discovered = 0
+  let registeredNew = 0
+
+  for (const conn of connections) {
+    try {
+      const res = await syncConnectionRepositories(conn.id, opts)
+      discovered += res.count
+      registeredNew += res.registeredNew
+      results.push({
+        connectionId: conn.id,
+        provider: conn.provider,
+        accountLogin: conn.accountLogin,
+        ok: true,
+        count: res.count,
+        registeredNew: res.registeredNew,
+      })
+    } catch (err) {
+      results.push({
+        connectionId: conn.id,
+        provider: conn.provider,
+        accountLogin: conn.accountLogin,
+        ok: false,
+        error: redactSecrets(err instanceof Error ? err.message : 'sync failed'),
+      })
+    }
+  }
+
+  return {
+    connections: connections.length,
+    discovered,
+    registeredNew,
+    results,
+    syncedAt: new Date(),
   }
 }
 

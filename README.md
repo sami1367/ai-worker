@@ -89,7 +89,7 @@ Terminate TLS in front of `127.0.0.1:8080`. Set `APP_BASE_URL` to the public HTT
 1. Open **Connections** in the UI.
 2. **GitHub:** paste a personal access token with the full classic `repo` scope (`public_repo` alone only lists public repos). Fine-grained: grant private repository access (org private repos need the org as resource owner) plus Metadata/Contents/Issues/PRs. Optional browser OAuth if `GITHUB_OAUTH_CLIENT_*` is set.
 3. **GitLab:** enter server URL + personal access token (`api` scope; `read_api` minimum to list private projects).
-4. Multi-select repositories → **Add selected** → wait for workspace `ready` → **Enable processing**.
+4. Connecting is enough: every visible repo is **auto-registered and enabled**. Local clones happen **lazily** when an `ai` / `ai-review` job needs the workspace. New repos are picked up every **15 minutes**, or immediately via **Fetch new repos** on the Repositories page.
 
 Tokens are encrypted at rest (`SECRET_ENCRYPTION_KEY`) and never returned to the browser after connect. The web service materializes forge credentials into `/data/config/forge-credentials.env` (mode `0600`) for the worker entrypoint. Compose env `GH_TOKEN` / `GITLAB_TOKEN` remain a fallback.
 

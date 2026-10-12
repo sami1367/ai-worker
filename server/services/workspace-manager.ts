@@ -56,7 +56,7 @@ async function runGit(args: string[], opts: { cwd?: string, timeoutMs?: number, 
 export async function queueWorkspaceOperation(opts: {
   repositoryId: string
   operationType: 'clone' | 'sync' | 'verify' | 'delete_workspace'
-  actor: { id: string, username: string }
+  actor: { id?: string | null, username: string }
 }) {
   const db = getDb()
   const [repo] = await db.select().from(repositories).where(eq(repositories.id, opts.repositoryId)).limit(1)
@@ -70,11 +70,15 @@ export async function queueWorkspaceOperation(opts: {
     return existing
   }
 
+  const requestedBy = opts.actor.id && /^[0-9a-f-]{36}$/i.test(opts.actor.id)
+    ? opts.actor.id
+    : null
+
   const [op] = await db.insert(workspaceOperations).values({
     repositoryId: opts.repositoryId,
     operationType: opts.operationType,
     status: 'queued',
-    requestedBy: opts.actor.id,
+    requestedBy,
     correlationId: newCorrelationId(),
   }).returning()
 
@@ -90,7 +94,7 @@ export async function queueWorkspaceOperation(opts: {
   }).where(eq(repositories.id, opts.repositoryId))
 
   await writeAudit({
-    actorUserId: opts.actor.id,
+    actorUserId: requestedBy,
     actorUsername: opts.actor.username,
     action: `workspace.${opts.operationType}_queued`,
     targetType: 'repository',
@@ -101,6 +105,104 @@ export async function queueWorkspaceOperation(opts: {
   // Kick the processor without awaiting long work in the request path
   void processWorkspaceQueue()
   return op
+}
+
+/**
+ * Ensure a managed workspace exists for the worker before an AI job runs.
+ * Lookup prefers localPath (unique per repo), then name+forgeType.
+ * Queues a clone when needed and returns current status (worker polls).
+ */
+export async function ensureWorkspaceForWorker(input: {
+  path?: string
+  name?: string
+  forgeType?: 'github' | 'gitlab'
+  fullName?: string
+}) {
+  const db = getDb()
+
+  if (!input.path && !input.name && !input.fullName) {
+    throw new AppError(400, 'path, name, or fullName is required', 'invalid_request')
+  }
+
+  let repo: typeof repositories.$inferSelect | undefined
+
+  if (input.path) {
+    const [byPath] = await db.select().from(repositories).where(and(
+      eq(repositories.isArchived, false),
+      eq(repositories.localPath, input.path),
+    )).limit(1)
+    repo = byPath
+  }
+
+  if (!repo && input.fullName) {
+    const [byFull] = await db.select().from(repositories).where(and(
+      eq(repositories.isArchived, false),
+      eq(repositories.canonicalProjectIdentifier, input.fullName),
+      ...(input.forgeType ? [eq(repositories.forgeType, input.forgeType)] : []),
+    )).limit(1)
+    repo = byFull
+  }
+
+  if (!repo && input.name) {
+    const [byName] = await db.select().from(repositories).where(and(
+      eq(repositories.isArchived, false),
+      eq(repositories.name, input.name),
+      ...(input.forgeType ? [eq(repositories.forgeType, input.forgeType)] : []),
+    )).limit(1)
+    repo = byName
+  }
+
+  if (!repo) throw new AppError(404, 'Repository not found', 'not_found')
+
+  // Already ready and checkout present
+  if (repo.localPath) {
+    try {
+      await access(join(repo.localPath, '.git'))
+      if (repo.workspaceStatus !== 'ready') {
+        await db.update(repositories).set({
+          workspaceStatus: 'ready',
+          lastError: null,
+          updatedAt: new Date(),
+        }).where(eq(repositories.id, repo.id))
+      }
+      return {
+        repositoryId: repo.id,
+        localPath: repo.localPath,
+        workspaceStatus: 'ready' as const,
+        operationId: null as string | null,
+      }
+    } catch {
+      // Fall through to (re)clone
+    }
+  }
+
+  if (['queued', 'cloning', 'syncing'].includes(repo.workspaceStatus)) {
+    const [op] = await db.select().from(workspaceOperations).where(and(
+      eq(workspaceOperations.repositoryId, repo.id),
+      inArray(workspaceOperations.status, ['queued', 'running']),
+    )).limit(1)
+    // Kick processor in case timer stalled
+    void processWorkspaceQueue()
+    return {
+      repositoryId: repo.id,
+      localPath: repo.localPath,
+      workspaceStatus: repo.workspaceStatus,
+      operationId: op?.id ?? null,
+    }
+  }
+
+  const op = await queueWorkspaceOperation({
+    repositoryId: repo.id,
+    operationType: 'clone',
+    actor: { username: 'worker' },
+  })
+
+  return {
+    repositoryId: repo.id,
+    localPath: repo.localPath,
+    workspaceStatus: 'queued' as const,
+    operationId: op.id,
+  }
 }
 
 export async function listWorkspaceOperations(repositoryId: string, limit = 20) {

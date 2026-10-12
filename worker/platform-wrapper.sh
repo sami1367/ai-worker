@@ -81,6 +81,8 @@ start_worker() {
   log "Starting worker.sh"
   (
     # Prefer code next to this wrapper; runtime data via AI_WORKER_BASE_DIR/BASE_DIR
+    # Lazy-clone ensure-workspace calls need these.
+    export WEB_INTERNAL_URL WORKER_INTERNAL_TOKEN
     exec "$SCRIPT_DIR/worker.sh"
   ) &
   WORKER_PID=$!

@@ -290,11 +290,12 @@ ai_git_tag_exists() {
 
 # Iterate registered projects. Calls:
 #   callback <project> <project_dir> <block_on_open_pr_0_or_1> <entry_json>
-# Skips invalid checkouts. A non-zero callback return stops the scan.
+# Allows missing checkouts when full_name/remote_url is present (lazy clone).
+# A non-zero callback return stops the scan.
 ai_foreach_project() {
     local projects_file="$1"
     local callback="$2"
-    local entry project project_dir block_on_open_pr
+    local entry project project_dir block_on_open_pr full_name remote_url
 
     if [[ ! -f "$projects_file" ]]; then
         return 0
@@ -305,10 +306,15 @@ ai_foreach_project() {
 
         project="$(jq -r '.name // empty' <<<"$entry")"
         project_dir="$(jq -r '.path // empty' <<<"$entry")"
+        full_name="$(jq -r '.full_name // .repo // empty' <<<"$entry")"
+        remote_url="$(jq -r '.remote_url // empty' <<<"$entry")"
         block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
 
         if ! ai_validate_project_dir "$project" "$project_dir"; then
-            continue
+            # Lazy workspace: still poll forge APIs when we know the repo identity.
+            if [[ -z "$full_name" && -z "$remote_url" ]]; then
+                continue
+            fi
         fi
 
         if ! "$callback" "$project" "$project_dir" "$block_on_open_pr" "$entry"; then
@@ -317,6 +323,86 @@ ai_foreach_project() {
     done < <(ai_list_project_entries "$projects_file")
 
     return 0
+}
+
+# Ask the platform to clone a managed workspace if missing.
+# Usage: ai_ensure_project_workspace <project_dir> <project_name> [forge] [full_name]
+# Returns:
+#   0 — workspace ready
+#   2 — clone queued/in progress (caller should skip this cycle; fair to other repos)
+#   1 — hard failure
+# Non-blocking by default so one large clone never stalls polling for every other repo.
+# Set AI_ENSURE_WAIT_SECONDS>0 to wait briefly (optional).
+# Requires WEB_INTERNAL_URL + WORKER_INTERNAL_TOKEN (set by platform-wrapper).
+ai_ensure_project_workspace() {
+    local project_dir="$1"
+    local project_name="$2"
+    local forge="${3:-}"
+    local full_name="${4:-}"
+    local web_url token payload status body
+    local wait_seconds="${AI_ENSURE_WAIT_SECONDS:-0}"
+    local attempt max_attempts sleep_s=5
+
+    if ai_validate_project_dir "$project_name" "$project_dir" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    web_url="${WEB_INTERNAL_URL:-}"
+    token="${WORKER_INTERNAL_TOKEN:-}"
+    if [[ -z "$web_url" || -z "$token" ]]; then
+        echo "WARNING: Cannot lazy-clone $project_name (WEB_INTERNAL_URL / WORKER_INTERNAL_TOKEN unset)" >&2
+        return 1
+    fi
+
+    payload="$(jq -n \
+        --arg path "$project_dir" \
+        --arg name "$project_name" \
+        --arg forge "$forge" \
+        --arg full "$full_name" \
+        '{
+            path: $path,
+            name: $name
+        }
+        + (if $forge == "" then {} else {forgeType: $forge} end)
+        + (if $full == "" then {} else {fullName: $full} end)')"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Ensuring workspace for $project_name (lazy clone)…"
+
+    max_attempts=1
+    if [[ "$wait_seconds" =~ ^[0-9]+$ ]] && [[ "$wait_seconds" -gt 0 ]]; then
+        max_attempts=$(( (wait_seconds + sleep_s - 1) / sleep_s ))
+        (( max_attempts < 1 )) && max_attempts=1
+    fi
+
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        body="$(
+            curl -fsS -X POST \
+                -H "Content-Type: application/json" \
+                -H "x-worker-token: $token" \
+                -d "$payload" \
+                "${web_url}/api/v1/worker/internal/ensure-workspace" 2>/dev/null || true
+        )"
+        status="$(jq -r '.workspaceStatus // empty' <<<"$body" 2>/dev/null || true)"
+
+        if [[ "$status" == "ready" ]] || ai_validate_project_dir "$project_name" "$project_dir" >/dev/null 2>&1; then
+            if ai_validate_project_dir "$project_name" "$project_dir" >/dev/null 2>&1; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Workspace ready for $project_name"
+                return 0
+            fi
+        fi
+
+        if [[ "$status" == "failed" || "$status" == "inaccessible" ]]; then
+            echo "ERROR: Workspace ensure failed for $project_name (status=$status)" >&2
+            return 1
+        fi
+
+        if (( attempt < max_attempts )); then
+            sleep "$sleep_s"
+        fi
+    done
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Clone pending for $project_name (status=${status:-unknown}); will retry next cycle"
+    return 2
 }
 
 # Return 0 if staged/changed file list looks like secrets.

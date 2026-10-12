@@ -28,7 +28,7 @@ watchEffect(() => {
     message.value = String(route.query.error)
     messageError.value = true
   } else if (route.query.connected) {
-    message.value = 'Connection established. Repositories are syncing.'
+    message.value = 'Connection established. Repositories sync and register automatically.'
     messageError.value = false
   }
 })
@@ -65,7 +65,7 @@ async function connectGitHubToken() {
     })
     showGitHub.value = false
     githubForm.token = ''
-    message.value = `GitHub connected as ${connection.accountLogin}. Discovering repositories…`
+    message.value = `GitHub connected as ${connection.accountLogin}. Repos will register automatically…`
     messageError.value = false
     await refresh()
     if (connection.id) await navigateTo(`/connections/${connection.id}`)
@@ -92,7 +92,7 @@ async function connectGitLabToken() {
     })
     showGitLab.value = false
     gitlabForm.token = ''
-    message.value = `GitLab connected as ${connection.accountLogin}. Discovering repositories…`
+    message.value = `GitLab connected as ${connection.accountLogin}. Repos will register automatically…`
     messageError.value = false
     await refresh()
     if (connection.id) await navigateTo(`/connections/${connection.id}`)

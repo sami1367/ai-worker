@@ -75,6 +75,9 @@
 - [x] Worker credential materialization (`forge-credentials.env`) + entrypoint source
 - [x] Connections / discovery UI; repositories workspace status
 - [x] Docs (README, ARCHITECTURE, SECURITY, MIGRATION) + unit tests
+- [x] Default: auto-register all discovered repos; lazy clone on first AI job
+- [x] 15‑min discovery scheduler + **Fetch new repos** (all connections)
+- [x] Minimal repos dashboard (status / fetch; no Add selected)
 
 ## Test results (2026-10-11)
 

@@ -5,9 +5,7 @@ const id = computed(() => String(route.params.id))
 
 const q = ref('')
 const visibility = ref('')
-const registered = ref('')
 const page = ref(1)
-const selected = ref<string[]>([])
 const busy = ref('')
 const message = ref('')
 const messageError = ref(false)
@@ -18,7 +16,6 @@ const query = computed(() => {
   p.set('pageSize', '50')
   if (q.value) p.set('q', q.value)
   if (visibility.value) p.set('visibility', visibility.value)
-  if (registered.value) p.set('registered', registered.value)
   return p.toString()
 })
 
@@ -34,62 +31,33 @@ const { data, pending, refresh } = await useAsyncData(
   { watch: [query, id] },
 )
 
+watch([q, visibility], () => {
+  page.value = 1
+})
+
 async function refreshList() {
   busy.value = 'refresh'
   message.value = ''
   try {
-    const res = await api<{ count: number, publicCount?: number, privateCount?: number, accessWarning?: string | null }>(
+    const res = await api<{
+      count: number
+      publicCount?: number
+      privateCount?: number
+      registeredNew?: number
+      accessWarning?: string | null
+    }>(
       `/api/v1/connections/${id.value}/refresh`,
       { method: 'POST' },
     )
     const pub = res.publicCount ?? '?'
     const priv = res.privateCount ?? '?'
+    const added = res.registeredNew ?? 0
     message.value = res.accessWarning
-      || `Synced ${res.count} repositories (${pub} public, ${priv} private)`
+      || `Synced ${res.count} repositories (${pub} public, ${priv} private); registered ${added} new`
     messageError.value = Boolean(res.accessWarning)
-    selected.value = []
     await Promise.all([refresh(), refreshConnection()])
   } catch (e: any) {
     message.value = e?.data?.message || 'Refresh failed'
-    messageError.value = true
-  } finally {
-    busy.value = ''
-  }
-}
-
-function toggle(repoId: string, isRegistered: boolean) {
-  if (isRegistered) return
-  if (selected.value.includes(repoId)) {
-    selected.value = selected.value.filter((x) => x !== repoId)
-  } else {
-    selected.value = [...selected.value, repoId]
-  }
-}
-
-function selectVisible() {
-  const ids = (data.value?.items || [])
-    .filter((r: any) => !r.isRegistered)
-    .map((r: any) => r.id)
-  selected.value = Array.from(new Set([...selected.value, ...ids]))
-}
-
-async function addSelected() {
-  if (!selected.value.length) return
-  busy.value = 'register'
-  message.value = ''
-  try {
-    const res = await api<any>('/api/v1/discovered-repositories/register', {
-      method: 'POST',
-      body: { discoveredRepositoryIds: selected.value, enable: false },
-    })
-    const created = res.created?.length || 0
-    const skipped = res.skipped?.length || 0
-    message.value = `Registered ${created} repositories${skipped ? `, skipped ${skipped}` : ''}. Clones queued.`
-    messageError.value = false
-    selected.value = []
-    await refresh()
-  } catch (e: any) {
-    message.value = e?.data?.message || 'Registration failed'
     messageError.value = true
   } finally {
     busy.value = ''
@@ -109,6 +77,9 @@ async function addSelected() {
           {{ connection?.provider }} · {{ connection?.instanceUrl }} · last sync
           {{ connection?.lastSyncAt ? new Date(connection.lastSyncAt).toLocaleString() : 'never' }}
         </p>
+        <p class="mt-1 text-xs opacity-50">
+          Repos are registered automatically. Workspaces clone only when an AI job needs them.
+        </p>
         <p v-if="connection?.scopes" class="mt-1 text-xs opacity-50">
           Token scopes: {{ connection.scopes }}
         </p>
@@ -121,16 +92,11 @@ async function addSelected() {
         />
       </div>
       <div class="flex flex-wrap gap-2">
-        <UButton variant="soft" :loading="busy === 'refresh'" icon="i-lucide-refresh-cw" @click="refreshList">
-          Refresh from provider
+        <UButton variant="soft" to="/repositories" icon="i-lucide-folder-git-2">
+          All repositories
         </UButton>
-        <UButton
-          :disabled="!selected.length"
-          :loading="busy === 'register'"
-          icon="i-lucide-plus"
-          @click="addSelected"
-        >
-          Add selected ({{ selected.length }})
+        <UButton :loading="busy === 'refresh'" icon="i-lucide-refresh-cw" @click="refreshList">
+          Fetch from provider
         </UButton>
       </div>
     </div>
@@ -149,28 +115,16 @@ async function addSelected() {
         ]"
         class="w-44"
       />
-      <USelect
-        v-model="registered"
-        :items="[
-          { label: 'All', value: '' },
-          { label: 'Not registered', value: 'false' },
-          { label: 'Already registered', value: 'true' },
-        ]"
-        class="w-48"
-      />
-      <UButton size="sm" variant="ghost" @click="selectVisible">Select visible</UButton>
-      <UButton size="sm" variant="ghost" @click="selected = []">Clear selection</UButton>
     </div>
 
     <div v-if="pending && !data" class="aw-panel h-48 animate-pulse rounded-xl" />
     <div v-else-if="!data?.items?.length" class="aw-panel rounded-xl p-8 text-center text-sm opacity-70">
-      No repositories discovered yet. Refresh from the provider, or reconnect if the connection has errors.
+      No repositories discovered yet. Fetch from the provider, or reconnect if the connection has errors.
     </div>
     <div v-else class="aw-panel overflow-x-auto rounded-xl">
       <table class="min-w-full text-sm">
         <thead class="border-b border-[var(--aw-line)] text-left opacity-70">
           <tr>
-            <th class="px-4 py-3 font-medium">Select</th>
             <th class="px-4 py-3 font-medium">Repository</th>
             <th class="px-4 py-3 font-medium">Visibility</th>
             <th class="px-4 py-3 font-medium">Default branch</th>
@@ -183,16 +137,7 @@ async function addSelected() {
             v-for="repo in data.items"
             :key="repo.id"
             class="border-b border-[var(--aw-line)] last:border-0"
-            :class="repo.isRegistered ? 'opacity-70' : ''"
           >
-            <td class="px-4 py-3">
-              <input
-                type="checkbox"
-                :disabled="repo.isRegistered"
-                :checked="selected.includes(repo.id)"
-                @change="toggle(repo.id, repo.isRegistered)"
-              >
-            </td>
             <td class="px-4 py-3">
               <p class="font-medium">{{ repo.fullName }}</p>
               <p class="max-w-md truncate text-xs opacity-60">{{ repo.cloneUrlHttps }}</p>
@@ -206,7 +151,7 @@ async function addSelected() {
               <span v-else>—</span>
             </td>
             <td class="px-4 py-3">
-              <UBadge v-if="repo.isRegistered" color="success" variant="subtle">registered</UBadge>
+              <UBadge v-if="repo.isRegistered" color="success" variant="subtle">managed</UBadge>
               <UBadge v-else color="neutral" variant="subtle">discovered</UBadge>
               <NuxtLink
                 v-if="repo.registeredRepositoryId"
