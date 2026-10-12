@@ -7,12 +7,14 @@ export const SESSION_COOKIE = 'aiw_session'
 
 export function setSessionCookie(event: H3Event, sessionId: string, expiresAt: Date) {
   const secure = process.env.NODE_ENV === 'production'
+  const maxAge = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
   setCookie(event, SESSION_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: 'lax',
     secure,
     path: '/',
     expires: expiresAt,
+    maxAge,
   })
 }
 
