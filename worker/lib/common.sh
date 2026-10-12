@@ -139,8 +139,12 @@ ai_list_project_entries() {
                   elif (tostring | ascii_downcase) == "no" then false
                   elif (tostring | ascii_downcase) == "off" then false
                   else true end
-            )
+            ),
+            full_name: (.full_name // .repo // "" | tostring),
+            remote_url: (.remote_url // "" | tostring),
+            forge: (.forge // "" | tostring)
           }
+        | with_entries(select(.value != ""))
         | select(.name != "" and .path != "")
     ' <<<"$json_body"
 }

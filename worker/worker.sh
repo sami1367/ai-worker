@@ -1117,173 +1117,11 @@ process_gitlab_mr_review() {
 }
 
 # ============================================================
-# Work-first discovery (no per-repo polling / clone until labeled work exists)
-# ============================================================
-
-# Prints TSV: full_name<TAB>number for open GitHub issues or PRs with a label.
-# Usage: github_search_open_with_label <issue|pr> <label>
-github_search_open_with_label() {
-    local kind="$1"
-    local label="$2"
-    local q
-
-    if [[ "$kind" == "pr" ]]; then
-        q="is:pr is:open label:${label}"
-    else
-        q="is:issue is:open label:${label}"
-    fi
-
-    gh api -X GET search/issues \
-        -f q="$q" \
-        -F per_page=50 \
-        --jq '.items[]? | [(.repository_url | sub("https://api.github.com/repos/"; "")), (.number | tostring)] | @tsv' \
-        2>/dev/null || true
-}
-
-# Handle one GitHub search hit. kind: issue | pr_implement | pr_review
-dispatch_github_hit() {
-    local kind="$1"
-    local repo="$2"
-    local number="$3"
-    local entry project project_dir block_on_open_pr in_flight
-
-    [[ -z "$repo" || -z "$number" ]] && return 0
-    [[ ! -f "$PROJECTS_FILE" ]] && return 0
-
-    entry="$(ai_resolve_project_entry_by_full_name "$PROJECTS_FILE" "$repo" 2>/dev/null || true)"
-    [[ -z "$entry" ]] && return 0
-
-    project="$(jq -r '.name // empty' <<<"$entry")"
-    project_dir="$(jq -r '.path // empty' <<<"$entry")"
-    block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
-    [[ -z "$project" || -z "$project_dir" ]] && return 0
-
-    if repo_agent_running "$project_dir" "$project"; then
-        return 0
-    fi
-
-    if [[ "$kind" == "issue" ]]; then
-        in_flight="$(github_in_flight_issue_reason "$project" "$project_dir" "$block_on_open_pr" "$repo")"
-        if [[ -n "$in_flight" ]]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
-            return 0
-        fi
-    fi
-
-    if ! ensure_entry_workspace "$project" "$project_dir" "github" "$entry"; then
-        return 0
-    fi
-
-    case "$kind" in
-        issue)
-            launch_repo_job "$project_dir" "$project" github_issue_job "$project" "$repo" "$number"
-            ;;
-        pr_implement)
-            launch_repo_job "$project_dir" "$project" github_pr_implement_job "$project" "$repo" "$number"
-            ;;
-        pr_review)
-            launch_repo_job "$project_dir" "$project" github_pr_review_job "$project" "$repo" "$number"
-            ;;
-    esac
-}
-
-scan_github_ai_work() {
-    local repo number
-
-    [[ -f "$PROJECTS_FILE" ]] || return 0
-    command -v gh >/dev/null 2>&1 || return 0
-
-    while IFS=$'\t' read -r repo number || [[ -n "${repo:-}" ]]; do
-        [[ -z "$repo" ]] && continue
-        dispatch_github_hit issue "$repo" "$number"
-    done < <(github_search_open_with_label issue ai)
-
-    while IFS=$'\t' read -r repo number || [[ -n "${repo:-}" ]]; do
-        [[ -z "$repo" ]] && continue
-        dispatch_github_hit pr_implement "$repo" "$number"
-    done < <(github_search_open_with_label pr ai)
-
-    while IFS=$'\t' read -r repo number || [[ -n "${repo:-}" ]]; do
-        [[ -z "$repo" ]] && continue
-        dispatch_github_hit pr_review "$repo" "$number"
-    done < <(github_search_open_with_label pr ai-review)
-}
-
-# Handle one GitLab search hit. kind: issue | mr_implement | mr_review
-dispatch_gitlab_hit() {
-    local kind="$1"
-    local repo_path="$2"
-    local iid="$3"
-    local entry project project_dir block_on_open_pr in_flight
-
-    [[ -z "$repo_path" || -z "$iid" ]] && return 0
-    [[ ! -f "$GITLAB_PROJECTS_FILE" ]] && return 0
-
-    entry="$(ai_resolve_project_entry_by_full_name "$GITLAB_PROJECTS_FILE" "$repo_path" 2>/dev/null || true)"
-    [[ -z "$entry" ]] && return 0
-
-    project="$(jq -r '.name // empty' <<<"$entry")"
-    project_dir="$(jq -r '.path // empty' <<<"$entry")"
-    block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
-    [[ -z "$project" || -z "$project_dir" ]] && return 0
-
-    if repo_agent_running "$project_dir" "$project"; then
-        return 0
-    fi
-
-    if [[ "$kind" == "issue" ]]; then
-        in_flight="$(gitlab_in_flight_issue_reason "$project" "$project_dir" "$block_on_open_pr" "$repo_path")"
-        if [[ -n "$in_flight" ]]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
-            return 0
-        fi
-    fi
-
-    if ! ensure_entry_workspace "$project" "$project_dir" "gitlab" "$entry"; then
-        return 0
-    fi
-
-    case "$kind" in
-        issue)
-            launch_repo_job "$project_dir" "$project" gitlab_issue_job "$project" "$repo_path" "$iid"
-            ;;
-        mr_implement)
-            launch_repo_job "$project_dir" "$project" gitlab_mr_implement_job "$project" "$repo_path" "$iid"
-            ;;
-        mr_review)
-            launch_repo_job "$project_dir" "$project" gitlab_mr_review_job "$project" "$repo_path" "$iid"
-            ;;
-    esac
-}
-
-scan_gitlab_ai_work() {
-    local repo_path iid
-
-    [[ -f "$GITLAB_PROJECTS_FILE" ]] || return 0
-    gitlab_configured || return 0
-
-    while IFS=$'\t' read -r repo_path iid || [[ -n "${repo_path:-}" ]]; do
-        [[ -z "$repo_path" ]] && continue
-        dispatch_gitlab_hit issue "$repo_path" "$iid"
-    done < <(gitlab_search_open_issues_with_label ai)
-
-    while IFS=$'\t' read -r repo_path iid || [[ -n "${repo_path:-}" ]]; do
-        [[ -z "$repo_path" ]] && continue
-        dispatch_gitlab_hit mr_implement "$repo_path" "$iid"
-    done < <(gitlab_search_open_mrs_with_label ai)
-
-    while IFS=$'\t' read -r repo_path iid || [[ -n "${repo_path:-}" ]]; do
-        [[ -z "$repo_path" ]] && continue
-        dispatch_gitlab_hit mr_review "$repo_path" "$iid"
-    done < <(gitlab_search_open_mrs_with_label ai-review)
-}
-
-# ============================================================
 # Main loop
 #
-# Search forges for open ai / ai-review work first. Only then
-# resolve a managed project, lazy-clone its workspace, and launch.
-# Idle repos are never polled or cloned.
+# For each managed project, query the forge API by full_name for
+# open ai / ai-review work (no local clone required). Only when
+# work exists do we ensure the workspace and launch a job.
 # ============================================================
 
 while true; do
@@ -1291,8 +1129,20 @@ while true; do
     reset_repo_busy_log
     reap_repo_agents
 
-    scan_github_ai_work || true
-    scan_gitlab_ai_work || true
+    # Priority inside one repository: issues, then PR/MR implement,
+    # then reviews. A launch marks that repository busy, so later
+    # handlers in this cycle skip it. Other repositories still start.
+    if [[ -f "$PROJECTS_FILE" ]]; then
+        ai_foreach_project "$PROJECTS_FILE" process_github_project || true
+        ai_foreach_project "$PROJECTS_FILE" process_github_pr_implement || true
+        ai_foreach_project "$PROJECTS_FILE" process_github_pr_review || true
+    fi
+
+    if [[ -f "$GITLAB_PROJECTS_FILE" ]]; then
+        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_project || true
+        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_implement || true
+        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review || true
+    fi
 
     if [[ "${#REPO_AGENT_PIDS[@]}" -eq 0 ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s."
