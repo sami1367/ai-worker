@@ -276,79 +276,99 @@ export type ForgeLabelSpec = {
   description: string
 }
 
-/** Create or update labels on a GitLab project (path_with_namespace or numeric id). Idempotent. */
+function gitlabHeaders(token: string, extra?: Record<string, string>): Record<string, string> {
+  return {
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+    'User-Agent': 'ai-worker-platform',
+    ...(extra || {}),
+  }
+}
+
+async function listGitLabLabelNames(
+  instanceUrl: string,
+  token: string,
+  encodedProject: string,
+): Promise<Set<string>> {
+  const base = normalizeGitLabInstanceUrl(instanceUrl)
+  const names = new Set<string>()
+  let page = 1
+  while (page <= 20) {
+    const res = await safeFetch(
+      `${base}/api/v4/projects/${encodedProject}/labels?per_page=100&page=${page}`,
+      {
+        headers: gitlabHeaders(token),
+        timeoutMs: 30000,
+        expectedOrigin: base,
+      },
+    )
+    if (res.status === 401) {
+      throw new AppError(401, 'GitLab credentials are invalid or revoked', 'forge_unauthorized')
+    }
+    if (res.status === 403) {
+      throw new AppError(403, 'GitLab credentials lack permission to manage labels', 'forge_forbidden')
+    }
+    if (res.status === 404) {
+      throw new AppError(404, 'GitLab project not found', 'forge_not_found')
+    }
+    if (!res.ok) {
+      const text = redactSecrets(await res.text())
+      throw new AppError(502, `GitLab list labels failed (${res.status}): ${text.slice(0, 200)}`, 'forge_api_error')
+    }
+    const batch = await res.json() as Array<{ name?: string }>
+    for (const item of batch) {
+      if (item.name) names.add(String(item.name).toLowerCase())
+    }
+    if (batch.length < 100) break
+    page += 1
+  }
+  return names
+}
+
+/** Create missing labels on a GitLab project. Idempotent; skips labels that already exist. */
 export async function ensureGitLabProjectLabels(
   instanceUrl: string,
   token: string,
   projectPath: string,
   labels: readonly ForgeLabelSpec[],
-): Promise<void> {
+): Promise<{ created: number, existing: number }> {
   const base = normalizeGitLabInstanceUrl(instanceUrl)
   const encodedProject = encodeURIComponent(projectPath.replace(/^\//, '').replace(/\.git$/, ''))
+  const existing = await listGitLabLabelNames(instanceUrl, token, encodedProject)
+  let created = 0
+  let already = 0
 
   for (const label of labels) {
-    const color = label.color.startsWith('#') ? label.color : `#${label.color}`
-    const body = JSON.stringify({
-      name: label.name,
-      color,
-      description: label.description,
-    })
+    if (existing.has(label.name.toLowerCase())) {
+      already += 1
+      continue
+    }
 
+    const color = label.color.startsWith('#') ? label.color : `#${label.color}`
     const createRes = await safeFetch(`${base}/api/v4/projects/${encodedProject}/labels`, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        'User-Agent': 'ai-worker-platform',
-        'Content-Type': 'application/json',
-      },
-      body,
+      headers: gitlabHeaders(token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        name: label.name,
+        color,
+        description: label.description,
+      }),
       timeoutMs: 30000,
       expectedOrigin: base,
     })
 
-    if (createRes.ok) continue
-
+    if (createRes.ok || createRes.status === 400 || createRes.status === 409) {
+      created += createRes.ok ? 1 : 0
+      already += createRes.ok ? 0 : 1
+      existing.add(label.name.toLowerCase())
+      continue
+    }
     if (createRes.status === 401) {
       throw new AppError(401, 'GitLab credentials are invalid or revoked', 'forge_unauthorized')
     }
     if (createRes.status === 403) {
       throw new AppError(403, 'GitLab credentials lack permission to manage labels', 'forge_forbidden')
     }
-
-    // Already exists: update in place (same as worker setup-gitlab-labels.sh)
-    if (createRes.status === 400 || createRes.status === 409) {
-      const encodedName = encodeURIComponent(label.name)
-      const updateRes = await safeFetch(
-        `${base}/api/v4/projects/${encodedProject}/labels/${encodedName}`,
-        {
-          method: 'PUT',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${token}`,
-            'User-Agent': 'ai-worker-platform',
-            'Content-Type': 'application/json',
-          },
-          body,
-          timeoutMs: 30000,
-          expectedOrigin: base,
-        },
-      )
-      if (updateRes.ok) continue
-      if (updateRes.status === 401) {
-        throw new AppError(401, 'GitLab credentials are invalid or revoked', 'forge_unauthorized')
-      }
-      if (updateRes.status === 403) {
-        throw new AppError(403, 'GitLab credentials lack permission to manage labels', 'forge_forbidden')
-      }
-      const text = redactSecrets(await updateRes.text())
-      throw new AppError(
-        502,
-        `GitLab label update failed for "${label.name}" (${updateRes.status}): ${text.slice(0, 200)}`,
-        'forge_api_error',
-      )
-    }
-
     const text = redactSecrets(await createRes.text())
     throw new AppError(
       502,
@@ -356,6 +376,8 @@ export async function ensureGitLabProjectLabels(
       'forge_api_error',
     )
   }
+
+  return { created, existing: already }
 }
 
 export async function revokeGitLabToken(instanceUrl: string, token: string): Promise<void> {

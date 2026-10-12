@@ -19,6 +19,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl git jq util-linux openssh-client rsync \
+      python3 \
       gh \
     && rm -rf /var/lib/apt/lists/*
 
@@ -41,7 +42,7 @@ RUN chmod +x /app/worker/*.sh /app/scripts/*.sh 2>/dev/null || true \
 # Auth secrets are NOT baked in — connect keys from the Providers UI (or env vars).
 ENV AI_CLI_HOME=/home/appuser
 RUN bash /app/scripts/install-ai-clis.sh \
-    && chown -R appuser:appuser /home/appuser/.local /home/appuser/.npm-global
+    && chown -R appuser:appuser /home/appuser
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

@@ -1,7 +1,7 @@
 import { chmod, mkdir, rename, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
-import { forgeConnections } from '#db/schema'
+import { and, eq } from 'drizzle-orm'
+import { forgeConnections, repositories } from '#db/schema'
 import { getDb } from '#utils/db'
 import { decryptSecret } from '#utils/crypto'
 import { workerBaseDir } from '#utils/paths'
@@ -11,8 +11,9 @@ import { GITHUB_INSTANCE_URL } from './forge-github'
  * Materialize forge tokens for the Bash worker into a 0600 env file on the
  * shared config volume. Tokens are never written into project conf JSON.
  *
- * When multiple active connections exist for a provider, the most recently
- * validated connection wins (single global GH_TOKEN / GITLAB_TOKEN model).
+ * Single global GH_TOKEN / GITLAB_TOKEN model:
+ * - Prefer the connection used by enabled repositories (instance URL match)
+ * - Else fall back to the most recently validated active connection
  */
 export async function exportForgeCredentialsForWorker(): Promise<{
   path: string
@@ -27,12 +28,37 @@ export async function exportForgeCredentialsForWorker(): Promise<{
   let gitlabToken = process.env.GITLAB_TOKEN || ''
   let gitlabHost = process.env.GITLAB_HOST || ''
 
-  const github = rows
-    .filter((r) => r.provider === 'github' && r.accessTokenCiphertext)
-    .sort((a, b) => (b.lastValidatedAt?.getTime() || 0) - (a.lastValidatedAt?.getTime() || 0))[0]
-  const gitlab = rows
-    .filter((r) => r.provider === 'gitlab' && r.accessTokenCiphertext)
-    .sort((a, b) => (b.lastValidatedAt?.getTime() || 0) - (a.lastValidatedAt?.getTime() || 0))[0]
+  const enabledRepos = await db.select({
+    forgeType: repositories.forgeType,
+    connectionId: repositories.connectionId,
+    instanceUrl: repositories.instanceUrl,
+  }).from(repositories).where(and(
+    eq(repositories.isEnabled, true),
+    eq(repositories.isArchived, false),
+  ))
+
+  const pickConnection = (provider: 'github' | 'gitlab') => {
+    const candidates = rows.filter((r) => r.provider === provider && r.accessTokenCiphertext)
+    if (!candidates.length) return undefined
+
+    const enabledForProvider = enabledRepos.filter((r) => r.forgeType === provider)
+    // Prefer connection id used by enabled repos
+    for (const repo of enabledForProvider) {
+      if (!repo.connectionId) continue
+      const match = candidates.find((c) => c.id === repo.connectionId)
+      if (match) return match
+    }
+    // Prefer instance URL used by enabled repos
+    for (const repo of enabledForProvider) {
+      if (!repo.instanceUrl) continue
+      const match = candidates.find((c) => c.instanceUrl === repo.instanceUrl)
+      if (match) return match
+    }
+    return candidates.sort((a, b) => (b.lastValidatedAt?.getTime() || 0) - (a.lastValidatedAt?.getTime() || 0))[0]
+  }
+
+  const github = pickConnection('github')
+  const gitlab = pickConnection('gitlab')
 
   if (github && key) {
     try {

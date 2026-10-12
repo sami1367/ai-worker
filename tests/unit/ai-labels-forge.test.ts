@@ -29,29 +29,33 @@ describe('ensureGitHubRepoLabels', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates all AI labels when none exist', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(201, { id: 1 }))
-    await ensureGitHubRepoLabels('tok', 'acme/app', AI_WORKER_LABELS)
-    expect(mockFetch).toHaveBeenCalledTimes(AI_WORKER_LABELS.length)
-    const firstUrl = String(mockFetch.mock.calls[0][0])
-    expect(firstUrl).toContain('/repos/acme/app/labels')
-    const body = JSON.parse(String(mockFetch.mock.calls[0][1].body))
-    expect(body.name).toBe('ai')
-    expect(body.color).toBe('0E8A16')
+  it('lists existing labels then creates only missing ones', async () => {
+    mockFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+      const u = String(url)
+      if (!init?.method || init.method === 'GET') {
+        return jsonResponse(200, [{ name: 'ai' }, { name: 'bug' }])
+      }
+      if (init.method === 'POST') return jsonResponse(201, { id: 1 })
+      return jsonResponse(500, { message: 'unexpected' })
+    })
+
+    const result = await ensureGitHubRepoLabels('tok', 'acme/app', AI_WORKER_LABELS)
+    expect(result.existing).toBe(1) // ai already present
+    expect(result.created).toBe(AI_WORKER_LABELS.length - 1)
+    const posts = mockFetch.mock.calls.filter((c) => c[1]?.method === 'POST')
+    expect(posts.length).toBe(AI_WORKER_LABELS.length - 1)
+    expect(posts.some((c) => JSON.parse(String(c[1].body)).name === 'ai')).toBe(false)
+    expect(posts.some((c) => JSON.parse(String(c[1].body)).name === 'ai-review')).toBe(true)
   })
 
-  it('updates when create returns 422 (already exists)', async () => {
+  it('creates all AI labels when none exist', async () => {
     mockFetch.mockImplementation(async (_url: string, init?: { method?: string }) => {
-      if (init?.method === 'POST') return jsonResponse(422, { message: 'already exists' })
-      return jsonResponse(200, { id: 1 })
+      if (!init?.method || init.method === 'GET') return jsonResponse(200, [])
+      return jsonResponse(201, { id: 1 })
     })
-    await ensureGitHubRepoLabels('tok', 'acme/app', [{
-      name: 'ai',
-      color: '0E8A16',
-      description: 'Queue',
-    }])
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    expect(mockFetch.mock.calls[1][1].method).toBe('PATCH')
+    const result = await ensureGitHubRepoLabels('tok', 'acme/app', AI_WORKER_LABELS)
+    expect(result.created).toBe(AI_WORKER_LABELS.length)
+    expect(result.existing).toBe(0)
   })
 })
 
@@ -60,21 +64,20 @@ describe('ensureGitLabProjectLabels', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates labels then updates on 409 conflict', async () => {
+  it('skips labels that already exist', async () => {
     mockFetch.mockImplementation(async (_url: string, init?: { method?: string }) => {
-      if (init?.method === 'POST') return jsonResponse(409, { message: 'conflict' })
-      return jsonResponse(200, { id: 1 })
+      if (!init?.method || init.method === 'GET') {
+        return jsonResponse(200, [{ name: 'ai-review' }])
+      }
+      return jsonResponse(201, { id: 1 })
     })
-    await ensureGitLabProjectLabels('https://gitlab.com', 'tok', 'group/proj', [{
-      name: 'ai-review',
-      color: '7057FF',
-      description: 'Review',
-    }])
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const result = await ensureGitLabProjectLabels('https://gitlab.com', 'tok', 'group/proj', [
+      { name: 'ai-review', color: '7057FF', description: 'Review' },
+      { name: 'ai', color: '0E8A16', description: 'Queue' },
+    ])
+    expect(result.existing).toBe(1)
+    expect(result.created).toBe(1)
     expect(String(mockFetch.mock.calls[0][0])).toContain('/projects/group%2Fproj/labels')
-    expect(mockFetch.mock.calls[1][1].method).toBe('PUT')
-    const body = JSON.parse(String(mockFetch.mock.calls[0][1].body))
-    expect(body.color).toBe('#7057FF')
   })
 })
 

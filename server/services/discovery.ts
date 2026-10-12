@@ -224,6 +224,7 @@ export async function syncConnectionRepositories(
         accessWarning: Boolean(accessWarning),
         labelsEnsured: labels.ok,
         labelsFailed: labels.failed,
+        labelsCreated: labels.created,
       },
     })
   }
