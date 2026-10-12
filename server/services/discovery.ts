@@ -17,6 +17,7 @@ import {
   gitlabTokenCanAccessPrivate,
   listGitLabProjects,
 } from './forge-gitlab'
+import { ensureLabelsForConnectionRepositories } from './ai-labels'
 import { writeAudit } from './audit'
 import type { ForgeRepo } from './forge-types'
 
@@ -206,6 +207,9 @@ export async function syncConnectionRepositories(
     updatedAt: now,
   }).where(eq(forgeConnections.id, connectionId))
 
+  // Backfill AI work/review labels on already-registered repos for this connection
+  const labels = await ensureLabelsForConnectionRepositories(connectionId)
+
   if (opts?.actorUserId) {
     await writeAudit({
       actorUserId: opts.actorUserId,
@@ -213,11 +217,25 @@ export async function syncConnectionRepositories(
       action: 'connection.refresh_repos',
       targetType: 'forge_connection',
       targetId: connectionId,
-      metadata: { count: repos.length, privateCount, publicCount, accessWarning: Boolean(accessWarning) },
+      metadata: {
+        count: repos.length,
+        privateCount,
+        publicCount,
+        accessWarning: Boolean(accessWarning),
+        labelsEnsured: labels.ok,
+        labelsFailed: labels.failed,
+      },
     })
   }
 
-  return { count: repos.length, publicCount, privateCount, syncedAt: now, accessWarning }
+  return {
+    count: repos.length,
+    publicCount,
+    privateCount,
+    syncedAt: now,
+    accessWarning,
+    labels,
+  }
 }
 
 export async function listDiscoveredRepositories(opts: {

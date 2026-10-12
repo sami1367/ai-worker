@@ -219,6 +219,98 @@ export async function listGitHubRepositories(token: string): Promise<ForgeRepo[]
   return [...repos.values()]
 }
 
+export type ForgeLabelSpec = {
+  name: string
+  color: string
+  description: string
+}
+
+/** Create or update labels on a GitHub repo (owner/name). Idempotent. */
+export async function ensureGitHubRepoLabels(
+  token: string,
+  fullName: string,
+  labels: readonly ForgeLabelSpec[],
+): Promise<void> {
+  const repo = fullName.replace(/\.git$/, '').replace(/^https?:\/\/github\.com\//, '')
+  if (!repo.includes('/')) {
+    throw new AppError(400, `Invalid GitHub repository: ${fullName}`, 'invalid_repo')
+  }
+
+  for (const label of labels) {
+    const color = label.color.replace(/^#/, '')
+    const body = JSON.stringify({
+      name: label.name,
+      color,
+      description: label.description,
+    })
+
+    const createRes = await safeFetch(`${GITHUB_API}/repos/${repo}/labels`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'ai-worker-platform',
+        'Content-Type': 'application/json',
+      },
+      body,
+      timeoutMs: 30000,
+      expectedOrigin: 'https://api.github.com',
+    })
+
+    if (createRes.ok) continue
+
+    if (createRes.status === 401) {
+      throw new AppError(401, 'GitHub credentials are invalid or revoked', 'forge_unauthorized')
+    }
+    if (createRes.status === 403) {
+      throw new AppError(403, 'GitHub credentials lack permission to manage labels', 'forge_forbidden')
+    }
+
+    // 422 = already exists (or validation); update in place like `gh label create --force`
+    if (createRes.status === 422) {
+      const encoded = encodeURIComponent(label.name)
+      const updateRes = await safeFetch(`${GITHUB_API}/repos/${repo}/labels/${encoded}`, {
+        method: 'PATCH',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${token}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'ai-worker-platform',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          new_name: label.name,
+          color,
+          description: label.description,
+        }),
+        timeoutMs: 30000,
+        expectedOrigin: 'https://api.github.com',
+      })
+      if (updateRes.ok) continue
+      if (updateRes.status === 401) {
+        throw new AppError(401, 'GitHub credentials are invalid or revoked', 'forge_unauthorized')
+      }
+      if (updateRes.status === 403) {
+        throw new AppError(403, 'GitHub credentials lack permission to manage labels', 'forge_forbidden')
+      }
+      const text = redactSecrets(await updateRes.text())
+      throw new AppError(
+        502,
+        `GitHub label update failed for "${label.name}" (${updateRes.status}): ${text.slice(0, 200)}`,
+        'forge_api_error',
+      )
+    }
+
+    const text = redactSecrets(await createRes.text())
+    throw new AppError(
+      502,
+      `GitHub label create failed for "${label.name}" (${createRes.status}): ${text.slice(0, 200)}`,
+      'forge_api_error',
+    )
+  }
+}
+
 export async function revokeGitHubToken(token: string): Promise<void> {
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID
   const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET

@@ -1,55 +1,49 @@
 import { handleApi, clientIpHash, requireRole } from '#utils/api'
 import { requireUser } from '#utils/session'
 import { getRepository } from '#services/repositories'
+import { ensureRepositoryLabels, AI_WORKER_LABELS } from '#services/ai-labels'
 import { writeAudit } from '#services/audit'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { workerBaseDir } from '#utils/paths'
-import { join } from 'node:path'
-
-const execFileAsync = promisify(execFile)
+import { AppError } from '#utils/errors'
 
 export default defineEventHandler((event) => handleApi(event, async () => {
   const user = await requireUser(event)
   requireRole('admin', user.role)
   const id = getRouterParam(event, 'id')!
   const repo = await getRepository(id)
-  const base = workerBaseDir()
-  const script = repo.forgeType === 'github'
-    ? join(base, 'setup-labels.sh')
-    : join(base, 'setup-gitlab-labels.sh')
 
-  // Fixed executable path only — never accept user-supplied command
   try {
-    const { stdout, stderr } = await execFileAsync('bash', [script], {
-      cwd: base,
-      timeout: 120000,
-      env: { ...process.env, AI_WORKER_BASE_DIR: base },
-    })
+    const result = await ensureRepositoryLabels(id, { strict: true })
     await writeAudit({
       actorUserId: user.id,
       actorUsername: user.username,
       action: 'repository.setup_labels',
       targetType: 'repository',
       targetId: id,
-      metadata: { forgeType: repo.forgeType, ok: true },
+      metadata: {
+        forgeType: repo.forgeType,
+        ok: true,
+        ensured: result.ensured,
+        labels: AI_WORKER_LABELS.map((l) => l.name),
+      },
       ipHash: clientIpHash(event),
     })
-    return { ok: true, stdout: stdout.slice(-4000), stderr: stderr.slice(-2000) }
-  } catch (err: any) {
+    return {
+      ok: true,
+      ensured: result.ensured,
+      labels: AI_WORKER_LABELS.map((l) => l.name),
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
     await writeAudit({
       actorUserId: user.id,
       actorUsername: user.username,
       action: 'repository.setup_labels_failed',
       targetType: 'repository',
       targetId: id,
-      metadata: { message: String(err?.message || err).slice(0, 500) },
+      metadata: { message: message.slice(0, 500) },
       ipHash: clientIpHash(event),
     })
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Label setup failed',
-      data: { code: 'setup_labels_failed', message: 'Label setup failed. Check worker credentials and repository registration.' },
-    })
+    if (err instanceof AppError) throw err
+    throw new AppError(500, 'Label setup failed. Check forge connection credentials and repository permissions.', 'setup_labels_failed')
   }
 }))

@@ -6,6 +6,7 @@ import { getDb } from '#utils/db'
 import { managedWorkspacePath, newWorkspaceId, validateRemoteUrl } from '#utils/paths'
 import { getSettings } from './settings'
 import { writeAudit } from './audit'
+import { ensureRepositoryLabels } from './ai-labels'
 import { exportWorkerConfig } from './config-sync'
 import { publicRepo } from './repositories'
 import { queueWorkspaceOperation } from './workspace-manager'
@@ -67,6 +68,8 @@ export async function registerDiscoveredRepositories(
         discoveredRepositoryId: disc.id,
         updatedAt: new Date(),
       }).where(eq(repositories.id, byIdentity.id))
+      // Previous/already-registered repos may be missing AI labels
+      await ensureRepositoryLabels(byIdentity.id, { strict: false })
       continue
     }
 
@@ -102,6 +105,7 @@ export async function registerDiscoveredRepositories(
             updatedAt: new Date(),
           }).where(eq(repositories.id, stillClash.id))
           skipped.push({ id: discoveredId, reason: 'linked_legacy' })
+          await ensureRepositoryLabels(stillClash.id, { strict: false })
           continue
         }
         skipped.push({ id: discoveredId, reason: 'name_conflict' })
@@ -150,6 +154,9 @@ export async function registerDiscoveredRepositories(
       operationType: 'clone',
       actor,
     })
+
+    // Ensure AI work + AI review labels exist on the forge (does not need local clone)
+    await ensureRepositoryLabels(row.id, { strict: false })
 
     created.push(publicRepo(row))
   }

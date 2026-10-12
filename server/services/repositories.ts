@@ -4,6 +4,7 @@ import { repositories, taskRuns } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { managedWorkspacePath, newWorkspaceId, validateRemoteUrl } from '#utils/paths'
+import { ensureRepositoryLabels } from './ai-labels'
 import { writeAudit } from './audit'
 import { exportWorkerConfig } from './config-sync'
 import { getSettings } from './settings'
@@ -232,6 +233,11 @@ export async function setRepositoryEnabled(
     isEnabled: enabled,
     updatedAt: new Date(),
   }).where(eq(repositories.id, id)).returning()
+
+  if (enabled) {
+    // Worker needs AI labels present before polling begins
+    await ensureRepositoryLabels(id, { strict: false })
+  }
 
   await writeAudit({
     actorUserId: actor.id,
