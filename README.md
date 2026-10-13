@@ -92,6 +92,7 @@ pnpm dev
 | Symptom | Check |
 |---------|--------|
 | Image pull fail | Image published? `docker pull sami1367/ai-worker:latest` |
+| `migrate` exit 1 / CREATE SCHEMA | Old Postgres volume password mismatch → `docker compose down -v && docker compose up -d` (wipes DB) |
 | `/setup` rejects secret | Default is `changeme` unless you overrode it |
 | `/ready` 503 | `docker compose logs db migrate` |
 | No tasks | Forge token in UI/env? `ai` / `ai-review` labels? |

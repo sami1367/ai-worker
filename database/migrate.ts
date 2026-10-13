@@ -21,6 +21,16 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Migration failed:', err instanceof Error ? err.message : err)
+  const msg = err instanceof Error ? err.message : String(err)
+  console.error('Migration failed:', msg)
+  // drizzle often wraps auth failures as "Failed query: CREATE SCHEMA ..."
+  if (/password authentication failed|ECONNREFUSED|ENOTFOUND/i.test(msg)
+    || /Failed query:\s*CREATE SCHEMA/i.test(msg)) {
+    console.error(
+      'Hint: Postgres rejected the connection. If you changed POSTGRES_PASSWORD in compose '
+      + 'after the first start, the old volume still has the previous password. '
+      + 'For a fresh install: docker compose down -v && docker compose up -d',
+    )
+  }
   process.exit(1)
 })
