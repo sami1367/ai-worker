@@ -300,8 +300,7 @@ ai_related_create_issue() {
                 --repo "$repo" \
                 --title "$title" \
                 --body-file "$body_file" \
-                --label "ai" \
-                --assignee "@me"
+                --label "ai"
         )" || {
             rm -f "$body_file"
             return 1

@@ -144,7 +144,7 @@ gitlab_current_user_id() {
 }
 
 # Print oldest open issue iid with the given label, or empty.
-# Does not filter by assignee (used for in-flight ai-working checks).
+# Label-only: does not filter by assignee.
 gitlab_find_open_issue_with_label() {
     local project_path="$1"
     local label="$2"
@@ -160,20 +160,10 @@ gitlab_find_open_issue_with_label() {
     printf '%s' "$iid"
 }
 
-# Print oldest open issue iid with label "ai" assigned to the token user, or empty.
+# Print oldest open issue iid with label "ai", or empty.
 gitlab_find_ai_issue() {
     local project_path="$1"
-    local encoded body iid assignee_id
-
-    assignee_id="$(gitlab_current_user_id)" || return 1
-    encoded="$(gitlab_encode_path "$project_path")"
-    body="$(
-        gitlab_api GET \
-            "/projects/${encoded}/issues?labels=ai&state=opened&assignee_id=${assignee_id}&order_by=created_at&sort=asc&per_page=1"
-    )" || return 1
-
-    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
-    printf '%s' "$iid"
+    gitlab_find_open_issue_with_label "$project_path" "ai"
 }
 
 # Print a short description of the oldest open merge request, or empty.
@@ -488,24 +478,22 @@ gitlab_format_notes() {
     )" "$max_bytes"
 }
 
-# Create an issue assigned to the token user. Prints the issue JSON.
+# Create an issue with the given label (default ai). Prints the issue JSON.
 # Usage: gitlab_create_issue <project_path> <title> <description> [label]
 gitlab_create_issue() {
     local project_path="$1"
     local title="$2"
     local description="$3"
     local label="${4:-ai}"
-    local encoded payload assignee_id
+    local encoded payload
 
     encoded="$(gitlab_encode_path "$project_path")"
-    assignee_id="$(gitlab_current_user_id)" || return 1
     payload="$(
         jq -n \
             --arg title "$title" \
             --arg description "$description" \
             --arg lbl "$label" \
-            --argjson aid "$assignee_id" \
-            '{title: $title, description: $description, labels: $lbl, assignee_ids: [$aid]}'
+            '{title: $title, description: $description, labels: $lbl}'
     )"
     gitlab_api POST "/projects/${encoded}/issues" -d "$payload"
 }

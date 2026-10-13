@@ -1037,15 +1037,13 @@ ai_format_github_comments() {
     )" "$max_bytes"
 }
 
-# Print oldest open issue number with label "ai" assigned to the authenticated
-# GitHub user (@me), or empty. Unassigned ai issues are ignored.
+# Print oldest open issue number with label "ai", or empty.
 github_find_ai_issue() {
     local repo="$1"
 
     gh issue list \
         --repo "$repo" \
         --label "ai" \
-        --assignee "@me" \
         --state open \
         --limit 1 \
         --json number \

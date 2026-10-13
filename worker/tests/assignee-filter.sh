@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercises assignee-gated issue pickup helpers without calling GitHub or GitLab.
+# Exercises label-only issue pickup helpers without calling GitHub or GitLab.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,8 +42,14 @@ gitlab_api() {
             printf '{"id":42,"username":"ai-bot"}'
             ;;
         /projects/*/issues\?*)
-            if [[ "$path" == *assignee_id=42* && "$path" == *labels=ai* ]]; then
-                printf '[{"iid":7,"title":"assigned ai issue"}]'
+            if [[ "$path" == *labels=ai-working* ]]; then
+                printf '[]'
+            elif [[ "$path" == *labels=ai* && "$path" != *labels=ai-* ]]; then
+                if [[ "$path" == *assignee_id=* ]]; then
+                    printf '[]'
+                else
+                    printf '[{"iid":7,"title":"ai issue"}]'
+                fi
             else
                 printf '[]'
             fi
@@ -61,13 +67,17 @@ gh() {
     printf '%s\n' "$*" >> "$TMP/gh.log"
     if [[ "$1" == "issue" && "$2" == "list" ]]; then
         local has_assignee=0
+        local has_label=0
         local arg
         for arg in "$@"; do
-            if [[ "$arg" == "@me" ]]; then
+            if [[ "$arg" == "@me" || "$arg" == "--assignee" ]]; then
                 has_assignee=1
             fi
+            if [[ "$arg" == "ai" ]]; then
+                has_label=1
+            fi
         done
-        if [[ "$has_assignee" -eq 1 ]]; then
+        if [[ "$has_assignee" -eq 0 && "$has_label" -eq 1 ]]; then
             printf '12'
         else
             printf ''
@@ -84,9 +94,13 @@ grep -q '^GET /user$' "$GITLAB_API_LOG" || fail "expected /user call"
 : > "$GITLAB_API_LOG"
 iid="$(gitlab_find_ai_issue "group/project")" || fail "gitlab_find_ai_issue failed"
 [[ "$iid" == "7" ]] || fail "expected iid 7, got '$iid'"
-grep -q 'assignee_id=42' "$GITLAB_API_LOG" || fail "ai issue query missing assignee_id"
 grep -q 'labels=ai' "$GITLAB_API_LOG" || fail "ai issue query missing labels=ai"
-grep -q '^GET /user$' "$GITLAB_API_LOG" || fail "find_ai_issue should resolve current user"
+if grep -q 'assignee_id=' "$GITLAB_API_LOG"; then
+    fail "ai issue pickup must not filter by assignee"
+fi
+if grep -q '^GET /user$' "$GITLAB_API_LOG"; then
+    fail "find_ai_issue should not resolve current user"
+fi
 
 # In-flight label lookup must not require assignee.
 : > "$GITLAB_API_LOG"
@@ -100,17 +114,23 @@ fi
 : > "$GITLAB_API_LOG"
 json="$(gitlab_create_issue "group/project" "Title" "Body" "ai")" || fail "create issue failed"
 [[ "$(jq -r '.iid' <<<"$json")" == "99" ]] || fail "create issue response"
-grep -q 'assignee_ids' "$GITLAB_API_LOG" || fail "create issue missing assignee_ids"
-grep -q '42' "$GITLAB_API_LOG" || fail "create issue missing user id in payload"
+grep -Eq '"labels"[[:space:]]*:[[:space:]]*"ai"' "$GITLAB_API_LOG" || fail "create issue missing labels"
+if grep -q 'assignee_ids' "$GITLAB_API_LOG"; then
+    fail "create issue must not set assignee_ids"
+fi
 
 : > "$TMP/gh.log"
 num="$(github_find_ai_issue "owner/repo")"
 [[ "$num" == "12" ]] || fail "expected github issue 12, got '$num'"
-grep -q -- '--assignee' "$TMP/gh.log" || fail "github_find_ai_issue missing --assignee"
-grep -q -- '@me' "$TMP/gh.log" || fail "github_find_ai_issue missing @me"
+if grep -q -- '--assignee' "$TMP/gh.log"; then
+    fail "github_find_ai_issue must not use --assignee"
+fi
+if grep -q -- '@me' "$TMP/gh.log"; then
+    fail "github_find_ai_issue must not use @me"
+fi
 grep -q -- '--label' "$TMP/gh.log" || fail "github_find_ai_issue missing --label"
 
-# Empty /user payload must fail closed (no issue pickup / create).
+# Empty /user payload must fail closed for user-id helper.
 gitlab_api() {
     local method="$1"
     local path="$2"
@@ -124,14 +144,8 @@ gitlab_api() {
 if gitlab_current_user_id >/dev/null 2>&1; then
     fail "gitlab_current_user_id should fail without id"
 fi
-if gitlab_find_ai_issue "group/project" >/dev/null 2>&1; then
-    fail "gitlab_find_ai_issue should fail when user id missing"
-fi
-if gitlab_create_issue "group/project" "T" "B" "ai" >/dev/null 2>&1; then
-    fail "gitlab_create_issue should fail when user id missing"
-fi
 
-# Related-task GitHub create must assign @me (non-dry-run).
+# Related-task GitHub create must label ai without assignee (non-dry-run).
 # shellcheck source=../lib/related-tasks.sh
 source "$ROOT/lib/related-tasks.sh"
 
@@ -155,7 +169,13 @@ git_repo "$TMP/billing-create"
 url="$(ai_related_create_issue "github" "billing" "$TMP/billing-create" "Follow-up" "body")" \
     || fail "ai_related_create_issue failed"
 [[ "$url" == "https://github.com/owner/billing/issues/5" ]] || fail "unexpected create url: $url"
-grep -q -- '--assignee' "$TMP/gh-create.log" || fail "related create missing --assignee"
-grep -q -- '@me' "$TMP/gh-create.log" || fail "related create missing @me"
+grep -q -- '--label' "$TMP/gh-create.log" || fail "related create missing --label"
+grep -q -- 'ai' "$TMP/gh-create.log" || fail "related create missing ai label"
+if grep -q -- '--assignee' "$TMP/gh-create.log"; then
+    fail "related create must not set --assignee"
+fi
+if grep -q -- '@me' "$TMP/gh-create.log"; then
+    fail "related create must not set @me"
+fi
 
 echo "assignee-filter tests passed"
