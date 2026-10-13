@@ -1,132 +1,67 @@
 # AI Worker Platform
 
-Self-hosted web platform for managing the AI Worker automation engine (GitHub + GitLab issue implementation, PR/MR reviews, Cursor CLI / Claude Code).
+Self-hosted web UI + worker for GitHub/GitLab issue implementation and PR/MR review (Cursor CLI / Claude Code).
 
-The Bash worker remains the execution engine. The Nuxt management app provides authentication, PostgreSQL-backed configuration, task history, live logs, and worker control — without editing JSON conf files for day-to-day operations.
+The Bash worker runs agents. The Nuxt app handles auth, config, task history, live logs, and worker control.
 
-## Features
-
-- Secure admin dashboard (Nuxt 3 + Nuxt UI)
-- PostgreSQL persistence (Drizzle migrations)
-- GitHub / GitLab OAuth connections with encrypted token storage
-- Automatic repository discovery, selection, and persistent workspace clones
-- Repository management with per-repo `block_on_open_pr`
-- Cursor + Claude CLIs installed in the Docker image; connect/manage keys in Providers UI
-- Task history + SSE log streaming
-- Worker heartbeat and control requests (reload/start/stop/restart)
-- Atomic config export to worker JSON registries
-- Docker Compose deployment (`web`, `worker`, `db`)
-- Import tool for existing `github-projects.conf` / `gitlab-projects.conf`
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Logical services: **web**, **worker**, **PostgreSQL**. The web process never runs AI agents.
-
-## Prerequisites
-
-- Node.js 20+ and pnpm 9+ (development)
-- Docker + Docker Compose (deployment)
-- GitHub CLI auth and/or GitLab token for forge automation
-- Docker build installs Cursor Agent CLI + Claude Code CLI (or install locally via `scripts/install-ai-clis.sh`)
-
-## Quick start (Docker)
+## Quick start
 
 ```bash
 cp .env.example .env
-# Set INITIAL_ADMIN_BOOTSTRAP_SECRET (required)
+# Set INITIAL_ADMIN_BOOTSTRAP_SECRET (required — any random string)
 
 docker compose up --build -d
 curl -fsS http://127.0.0.1:8080/api/v1/health
 ```
 
-Compose fails if `INITIAL_ADMIN_BOOTSTRAP_SECRET` is empty.
+Open `http://127.0.0.1:8080/setup`, enter the bootstrap secret, and create the first admin (username + password ≥12 chars). Compose fails if `INITIAL_ADMIN_BOOTSTRAP_SECRET` is empty.
 
-Open `http://127.0.0.1:8080/setup` and create the first administrator. No default admin password is shipped.
+## Environment
 
-## Development
+See [`.env.example`](.env.example).
 
-```bash
-pnpm install
-# Start Postgres (compose db only) or provide DATABASE_URL
-pnpm db:migrate
-pnpm dev
-pnpm test:unit
-pnpm test:worker
-pnpm build
-```
+| Variable | Required | Notes |
+|----------|----------|--------|
+| `INITIAL_ADMIN_BOOTSTRAP_SECRET` | Yes | Random string used once at `/setup` |
+| `WORKERS` | No | Concurrent agents (default `1`). Each agent runs one issue/PR/MR; still one task per repo |
+| `GITHUB_TOKEN` | No | Classic PAT with `repo`, or fine-grained: Contents + Issues + Pull requests (read/write). [Create token](https://github.com/settings/tokens) |
+| `GITLAB_HOST` | No | e.g. `gitlab.com` |
+| `GITLAB_TOKEN` | No | Scopes: `api` + `write_repository`. [Create token](https://gitlab.com/-/user_settings/personal_access_tokens) |
 
-## First-run administrator setup
+Postgres, session, encryption, and internal worker tokens are fixed in `docker-compose.yml` (DB is internal-only). Prefer connecting forge/AI credentials in the UI; compose env is a fallback.
 
-1. Set `INITIAL_ADMIN_BOOTSTRAP_SECRET` in `.env` (required; see `.env.example`).
-2. Visit `/setup` while the database has zero users; pick username + password (≥12 characters).
+## What you get
 
-## Environment configuration
+- Admin dashboard (Nuxt 3 + Nuxt UI)
+- PostgreSQL persistence
+- GitHub / GitLab connections (UI or env tokens)
+- Auto repo discovery + lazy workspace clones
+- Cursor + Claude CLIs in the image; keys via **Providers** UI
+- Task history + SSE logs
+- Worker control (reload / start / stop / restart)
+- Docker Compose: `db`, `migrate`, `web`, `worker` — volumes `pgdata` + `data` (`/data`)
 
-Postgres, session, encryption, and worker tokens are fixed in Compose. Required in `.env`: `INITIAL_ADMIN_BOOTSTRAP_SECRET`. Optional: `WORKERS`, forge tokens — see [`.env.example`](.env.example).
+## Architecture
 
-## Docker deployment
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Services: **web**, **worker**, **PostgreSQL**. The web process never runs AI agents.
 
-Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+## Connect forges
 
-Services: `db`, `migrate`, `web`, `worker`. Volumes: `pgdata` (Postgres) and `data` (`/data` — config, workspaces, logs, state). Only the web port is published (`127.0.0.1:8080` by default).
+1. Open **Connections** (or set `GITHUB_TOKEN` / `GITLAB_HOST` + `GITLAB_TOKEN` in `.env`).
+2. Connecting auto-registers and enables visible repos.
+3. Worker polls for open `ai` / `ai-review` items; clones a workspace only when work is found.
+4. New repos: every 15 minutes, or **Fetch new repos** on Repositories.
 
-## Reverse proxy and HTTPS
+## AI providers
 
-Terminate TLS in front of `127.0.0.1:8080`. Set `APP_BASE_URL` to the public HTTPS URL.
+Built into the image (`scripts/install-ai-clis.sh`). Connect keys under **Providers**:
 
-## GitHub / GitLab connections (recommended)
+| Provider | Secret |
+|----------|--------|
+| Cursor | Cursor API key |
+| Claude | Anthropic API key or Claude OAuth token |
 
-1. Open **Connections** in the UI.
-2. **GitHub:** classic PAT with `repo` (recommended). Fine-grained: Contents, Issues, Pull requests (read/write) on the target repos. `public_repo` alone only lists public repos.
-3. **GitLab:** server URL + PAT with `api` and `write_repository` (`read_api` alone cannot run the worker).
-4. Connecting is enough: every visible repo is **auto-registered and enabled**. The worker checks each managed repo via the forge API (no local clone). It **lazy-clones only when** an open `ai` / `ai-review` item is found. New repos are picked up every **15 minutes**, or immediately via **Fetch new repos** on the Repositories page.
-
-Tokens are encrypted at rest (`SECRET_ENCRYPTION_KEY`) and never returned to the browser after connect. The web service materializes forge credentials into `/data/config/forge-credentials.env` (mode `0600`) for the worker entrypoint. Compose env `GITHUB_TOKEN` / `GITLAB_TOKEN` remain a fallback.
-
-### Optional GitHub OAuth App
-
-1. GitHub → Settings → Developer settings → OAuth Apps → New.
-2. Authorization callback URL: `${APP_BASE_URL}/api/v1/connections/oauth/github/callback`
-3. Set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`.
-4. Requested scopes: `repo`, `read:user`, `user:email`.
-
-### GitLab self-managed notes
-
-For private/self-managed hosts, add hostnames to `GITLAB_TRUSTED_HOSTS`. HTTP is denied unless `GITLAB_ALLOW_HTTP=true` **and** the host is allowlisted.
-
-### AI providers
-
-Docker images install both CLIs at build time (`scripts/install-ai-clis.sh`):
-
-- **Cursor:** `agent` / `cursor-agent` on PATH
-- **Claude:** `claude` on PATH
-
-Connect credentials in **Providers** (admin):
-
-| Provider | Secret | Worker env |
-|----------|--------|------------|
-| Cursor | Cursor API key | `CURSOR_API_KEY` |
-| Claude | Anthropic API key or Claude OAuth token | `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` |
-
-Secrets are encrypted with `SECRET_ENCRYPTION_KEY`, never returned to the browser, and materialized to `/data/config/provider-credentials.env` (mode `0600`) for the worker. Disconnect clears the stored secret. Compose env vars remain a fallback. Health checks detect binaries and whether credential material is configured — they do not call the provider APIs.
-
-## Repository registration
-
-**Preferred:** Connections → discover → select → clone into `/data/workspaces/<workspaceId>`.
-
-**Manual:** Repositories → Manual add (remote URL + optional host path for legacy imports). Removing a registration does not delete the workspace unless you explicitly choose that action.
-
-## Existing configuration migration
-
-```bash
-pnpm exec tsx scripts/migrate-config.ts --base /path/to/legacy --apply
-```
-
-See [docs/MIGRATION.md](docs/MIGRATION.md).
-
-## Task execution workflow
-
-Unchanged from the Bash engine:
+## Task workflow
 
 | Goal | Action |
 |------|--------|
@@ -136,24 +71,38 @@ Unchanged from the Bash engine:
 
 Labels: `ai`, `ai-working`, `ai-pr`, `ai-failed`, `ai-review`, `ai-reviewing`, `ai-reviewed`, `ai-review-failed`.
 
-Concurrency is controlled by `WORKERS` (default `1` — one issue/PR at a time). Raise it for parallel agents across different repos; each agent still runs a single task, and a repository never runs two tasks at once. See [docs/FEATURE_PARITY_MATRIX.md](docs/FEATURE_PARITY_MATRIX.md).
+Raise `WORKERS` for parallel agents across different repos.
 
-## Logs
+## Reverse proxy
 
-Per-task files remain under the logs volume. The UI streams via authenticated SSE at `/api/v1/runs/:id/log-stream`.
+Publish bind defaults to `127.0.0.1:8080`. Terminate TLS in front and set `APP_BASE_URL` to the public HTTPS origin.
 
-## Backup / restore / upgrades
+## Development
 
-- [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
-- Upgrade: `git pull && docker compose build && docker compose up -d`
+```bash
+pnpm install
+# Postgres: docker compose up -d db  (or set DATABASE_URL)
+pnpm db:migrate
+pnpm dev
+pnpm test:unit
+pnpm test:worker
+pnpm build
+```
 
-## Security
+Optional: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` (exposes Postgres on `127.0.0.1:5432`).
 
-[docs/SECURITY.md](docs/SECURITY.md)
+## Backup / upgrade
 
-## Worker CLI
+```bash
+./scripts/backup.sh
+git pull && docker compose up --build -d
+```
 
-Canonical scripts and conf **templates** live only under [`worker/`](worker/). There are no root-level copies or wrappers (see [docs/STRUCTURE_AUDIT.md](docs/STRUCTURE_AUDIT.md)).
+Details: [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/SECURITY.md](docs/SECURITY.md).
+
+## Worker CLI (host)
+
+Scripts live under [`worker/`](worker/):
 
 ```bash
 ./worker/worker.sh
@@ -161,31 +110,24 @@ Canonical scripts and conf **templates** live only under [`worker/`](worker/). T
 ./worker/setup-labels.sh
 ```
 
-- Runtime data override: `AI_WORKER_BASE_DIR` (conf, logs, state, `.env`)
-- Code always loads from the script directory (`WORKER_CODE_DIR`)
-- Templates: `worker/github-projects.conf.example`, `worker/gitlab-projects.conf.example`
-- systemd / Docker invoke `worker/worker.sh` (or the synced copy under `/data/config` in Compose)
-
-## Documentation index
+## Docs
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/STRUCTURE_AUDIT.md](docs/STRUCTURE_AUDIT.md)
-- [docs/EXISTING_SYSTEM_AUDIT.md](docs/EXISTING_SYSTEM_AUDIT.md)
-- [docs/FEATURE_PARITY_MATRIX.md](docs/FEATURE_PARITY_MATRIX.md)
-- [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - [docs/SECURITY.md](docs/SECURITY.md)
 - [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 - [docs/MIGRATION.md](docs/MIGRATION.md)
+- [docs/FEATURE_PARITY_MATRIX.md](docs/FEATURE_PARITY_MATRIX.md)
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|--------|
-| `/ready` 503 | `DATABASE_URL`, migrate job, `docker compose logs db` |
-| Worker heartbeat stale | `docker compose logs worker`, `WORKER_INTERNAL_TOKEN`, web reachability |
-| No tasks picked up | Repos enabled? Conf exported? Forge credentials? Labels present? |
-| Provider unhealthy | Binary on PATH inside worker container; auth env/volumes |
+| Compose won't start | `.env` has non-empty `INITIAL_ADMIN_BOOTSTRAP_SECRET` |
+| `/ready` 503 | `docker compose logs db migrate` |
+| Worker heartbeat stale | `docker compose logs worker`, web healthy? |
+| No tasks picked up | Repo enabled? Forge token scopes? `ai` / `ai-review` labels? |
+| Provider unhealthy | CLI in image; key set in Providers UI |
 
 ## License / notice
 
