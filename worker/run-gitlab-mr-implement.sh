@@ -191,6 +191,7 @@ echo "Building linked issues file..."
 LINKED_ISSUE_COUNT=0
 ai_build_gitlab_linked_issues_file "$REPO_PATH" "$MR_TITLE" "$MR_BODY" "$ISSUES_FILE" LINKED_ISSUE_COUNT
 
+ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Fetching origin..."
 git -C "$PROJECT_DIR" fetch --prune origin
 

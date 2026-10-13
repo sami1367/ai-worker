@@ -218,6 +218,7 @@ fi
 
 echo
 echo "GitLab project: $REPO_PATH"
+ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 
 # ============================================================

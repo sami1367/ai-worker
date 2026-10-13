@@ -436,7 +436,8 @@ async function cloneWorkspace(repo: typeof repositories.$inferSelect, logs: stri
         ], { timeoutMs: 300_000, env: sshGitEnv(sshKey) })
         logs.push(redactSecrets(result.stderr || result.stdout))
         if (result.code === 0) {
-          await stripRemoteCredentials(path, repo.remoteUrl, logs)
+          await runGit(['remote', 'set-url', 'origin', sshUrl], { cwd: path, timeoutMs: 10_000 })
+          logs.push(`Stored SSH origin URL: ${sshUrl}`)
           await db.update(repositories).set({
             localPath: path,
             lastCloneAt: new Date(),
@@ -459,7 +460,15 @@ async function cloneWorkspace(repo: typeof repositories.$inferSelect, logs: stri
         throw new Error(`Clone failed: ${redactSecrets(retry.stderr || 'unknown error')}`)
       }
     }
-    await stripRemoteCredentials(path, repo.remoteUrl, logs)
+    // Keep SSH origin when we cloned over SSH so worker fetch/push keep working
+    // on forges that disable HTTP(S) git.
+    if (auth.via === 'ssh' || /^git@/.test(auth.authUrl)) {
+      const sshUrl = httpsRemoteToSshUrl(repo.remoteUrl)
+      await runGit(['remote', 'set-url', 'origin', sshUrl], { cwd: path, timeoutMs: 10_000 })
+      logs.push(`Stored SSH origin URL: ${sshUrl}`)
+    } else {
+      await stripRemoteCredentials(path, repo.remoteUrl, logs)
+    }
   }
 
   await db.update(repositories).set({

@@ -332,6 +332,42 @@ ai_validate_project_dir() {
     return 0
 }
 
+# When /data/config/ssh/id_ed25519 exists, point origin at git@host:path and
+# ensure GIT_SSH_COMMAND is set. Needed for forges that disable HTTP(S) git.
+# Usage: ai_configure_ssh_git_remote <project_dir>
+ai_configure_ssh_git_remote() {
+    local project_dir="$1"
+    local key_src="${BASE_DIR}/ssh/id_ed25519"
+    local key_home="${HOME}/.ssh/id_ed25519"
+    local origin host path ssh_url
+
+    [[ -n "$project_dir" && -d "$project_dir/.git" ]] || return 0
+    [[ -f "$key_src" ]] || return 0
+
+    mkdir -p "${HOME}/.ssh"
+    chmod 700 "${HOME}/.ssh" 2>/dev/null || true
+    if [[ ! -f "$key_home" ]]; then
+        cp "$key_src" "$key_home"
+        chmod 600 "$key_home"
+    fi
+    if [[ -f "${BASE_DIR}/ssh/known_hosts" && ! -f "${HOME}/.ssh/known_hosts" ]]; then
+        cp "${BASE_DIR}/ssh/known_hosts" "${HOME}/.ssh/known_hosts"
+        chmod 644 "${HOME}/.ssh/known_hosts"
+    fi
+
+    export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -i ${key_home} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new}"
+
+    origin="$(git -C "$project_dir" remote get-url origin 2>/dev/null || true)"
+    if [[ "$origin" =~ ^https://([^/]+)/(.+)$ ]]; then
+        host="${BASH_REMATCH[1]}"
+        path="${BASH_REMATCH[2]}"
+        path="${path%.git}.git"
+        ssh_url="git@${host}:${path}"
+        git -C "$project_dir" remote set-url origin "$ssh_url"
+        echo "Using SSH remote (HTTP git unavailable on forge): $ssh_url"
+    fi
+}
+
 # Normalize an issue title for special-case matching (trim + lowercase).
 ai_normalize_issue_title() {
     printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
