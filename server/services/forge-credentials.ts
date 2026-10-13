@@ -131,4 +131,25 @@ export function authenticatedCloneUrl(cloneUrl: string, token: string, provider:
   return url.toString()
 }
 
+/** Convert an https://host/path.git remote to git@host:path.git for SSH clone. */
+export function httpsRemoteToSshUrl(cloneUrl: string): string {
+  const trimmed = cloneUrl.trim()
+  if (/^git@[^\s:]+:[^\s]+$/.test(trimmed)) return trimmed
+  const sshMatch = trimmed.match(/^ssh:\/\/git@([^/]+)\/(.+)$/i)
+  if (sshMatch) {
+    const path = sshMatch[2].replace(/\.git$/i, '') + '.git'
+    return `git@${sshMatch[1]}:${path}`
+  }
+  const url = new URL(trimmed.replace(/\.git$/i, '') + '.git')
+  const path = url.pathname.replace(/^\/+/, '')
+  return `git@${url.host}:${path}`
+}
+
+export function isHttpGitDisabledError(message: string): boolean {
+  const m = message.toLowerCase()
+  return m.includes('git access over http is not allowed')
+    || m.includes('http access for git is disabled')
+    || (m.includes('returned error: 403') && m.includes('unable to access'))
+}
+
 export { GITHUB_INSTANCE_URL }

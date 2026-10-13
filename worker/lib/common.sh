@@ -421,28 +421,30 @@ ai_foreach_project() {
 # Ask the platform to clone a managed workspace if missing.
 # Usage: ai_ensure_project_workspace <project_dir> <project_name> [forge] [full_name]
 # Returns:
-#   0 — workspace ready
+#   0 — workspace ready (platform status ready AND local checkout validates)
 #   2 — clone queued/in progress (caller should skip this cycle; fair to other repos)
 #   1 — hard failure
-# Non-blocking by default so one large clone never stalls polling for every other repo.
-# Set AI_ENSURE_WAIT_SECONDS>0 to wait briefly (optional).
+# Only called after AI work is found. Waits briefly for the clone so a fresh
+# environment is ready before the agent starts. Override with AI_ENSURE_WAIT_SECONDS
+# (0 = single poll, return 2 if still pending).
 # Requires WEB_INTERNAL_URL + WORKER_INTERNAL_TOKEN (set by platform-wrapper).
 ai_ensure_project_workspace() {
     local project_dir="$1"
     local project_name="$2"
     local forge="${3:-}"
     local full_name="${4:-}"
-    local web_url token payload status body
-    local wait_seconds="${AI_ENSURE_WAIT_SECONDS:-0}"
+    local web_url token payload status body err
+    # Default 180s: enough for a typical lazy clone before starting the agent.
+    local wait_seconds="${AI_ENSURE_WAIT_SECONDS:-180}"
     local attempt max_attempts sleep_s=5
-
-    if ai_validate_project_dir "$project_name" "$project_dir" 1; then
-        return 0
-    fi
 
     web_url="${WEB_INTERNAL_URL:-}"
     token="${WORKER_INTERNAL_TOKEN:-}"
     if [[ -z "$web_url" || -z "$token" ]]; then
+        # No control plane: fall back to local checkout only.
+        if ai_validate_project_dir "$project_name" "$project_dir" 1; then
+            return 0
+        fi
         echo "WARNING: Cannot lazy-clone $project_name (WEB_INTERNAL_URL / WORKER_INTERNAL_TOKEN unset)" >&2
         return 1
     fi
@@ -476,16 +478,17 @@ ai_ensure_project_workspace() {
                 "${web_url}/api/v1/worker/internal/ensure-workspace" 2>/dev/null || true
         )"
         status="$(jq -r '.workspaceStatus // empty' <<<"$body" 2>/dev/null || true)"
+        err="$(jq -r '.lastError // empty' <<<"$body" 2>/dev/null || true)"
 
-        if [[ "$status" == "ready" ]] || ai_validate_project_dir "$project_name" "$project_dir" 1; then
-            if ai_validate_project_dir "$project_name" "$project_dir" 1; then
-                echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Workspace ready for $project_name"
-                return 0
-            fi
+        # Require platform "ready" AND a usable local checkout. A partial in-flight
+        # clone can create .git before finishing (or failing); never trust local alone.
+        if [[ "$status" == "ready" ]] && ai_validate_project_dir "$project_name" "$project_dir" 1; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Workspace ready for $project_name"
+            return 0
         fi
 
         if [[ "$status" == "failed" || "$status" == "inaccessible" ]]; then
-            echo "ERROR: Workspace ensure failed for $project_name (status=$status)" >&2
+            echo "ERROR: Workspace ensure failed for $project_name (status=$status)${err:+: $err}" >&2
             return 1
         fi
 

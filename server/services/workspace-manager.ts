@@ -6,10 +6,14 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 import { repositories, workspaceOperations } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
-import { managedWorkspacePath, workspaceRootFromEnv } from '#utils/paths'
+import { managedWorkspacePath, workerBaseDir, workspaceRootFromEnv } from '#utils/paths'
 import { newCorrelationId } from '#utils/crypto'
 import { redactSecrets } from '#utils/redact'
-import { authenticatedCloneUrl } from './forge-credentials'
+import {
+  authenticatedCloneUrl,
+  httpsRemoteToSshUrl,
+  isHttpGitDisabledError,
+} from './forge-credentials'
 import { getConnectionAccessToken } from './connections'
 import { exportWorkerConfig } from './config-sync'
 import { writeAudit } from './audit'
@@ -28,6 +32,22 @@ function originsMatch(a: string, b: string): boolean {
     .replace(/^git@([^:]+):/, 'https://$1/')
     .replace(/^ssh:\/\/git@/, 'https://')
   return norm(a) === norm(b)
+}
+
+async function platformSshKeyPath(): Promise<string | null> {
+  const key = join(workerBaseDir(), 'ssh', 'id_ed25519')
+  try {
+    await access(key)
+    return key
+  } catch {
+    return null
+  }
+}
+
+function sshGitEnv(keyPath: string): NodeJS.ProcessEnv {
+  return {
+    GIT_SSH_COMMAND: `ssh -i ${keyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`,
+  }
 }
 
 async function runGit(args: string[], opts: { cwd?: string, timeoutMs?: number, env?: NodeJS.ProcessEnv }) {
@@ -50,6 +70,18 @@ async function runGit(args: string[], opts: { cwd?: string, timeoutMs?: number, 
     const stderr = String(e.stderr || e.message || 'git failed')
     const code = typeof e.code === 'number' ? e.code : 1
     return { stdout, stderr, code }
+  }
+}
+
+async function removeIncompleteWorkspace(path: string, logs: string[]) {
+  try {
+    const st = await stat(path)
+    if (st.isDirectory()) {
+      logs.push('Removing incomplete workspace directory')
+      await rm(path, { recursive: true, force: true })
+    }
+  } catch {
+    // missing is fine
   }
 }
 
@@ -154,6 +186,23 @@ export async function ensureWorkspaceForWorker(input: {
 
   if (!repo) throw new AppError(404, 'Repository not found', 'not_found')
 
+  // In-flight ops win over a partial .git directory from a clone still running.
+  if (['queued', 'cloning', 'syncing'].includes(repo.workspaceStatus)) {
+    const [op] = await db.select().from(workspaceOperations).where(and(
+      eq(workspaceOperations.repositoryId, repo.id),
+      inArray(workspaceOperations.status, ['queued', 'running']),
+    )).limit(1)
+    // Kick processor in case timer stalled
+    void processWorkspaceQueue()
+    return {
+      repositoryId: repo.id,
+      localPath: repo.localPath,
+      workspaceStatus: repo.workspaceStatus,
+      operationId: op?.id ?? null,
+      lastError: repo.lastError,
+    }
+  }
+
   // Already ready and checkout present
   if (repo.localPath) {
     try {
@@ -170,24 +219,10 @@ export async function ensureWorkspaceForWorker(input: {
         localPath: repo.localPath,
         workspaceStatus: 'ready' as const,
         operationId: null as string | null,
+        lastError: null as string | null,
       }
     } catch {
       // Fall through to (re)clone
-    }
-  }
-
-  if (['queued', 'cloning', 'syncing'].includes(repo.workspaceStatus)) {
-    const [op] = await db.select().from(workspaceOperations).where(and(
-      eq(workspaceOperations.repositoryId, repo.id),
-      inArray(workspaceOperations.status, ['queued', 'running']),
-    )).limit(1)
-    // Kick processor in case timer stalled
-    void processWorkspaceQueue()
-    return {
-      repositoryId: repo.id,
-      localPath: repo.localPath,
-      workspaceStatus: repo.workspaceStatus,
-      operationId: op?.id ?? null,
     }
   }
 
@@ -202,6 +237,7 @@ export async function ensureWorkspaceForWorker(input: {
     localPath: repo.localPath,
     workspaceStatus: 'queued' as const,
     operationId: op.id,
+    lastError: repo.lastError,
   }
 }
 
@@ -322,12 +358,29 @@ async function executeOperation(op: typeof workspaceOperations.$inferSelect) {
 }
 
 async function resolveCloneAuth(repo: typeof repositories.$inferSelect) {
+  const sshKey = await platformSshKeyPath()
+  // Prefer SSH when a platform key exists — many self-hosted GitLab instances
+  // disable HTTP(S) git while still allowing API tokens and SSH.
+  if (sshKey && /^https:\/\//i.test(repo.remoteUrl)) {
+    return {
+      token: null as string | null,
+      authUrl: httpsRemoteToSshUrl(repo.remoteUrl),
+      sshKey,
+      via: 'ssh' as const,
+    }
+  }
+
   if (!repo.connectionId) {
-    return { token: null as string | null, authUrl: repo.remoteUrl }
+    return {
+      token: null as string | null,
+      authUrl: repo.remoteUrl,
+      sshKey: null as string | null,
+      via: 'plain' as const,
+    }
   }
   const { token } = await getConnectionAccessToken(repo.connectionId)
   const authUrl = authenticatedCloneUrl(repo.remoteUrl, token, repo.forgeType)
-  return { token, authUrl }
+  return { token, authUrl, sshKey: null as string | null, via: 'https' as const }
 }
 
 async function cloneWorkspace(repo: typeof repositories.$inferSelect, logs: string[]) {
@@ -338,7 +391,8 @@ async function cloneWorkspace(repo: typeof repositories.$inferSelect, logs: stri
   }).where(eq(repositories.id, repo.id))
 
   const path = managedWorkspacePath(repo.workspaceId)
-  const { authUrl } = await resolveCloneAuth(repo)
+  const auth = await resolveCloneAuth(repo)
+  const gitEnv = auth.sshKey ? sshGitEnv(auth.sshKey) : undefined
 
   let exists = false
   try {
@@ -351,34 +405,57 @@ async function cloneWorkspace(repo: typeof repositories.$inferSelect, logs: stri
   if (exists) {
     logs.push('Workspace already present; verifying remote and fetching')
     await verifyRemote(path, repo.remoteUrl, logs)
-    await fetchWorkspace(path, authUrl, repo.defaultBranch, logs)
+    await fetchWorkspace(path, auth.authUrl, repo.defaultBranch, logs, gitEnv)
   } else {
-    // Remove incomplete directory if present
-    try {
-      const st = await stat(path)
-      if (st.isDirectory()) {
-        logs.push('Removing incomplete workspace directory')
-        await rm(path, { recursive: true, force: true })
-      }
-    } catch {
-      // missing is fine
-    }
+    await removeIncompleteWorkspace(path, logs)
 
     await mkdir(workspaceRootFromEnv(), { recursive: true })
-    logs.push(`Cloning into ${path}`)
-    const result = await runGit([
+    logs.push(`Cloning into ${path} via ${auth.via}`)
+    let result = await runGit([
       'clone',
       '--branch', repo.defaultBranch,
       '--single-branch',
-      authUrl,
+      auth.authUrl,
       path,
-    ], { timeoutMs: 300_000 })
+    ], { timeoutMs: 300_000, env: gitEnv })
     logs.push(redactSecrets(result.stderr || result.stdout))
+
+    // HTTPS may be disabled on the forge; fall back to SSH with the platform key.
+    if (result.code !== 0 && auth.via === 'https' && isHttpGitDisabledError(result.stderr || result.stdout)) {
+      const sshKey = await platformSshKeyPath()
+      if (sshKey) {
+        await removeIncompleteWorkspace(path, logs)
+        const sshUrl = httpsRemoteToSshUrl(repo.remoteUrl)
+        logs.push('HTTP(S) git disabled on forge; retrying clone over SSH')
+        result = await runGit([
+          'clone',
+          '--branch', repo.defaultBranch,
+          '--single-branch',
+          sshUrl,
+          path,
+        ], { timeoutMs: 300_000, env: sshGitEnv(sshKey) })
+        logs.push(redactSecrets(result.stderr || result.stdout))
+        if (result.code === 0) {
+          await stripRemoteCredentials(path, repo.remoteUrl, logs)
+          await db.update(repositories).set({
+            localPath: path,
+            lastCloneAt: new Date(),
+            lastSyncAt: new Date(),
+            workspaceStatus: 'ready',
+            updatedAt: new Date(),
+          }).where(eq(repositories.id, repo.id))
+          return
+        }
+      }
+    }
+
     if (result.code !== 0) {
       // Retry without branch pin if default branch missing
-      const retry = await runGit(['clone', authUrl, path], { timeoutMs: 300_000 })
+      await removeIncompleteWorkspace(path, logs)
+      const retry = await runGit(['clone', auth.authUrl, path], { timeoutMs: 300_000, env: gitEnv })
       logs.push(redactSecrets(retry.stderr || retry.stdout))
       if (retry.code !== 0) {
+        await removeIncompleteWorkspace(path, logs)
         throw new Error(`Clone failed: ${redactSecrets(retry.stderr || 'unknown error')}`)
       }
     }
@@ -411,8 +488,14 @@ async function syncWorkspace(repo: typeof repositories.$inferSelect, logs: strin
   }
 
   await verifyRemote(path, repo.remoteUrl, logs)
-  const { authUrl } = await resolveCloneAuth(repo)
-  await fetchWorkspace(path, authUrl, repo.defaultBranch, logs)
+  const auth = await resolveCloneAuth(repo)
+  await fetchWorkspace(
+    path,
+    auth.authUrl,
+    repo.defaultBranch,
+    logs,
+    auth.sshKey ? sshGitEnv(auth.sshKey) : undefined,
+  )
 
   await db.update(repositories).set({
     localPath: path,
@@ -458,18 +541,29 @@ async function verifyRemote(path: string, expectedRemote: string, logs: string[]
   logs.push('Remote identity verified')
 }
 
-async function fetchWorkspace(path: string, authUrl: string, defaultBranch: string, logs: string[]) {
-  // Temporarily set push URL with credentials for fetch, then restore clean URL
-  await runGit(['remote', 'set-url', 'origin', authUrl], { cwd: path, timeoutMs: 10_000 })
-  const fetch = await runGit(['fetch', '--prune', 'origin'], { cwd: path, timeoutMs: 180_000 })
+async function fetchWorkspace(
+  path: string,
+  authUrl: string,
+  defaultBranch: string,
+  logs: string[],
+  gitEnv?: NodeJS.ProcessEnv,
+) {
+  // Temporarily set origin for authenticated fetch, then restore clean HTTPS remote
+  await runGit(['remote', 'set-url', 'origin', authUrl], { cwd: path, timeoutMs: 10_000, env: gitEnv })
+  const fetch = await runGit(['fetch', '--prune', 'origin'], { cwd: path, timeoutMs: 180_000, env: gitEnv })
   logs.push(redactSecrets(fetch.stderr || fetch.stdout || 'fetch complete'))
   if (fetch.code !== 0) {
     throw new Error(`Fetch failed: ${redactSecrets(fetch.stderr || 'unknown error')}`)
   }
 
-  // Restore credential-free remote
-  const clean = authUrl.replace(/\/\/[^@]+@/, '//')
-  await runGit(['remote', 'set-url', 'origin', clean.endsWith('.git') ? clean : `${clean}.git`], {
+  // Restore credential-free HTTPS remote for storage (SSH key stays on the host)
+  const clean = /^git@/.test(authUrl)
+    ? `${authUrl.replace(/^git@([^:]+):/, 'https://$1/').replace(/\.git$/i, '')}.git`
+    : (() => {
+      const withoutCreds = authUrl.replace(/\/\/[^@]+@/, '//')
+      return withoutCreds.endsWith('.git') ? withoutCreds : `${withoutCreds}.git`
+    })()
+  await runGit(['remote', 'set-url', 'origin', clean], {
     cwd: path,
     timeoutMs: 10_000,
   })
@@ -482,7 +576,11 @@ async function fetchWorkspace(path: string, authUrl: string, defaultBranch: stri
   }
 
   await runGit(['checkout', defaultBranch], { cwd: path, timeoutMs: 30_000 })
-  const pull = await runGit(['pull', '--ff-only', 'origin', defaultBranch], { cwd: path, timeoutMs: 120_000 })
+  const pull = await runGit(['pull', '--ff-only', 'origin', defaultBranch], {
+    cwd: path,
+    timeoutMs: 120_000,
+    env: gitEnv,
+  })
   logs.push(redactSecrets(pull.stderr || pull.stdout || 'pull complete'))
   if (pull.code !== 0) {
     logs.push('Fast-forward pull unavailable; fetch succeeded and local branch left unchanged')

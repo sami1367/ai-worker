@@ -201,17 +201,6 @@ echo "Main log:      $LOG_FILE"
 echo "============================================================"
 
 # ============================================================
-# Repository must start clean
-# ============================================================
-
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-    echo
-    echo "ERROR: Repository has uncommitted/untracked changes before starting."
-    git -C "$PROJECT_DIR" status --short
-    exit 10
-fi
-
-# ============================================================
 # Determine GitLab project path
 # ============================================================
 
@@ -227,27 +216,33 @@ echo "GitLab project: $REPO_PATH"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 
 # ============================================================
-# Update main
+# Fresh environment: clean checkout of up-to-date main
 # ============================================================
 
 echo
-echo "Fetching origin..."
+echo "Preparing fresh workspace from origin/main..."
 git -C "$PROJECT_DIR" fetch --prune origin
 
-echo
-echo "Checking out main..."
-git -C "$PROJECT_DIR" checkout main
+# Drop leftover task branches / dirty state from prior runs so every issue
+# starts from a clean, current main.
+if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
+    echo "Discarding leftover local changes before starting..."
+    git -C "$PROJECT_DIR" status --short || true
+    git -C "$PROJECT_DIR" reset --hard HEAD || true
+    git -C "$PROJECT_DIR" clean -fd || true
+fi
 
-echo
-echo "Updating main with fast-forward only..."
-git -C "$PROJECT_DIR" pull --ff-only origin main
+git -C "$PROJECT_DIR" checkout main
+git -C "$PROJECT_DIR" reset --hard origin/main
 
 if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo
-    echo "ERROR: main is not clean after update."
+    echo "ERROR: main is not clean after fresh prepare."
     git -C "$PROJECT_DIR" status --short
     exit 12
 fi
+
+echo "Fresh workspace ready on main ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
 
 # ============================================================
 # Read GitLab issue
