@@ -1,63 +1,61 @@
+# Requires .env with INITIAL_ADMIN_BOOTSTRAP_SECRET (see .env.example)
+# docker compose up --build -d
+
+x-env: &env
+  DATABASE_URL: postgresql://aiworker:Aw7kP9mX2qR5vN8jL3hC6tY1wE4uS0bZ@db:5432/aiworker
+  NUXT_SESSION_PASSWORD: n8Kx2mQ7pL4vR9wT1yH6jC3bF5dA0sE2uZ
+  SECRET_ENCRYPTION_KEY: a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00
+  WORKER_INTERNAL_TOKEN: wk_7f3a9c2e1b8d4f6a0e5c9b2d7a1f4e8c3b6d9e0a2f5c8
+  INITIAL_ADMIN_BOOTSTRAP_SECRET: ${INITIAL_ADMIN_BOOTSTRAP_SECRET:?INITIAL_ADMIN_BOOTSTRAP_SECRET is required}
+  APP_BASE_URL: ${APP_BASE_URL:-http://127.0.0.1:8080}
+  WEB_INTERNAL_URL: http://web:3000
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  GITLAB_HOST: ${GITLAB_HOST:-}
+  GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+  WORKERS: ${WORKERS:-1}
+
+x-app: &app
+  build: .
+  environment: *env
+  env_file:
+    - path: .env
+      required: false
+  volumes:
+    - data:/data
+  networks:
+    - internal
+
 services:
   db:
     image: postgres:16.6-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-aiworker}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: ${POSTGRES_DB:-aiworker}
+      POSTGRES_USER: aiworker
+      POSTGRES_PASSWORD: Aw7kP9mX2qR5vN8jL3hC6tY1wE4uS0bZ
+      POSTGRES_DB: aiworker
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aiworker} -d ${POSTGRES_DB:-aiworker}"]
+      test: ["CMD-SHELL", "pg_isready -U aiworker -d aiworker"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
       - internal
-    # Not published publicly by default
 
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *app
     restart: "no"
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
     command: ["node", "--import", "tsx", "database/migrate.ts"]
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - internal
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *app
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      HOST: 0.0.0.0
-      PORT: 3000
-      AI_WORKER_BASE_DIR: /data/config
-      WORKSPACE_ROOT: /data/workspaces
-      LOGS_DIR: /data/logs
-      STATE_DIR: /data/state
-      CONFIG_DIR: /data/config
-      HOME: /home/appuser
-      PATH: /home/appuser/.local/bin:/home/appuser/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     ports:
       - "${WEB_BIND:-127.0.0.1:8080}:3000"
-    volumes:
-      - configdata:/data/config
-      - workspaces:/data/workspaces
-      - logsdata:/data/logs
-      - statedata:/data/state
     depends_on:
       db:
         condition: service_healthy
@@ -69,60 +67,28 @@ services:
       timeout: 5s
       retries: 10
       start_period: 40s
-    networks:
-      - internal
     stop_grace_period: 30s
     mem_limit: 1g
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *app
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      WEB_INTERNAL_URL: http://web:3000
-      AI_WORKER_BASE_DIR: /data/config
-      WORKSPACE_ROOT: /data/workspaces
-      LOGS_DIR: /data/logs
-      STATE_DIR: /data/state
-      CONFIG_DIR: /data/config
-      # Ensure Cursor/Claude CLIs (installed under ~/.local/bin) are on PATH
-      PATH: /home/appuser/.local/bin:/home/appuser/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      HOME: /home/appuser
     command: ["bash", "/app/scripts/worker-entrypoint.sh"]
-    volumes:
-      - configdata:/data/config
-      - workspaces:/data/workspaces
-      - logsdata:/data/logs
-      - statedata:/data/state
-      # Optional: mount host forge CLI config (document in README)
-      # - ${HOME}/.config/gh:/home/appuser/.config/gh:ro
     depends_on:
       web:
         condition: service_healthy
-      db:
-        condition: service_healthy
-    networks:
-      - internal
-    stop_grace_period: 120s
-    mem_limit: 2g
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/config/logs/platform-wrapper.log && kill -0 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 40s
+    stop_grace_period: 120s
+    mem_limit: 2g
 
 networks:
   internal:
-    driver: bridge
 
 volumes:
   pgdata:
-  configdata:
-  workspaces:
-  logsdata:
-  statedata:
+  data:

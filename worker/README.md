@@ -6,7 +6,7 @@ This directory is the **canonical** Bash automation engine for the AI Worker Pla
 
 | Script | Role |
 |--------|------|
-| `worker.sh` | Poll loop (one task per repo; parallel across repos) |
+| `worker.sh` | Poll loop (`WORKERS` concurrent agents; one task each; one per repo) |
 | `run-issue.sh` / `run-gitlab-issue.sh` | Issue implement (+ release shortcut) |
 | `run-github-pr-implement.sh` / `run-gitlab-mr-implement.sh` | PR/MR implement |
 | `run-github-pr-review.sh` / `run-gitlab-mr-review.sh` | PR/MR review |

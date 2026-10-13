@@ -19,6 +19,13 @@ WORKER_LOG="$LOG_DIR/worker.log"
 LOCK_FILE="$STATE_DIR/worker.lock"
 
 CHECK_INTERVAL="${CHECK_INTERVAL:-60}"
+# Max concurrent issue/PR agents (each agent runs exactly one task).
+# Still at most one task per repository. Default 1 = global single-task mode.
+WORKERS="${WORKERS:-1}"
+if ! [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: WORKERS must be a positive integer (got: ${WORKERS})"
+    exit 1
+fi
 
 # shellcheck source=lib/common.sh
 source "$WORKER_CODE_DIR/lib/common.sh"
@@ -73,15 +80,15 @@ echo "GitLab projects:      $GITLAB_PROJECTS_FILE"
 echo "GitLab host:          ${GITLAB_HOST}"
 echo "GitLab token set:     $(gitlab_configured && echo yes || echo no)"
 echo "Worker log:           $WORKER_LOG"
-echo "Concurrency:          one task per repository; other repositories run in parallel"
+echo "Workers (concurrency): ${WORKERS} (one task each; at most one task per repository)"
 echo "============================================================"
 
 # ============================================================
-# Per-repository agents
+# Concurrent agents
 #
-# Different repositories run at the same time. A repository runs
-# at most one task at a time. A new `ai` issue is not started when
-# that repository already has:
+# Up to WORKERS agents run at once. Each agent handles exactly one
+# issue/PR/MR. A repository still runs at most one task at a time.
+# A new `ai` issue is not started when that repository already has:
 #   - an agent running, or
 #   - an open issue labeled ai-working, or
 #   - any open pull request / merge request (unless the project
@@ -93,6 +100,7 @@ echo "============================================================"
 declare -A REPO_AGENT_PIDS=()
 declare -A REPO_AGENT_NAMES=()
 declare -A REPO_BUSY_LOGGED=()
+WORKERS_LIMIT_LOGGED=0
 
 repo_slot_key() {
     local project_dir="$1"
@@ -108,6 +116,7 @@ reset_repo_busy_log() {
     for key in "${!REPO_BUSY_LOGGED[@]}"; do
         unset 'REPO_BUSY_LOGGED[$key]'
     done
+    WORKERS_LIMIT_LOGGED=0
 }
 
 # Return 0 when this checkout already has a running agent.
@@ -163,6 +172,11 @@ reap_repo_agents() {
     done
 }
 
+workers_at_capacity() {
+    reap_repo_agents
+    [[ "${#REPO_AGENT_PIDS[@]}" -ge "$WORKERS" ]]
+}
+
 # Run one task while holding this repository's lock.
 # Usage: launch_repo_job <project_dir> <project_name> <function> [args...]
 launch_repo_job() {
@@ -170,6 +184,14 @@ launch_repo_job() {
     local project_name="$2"
     local key pid
     shift 2
+
+    if workers_at_capacity; then
+        if [[ "$WORKERS_LIMIT_LOGGED" -eq 0 ]]; then
+            WORKERS_LIMIT_LOGGED=1
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] At WORKERS=${WORKERS} limit; deferring further tasks until a slot frees."
+        fi
+        return 1
+    fi
 
     if repo_agent_running "$project_dir" "$project_name"; then
         return 1

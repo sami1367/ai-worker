@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Ubuntu host with Docker Engine and Docker Compose v2+
+- Ubuntu host with Docker Engine and Docker Compose v2.24+ (optional `.env` support)
 - Outbound network for GitHub/GitLab and AI provider APIs
 - At least 2 GB RAM recommended for concurrent agents
 
@@ -11,20 +11,18 @@
 ```bash
 git clone <repo-url> ai-worker-platform
 cd ai-worker-platform
-cp .env.example .env
-# Edit .env — set strong secrets for:
-#   POSTGRES_PASSWORD, NUXT_SESSION_PASSWORD, SECRET_ENCRYPTION_KEY,
-#   INITIAL_ADMIN_BOOTSTRAP_SECRET, WORKER_INTERNAL_TOKEN
 
-docker compose build
-docker compose up -d
+cp .env.example .env
+# Set INITIAL_ADMIN_BOOTSTRAP_SECRET (required — any random string)
+# Optional: GITHUB_TOKEN / GITLAB_HOST / GITLAB_TOKEN
+
+docker compose up --build -d
 
 # Wait for health
 curl -fsS http://127.0.0.1:8080/api/v1/health
 curl -fsS http://127.0.0.1:8080/api/v1/ready
 
-# Open http://127.0.0.1:8080/setup
-# Create admin with INITIAL_ADMIN_USERNAME + INITIAL_ADMIN_BOOTSTRAP_SECRET
+# Open http://127.0.0.1:8080/setup — enter username, password, and bootstrap secret
 ```
 
 Default publish bind: `127.0.0.1:8080` (not public). Put a reverse proxy with TLS in front for remote access.
@@ -37,11 +35,11 @@ Terminate TLS at Caddy/Nginx/Traefik. Forward to `127.0.0.1:8080`. Set `APP_BASE
 
 ### GitHub
 
-Prefer mounting authenticated `gh` config or setting `GH_TOKEN` / `GITHUB_TOKEN` in the worker environment (Compose `env_file` or secrets). Do not bake tokens into the image.
+Prefer connecting a token in the **Connections** UI, or set `GITHUB_TOKEN` in an optional `.env`. Do not bake tokens into the image.
 
 ### GitLab
 
-Set `GITLAB_HOST` and `GITLAB_TOKEN` in `.env`.
+Connect in the UI, or set `GITLAB_HOST` and `GITLAB_TOKEN` in `.env`.
 
 ### Cursor CLI + Claude Code
 
@@ -51,10 +49,13 @@ Both CLIs are installed during `docker compose build` via `scripts/install-ai-cl
 
 ```bash
 git pull
-docker compose build
-docker compose up -d
+docker compose up --build -d
 # migrate service runs once per compose up
 ```
+
+## Existing installs (volume layout)
+
+Compose now uses one `data` volume mounted at `/data` (replacing `configdata`, `workspaces`, `logsdata`, `statedata`). Fresh installs need no action. To keep old data, copy from the previous named volumes into the new `data` volume before starting.
 
 ## Host systemd (legacy)
 

@@ -3,8 +3,8 @@
 ## What to back up
 
 1. PostgreSQL database (users, repos, settings, task metadata, audit logs, sessions)
-2. Persistent volumes: `configdata`, `workspaces`, `logsdata`, `statedata`
-3. Offline copy of `.env` secrets (`SECRET_ENCRYPTION_KEY`, session secret, forge tokens)
+2. Persistent volumes: `pgdata` (Postgres) and `data` (`/data` — config, workspaces, logs, state)
+3. Offline copy of secrets (`SECRET_ENCRYPTION_KEY`, session secret, forge tokens) — from `.env` or wherever you set them
 
 Task history rows remain even if log files expire (`log_expired` flag).
 
@@ -18,8 +18,8 @@ Or manually:
 
 ```bash
 docker compose exec -T db pg_dump -U aiworker aiworker > backup.sql
-docker run --rm -v ai-worker_workspaces:/data -v "$PWD/backups:/backup" alpine \
-  tar -czf /backup/workspaces.tar.gz -C /data .
+docker run --rm -v ai-worker_data:/data:ro -v "$PWD/backups:/backup" alpine \
+  tar -czf /backup/data.tar.gz -C /data .
 ```
 
 ## Restore
@@ -29,7 +29,7 @@ docker run --rm -v ai-worker_workspaces:/data -v "$PWD/backups:/backup" alpine \
 docker compose restart web worker
 ```
 
-Restore workspace/log tarballs into the corresponding named volumes before starting the worker if you need historical logs/clones.
+Restore `data.tar.gz` into the `data` named volume before starting the worker if you need historical logs/clones.
 
 ## Notes
 

@@ -33,17 +33,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Logical services: **web**, **w
 
 ```bash
 cp .env.example .env
-# Set POSTGRES_PASSWORD, NUXT_SESSION_PASSWORD (>=32 chars),
-# SECRET_ENCRYPTION_KEY (64 hex chars), INITIAL_ADMIN_BOOTSTRAP_SECRET,
-# WORKER_INTERNAL_TOKEN
+# Set INITIAL_ADMIN_BOOTSTRAP_SECRET (required)
 
-docker compose build
-docker compose up -d
-
+docker compose up --build -d
 curl -fsS http://127.0.0.1:8080/api/v1/health
 ```
 
-Open `http://127.0.0.1:8080/setup` and create the first administrator using `INITIAL_ADMIN_BOOTSTRAP_SECRET`. No default password is shipped.
+Compose fails if `INITIAL_ADMIN_BOOTSTRAP_SECRET` is empty.
+
+Open `http://127.0.0.1:8080/setup` and create the first administrator. No default admin password is shipped.
 
 ## Development
 
@@ -59,26 +57,18 @@ pnpm build
 
 ## First-run administrator setup
 
-1. Ensure `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_BOOTSTRAP_SECRET` are set.
-2. Visit `/setup` while the database has zero users.
-3. Choose a strong password (≥12 characters).
-4. Rotate/remove the bootstrap secret after success.
+1. Set `INITIAL_ADMIN_BOOTSTRAP_SECRET` in `.env` (required; see `.env.example`).
+2. Visit `/setup` while the database has zero users; pick username + password (≥12 characters).
 
 ## Environment configuration
 
-See [`.env.example`](.env.example) for every variable. Required in production:
-
-- `DATABASE_URL`
-- `NUXT_SESSION_PASSWORD` / `SESSION_SECRET`
-- `SECRET_ENCRYPTION_KEY`
-- `WORKER_INTERNAL_TOKEN`
-- Bootstrap secrets for first admin only
+Postgres, session, encryption, and worker tokens are fixed in Compose. Required in `.env`: `INITIAL_ADMIN_BOOTSTRAP_SECRET`. Optional: `WORKERS`, forge tokens — see [`.env.example`](.env.example).
 
 ## Docker deployment
 
 Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-Services: `db`, `migrate`, `web`, `worker`. Volumes: Postgres data, config export, workspaces, logs, state. Only the web port is published (`127.0.0.1:8080` by default).
+Services: `db`, `migrate`, `web`, `worker`. Volumes: `pgdata` (Postgres) and `data` (`/data` — config, workspaces, logs, state). Only the web port is published (`127.0.0.1:8080` by default).
 
 ## Reverse proxy and HTTPS
 
@@ -87,11 +77,11 @@ Terminate TLS in front of `127.0.0.1:8080`. Set `APP_BASE_URL` to the public HTT
 ## GitHub / GitLab connections (recommended)
 
 1. Open **Connections** in the UI.
-2. **GitHub:** paste a personal access token with the full classic `repo` scope (`public_repo` alone only lists public repos). Fine-grained: grant private repository access (org private repos need the org as resource owner) plus Metadata/Contents/Issues/PRs. Optional browser OAuth if `GITHUB_OAUTH_CLIENT_*` is set.
-3. **GitLab:** enter server URL + personal access token (`api` scope; `read_api` minimum to list private projects).
+2. **GitHub:** classic PAT with `repo` (recommended). Fine-grained: Contents, Issues, Pull requests (read/write) on the target repos. `public_repo` alone only lists public repos.
+3. **GitLab:** server URL + PAT with `api` and `write_repository` (`read_api` alone cannot run the worker).
 4. Connecting is enough: every visible repo is **auto-registered and enabled**. The worker checks each managed repo via the forge API (no local clone). It **lazy-clones only when** an open `ai` / `ai-review` item is found. New repos are picked up every **15 minutes**, or immediately via **Fetch new repos** on the Repositories page.
 
-Tokens are encrypted at rest (`SECRET_ENCRYPTION_KEY`) and never returned to the browser after connect. The web service materializes forge credentials into `/data/config/forge-credentials.env` (mode `0600`) for the worker entrypoint. Compose env `GH_TOKEN` / `GITLAB_TOKEN` remain a fallback.
+Tokens are encrypted at rest (`SECRET_ENCRYPTION_KEY`) and never returned to the browser after connect. The web service materializes forge credentials into `/data/config/forge-credentials.env` (mode `0600`) for the worker entrypoint. Compose env `GITHUB_TOKEN` / `GITLAB_TOKEN` remain a fallback.
 
 ### Optional GitHub OAuth App
 
@@ -146,7 +136,7 @@ Unchanged from the Bash engine:
 
 Labels: `ai`, `ai-working`, `ai-pr`, `ai-failed`, `ai-review`, `ai-reviewing`, `ai-reviewed`, `ai-review-failed`.
 
-One task per repository; other repositories run in parallel. See [docs/FEATURE_PARITY_MATRIX.md](docs/FEATURE_PARITY_MATRIX.md).
+Concurrency is controlled by `WORKERS` (default `1` — one issue/PR at a time). Raise it for parallel agents across different repos; each agent still runs a single task, and a repository never runs two tasks at once. See [docs/FEATURE_PARITY_MATRIX.md](docs/FEATURE_PARITY_MATRIX.md).
 
 ## Logs
 

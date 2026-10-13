@@ -1,9 +1,8 @@
+# Optional: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 services:
   web:
     environment:
       NODE_ENV: development
-    ports:
-      - "${WEB_BIND:-127.0.0.1:8080}:3000"
 
   db:
     ports:
