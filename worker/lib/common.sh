@@ -1036,6 +1036,22 @@ ai_format_github_comments() {
     )" "$max_bytes"
 }
 
+# Print oldest open issue number with label "ai" assigned to the authenticated
+# GitHub user (@me), or empty. Unassigned ai issues are ignored.
+github_find_ai_issue() {
+    local repo="$1"
+
+    gh issue list \
+        --repo "$repo" \
+        --label "ai" \
+        --assignee "@me" \
+        --state open \
+        --limit 1 \
+        --json number \
+        --jq '.[0].number // empty' \
+        2>/dev/null || true
+}
+
 # Fetch all issue/PR discussion comments from GitHub (chronological).
 ai_github_fetch_issue_comments() {
     local repo="$1"

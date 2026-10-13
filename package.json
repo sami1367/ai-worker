@@ -15,7 +15,7 @@
     "test:unit": "pnpm exec vitest run tests/unit",
     "test:integration": "pnpm exec vitest run tests/integration",
     "test:e2e": "pnpm exec vitest run tests/e2e",
-    "test:worker": "bash worker/tests/related-tasks.sh",
+    "test:worker": "bash worker/tests/related-tasks.sh && bash worker/tests/assignee-filter.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "pnpm exec tsx database/migrate.ts",
     "db:studio": "drizzle-kit studio",
