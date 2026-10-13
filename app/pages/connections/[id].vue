@@ -63,6 +63,34 @@ async function refreshList() {
     busy.value = ''
   }
 }
+
+async function setupWebhooks() {
+  busy.value = 'webhooks'
+  message.value = ''
+  messageError.value = false
+  try {
+    const res = await api<{
+      attempted: number
+      created: number
+      updated: number
+      failed: number
+      webhookUrl: string
+      errors?: Array<{ name: string, message: string }>
+    }>(`/api/v1/connections/${id.value}/setup-webhooks`, { method: 'POST' })
+    message.value = `Webhooks: ${res.created} created, ${res.updated} updated, ${res.failed} failed of ${res.attempted}. `
+      + `Callback: ${res.webhookUrl}`
+    messageError.value = res.failed > 0
+    if (res.errors?.length) {
+      message.value += ` — ${res.errors[0].name}: ${res.errors[0].message}`
+    }
+    await refreshConnection()
+  } catch (e: any) {
+    message.value = e?.data?.message || e?.data?.data?.message || 'Webhook setup failed'
+    messageError.value = true
+  } finally {
+    busy.value = ''
+  }
+}
 </script>
 
 <template>
@@ -83,6 +111,10 @@ async function refreshList() {
         <p v-if="connection?.scopes" class="mt-1 text-xs opacity-50">
           Token scopes: {{ connection.scopes }}
         </p>
+        <p v-if="connection?.webhookUrl" class="mt-1 break-all text-xs opacity-50">
+          Webhook URL: {{ connection.webhookUrl }}
+          <span v-if="connection.hasWebhookSecret"> · secret configured</span>
+        </p>
         <UAlert
           v-if="connection?.lastError"
           class="mt-3"
@@ -97,6 +129,9 @@ async function refreshList() {
         </UButton>
         <UButton :loading="busy === 'refresh'" icon="i-lucide-refresh-cw" @click="refreshList">
           Fetch from provider
+        </UButton>
+        <UButton :loading="busy === 'webhooks'" variant="soft" icon="i-lucide-webhook" @click="setupWebhooks">
+          Setup webhooks
         </UButton>
       </div>
     </div>

@@ -454,6 +454,151 @@ ai_foreach_project() {
     return 0
 }
 
+# Reap finished PIDs from a name-referenced array (bash 4.3+ nameref).
+# Usage: ai_reap_pid_array <array_varname>
+ai_reap_pid_array() {
+    local -n _ai_pids_ref="$1"
+    local -a alive=()
+    local p
+    for p in "${_ai_pids_ref[@]}"; do
+        if kill -0 "$p" 2>/dev/null; then
+            alive+=("$p")
+        else
+            wait "$p" 2>/dev/null || true
+        fi
+    done
+    _ai_pids_ref=("${alive[@]}")
+}
+
+# Like ai_foreach_project, but runs up to POLL_CONCURRENCY (default 5) callbacks
+# at once. Callbacks run in subshells — they must not rely on mutating parent
+# shell state (use POLL_LAUNCH_QUEUE + queue_or_launch_repo_job from worker.sh).
+# A non-zero callback return is ignored so one failure does not abort the batch.
+ai_foreach_project_parallel() {
+    local projects_file="$1"
+    local callback="$2"
+    local concurrency="${3:-${POLL_CONCURRENCY:-5}}"
+    local entry project project_dir block_on_open_pr full_name remote_url
+    local -a pids=()
+    local pid
+
+    if [[ ! -f "$projects_file" ]]; then
+        return 0
+    fi
+
+    if ! [[ "$concurrency" =~ ^[1-9][0-9]*$ ]]; then
+        concurrency=5
+    fi
+
+    while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
+        [[ -z "$entry" ]] && continue
+
+        project="$(jq -r '.name // empty' <<<"$entry")"
+        project_dir="$(jq -r '.path // empty' <<<"$entry")"
+        full_name="$(jq -r '.full_name // .repo // empty' <<<"$entry")"
+        remote_url="$(jq -r '.remote_url // empty' <<<"$entry")"
+        block_on_open_pr="$(ai_project_entry_bool "$entry" "block_on_open_pr" 1)"
+
+        if ! ai_validate_project_dir "$project" "$project_dir" 1; then
+            if [[ -z "$full_name" && -z "$remote_url" ]]; then
+                continue
+            fi
+        fi
+
+        while (( ${#pids[@]} >= concurrency )); do
+            wait -n 2>/dev/null || {
+                # Bash without wait -n: wait for the oldest child.
+                if [[ "${#pids[@]}" -gt 0 ]]; then
+                    wait "${pids[0]}" 2>/dev/null || true
+                fi
+            }
+            ai_reap_pid_array pids
+        done
+
+        (
+            "$callback" "$project" "$project_dir" "$block_on_open_pr" "$entry" || true
+        ) &
+        pids+=($!)
+    done < <(ai_list_project_entries "$projects_file")
+
+    for pid in "${pids[@]}"; do
+        wait "$pid" 2>/dev/null || true
+    done
+
+    return 0
+}
+
+# Multi-worker short lease before flipping forge labels (ai -> ai-working, etc.).
+# Uses Postgres via the web API (no Redis). Default TTL 10s.
+# Usage: ai_try_claim_repo_lock <github|gitlab> <full_name> [task_type] [external_id]
+# Returns:
+#   0 — claimed, renewed, or no control plane (proceed; local flock still applies)
+#   1 — another worker holds the claim (caller must skip)
+ai_try_claim_repo_lock() {
+    local forge="$1"
+    local full_name="$2"
+    local task_type="${3:-}"
+    local external_id="${4:-}"
+    local ttl="${REPO_CLAIM_TTL_SECONDS:-10}"
+    local web_url token holder payload body claimed
+
+    web_url="${WEB_INTERNAL_URL:-}"
+    token="${WORKER_INTERNAL_TOKEN:-}"
+    if [[ -z "$web_url" || -z "$token" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Repo claim skipped (no control plane); relying on local locks/labels."
+        return 0
+    fi
+
+    if [[ -z "$forge" || -z "$full_name" ]]; then
+        echo "WARNING: ai_try_claim_repo_lock requires forge and full_name" >&2
+        return 1
+    fi
+
+    if ! [[ "$ttl" =~ ^[1-9][0-9]*$ ]]; then
+        ttl=10
+    fi
+
+    holder="${WORKER_CLAIM_HOLDER:-$(hostname 2>/dev/null || echo worker)-$$}"
+
+    payload="$(jq -n \
+        --arg forge "$forge" \
+        --arg full "$full_name" \
+        --arg holder "$holder" \
+        --argjson ttl "$ttl" \
+        --arg task "$task_type" \
+        --arg ext "$external_id" \
+        '{
+            forgeType: $forge,
+            fullName: $full,
+            holder: $holder,
+            ttlSeconds: $ttl
+        }
+        + (if $task == "" then {} else {taskType: $task} end)
+        + (if $ext == "" then {} else {externalId: $ext} end)')"
+
+    body="$(
+        curl -fsS -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-worker-token: $token" \
+            -d "$payload" \
+            "${web_url}/api/v1/worker/internal/claim-repo" 2>/dev/null || true
+    )"
+
+    if [[ -z "$body" ]]; then
+        echo "WARNING: Repo claim API unreachable for $full_name; skipping job to avoid duplicate multi-worker work." >&2
+        return 1
+    fi
+
+    claimed="$(jq -r '.claimed // false' <<<"$body" 2>/dev/null || echo false)"
+    if [[ "$claimed" == "true" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Claimed repo lock ${forge}:${full_name} for ${ttl}s (holder=${holder})"
+        return 0
+    fi
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Repo ${forge}:${full_name} already claimed by $(jq -r '.holder // "another worker"' <<<"$body"); skipping."
+    return 1
+}
+
 # Ask the platform to clone a managed workspace if missing.
 # Usage: ai_ensure_project_workspace <project_dir> <project_name> [forge] [full_name]
 # Returns:

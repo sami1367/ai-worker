@@ -59,6 +59,12 @@ Table `control_requests`: `{ id, action, status, requested_by, payload, created_
 
 Allowed actions: `reload_config`, `start`, `stop`, `restart`.
 
+Webhook wake uses a shared-volume wake file (not a control action) so idle sleep can interrupt within a few seconds without bouncing the worker process.
+
+### Multi-worker repo claims
+
+Before flipping forge labels (`ai` → `ai-working`, `ai-review` → `ai-reviewing`), a job calls `POST /api/v1/worker/internal/claim-repo` which takes a short Postgres lease (`worker_repo_claims`, default **10s** via `REPO_CLAIM_TTL_SECONDS`). Only one worker wins; others skip that repo. After labels flip, forge state is the durable lock. Local `flock` still prevents duplicates on a single host.
+
 Worker wrapper polls pending requests, validates action allowlist, acknowledges, performs safe operation, writes result. Stop/restart wait for idle agents when `graceful` is true (default).
 
 ## Task history
@@ -120,7 +126,18 @@ UI Connections → OAuth (PKCE) → forge_connections (encrypted tokens)
                  → async clone/sync into WORKSPACE_ROOT/<workspaceId>
                  → exportWorkerConfig + forge-credentials.env
                  → Bash worker polls labels using path + GH_TOKEN/GITLAB_TOKEN
+                 → Optional forge webhooks (label ai / ai-review) wake the poll loop early
 ```
+
+### Forge webhooks (optional, faster pickup)
+
+Polling remains the source of truth. When configured, GitHub/GitLab call:
+
+- `POST /api/v1/webhooks/github/:connectionId`
+- `POST /api/v1/webhooks/gitlab/:connectionId`
+
+Verified with per-connection secrets (GitHub HMAC / GitLab token). On `ai` or `ai-review` label add, the API writes `$AI_WORKER_BASE_DIR/state/wake-poll` so `worker.sh` breaks out of its sleep and polls immediately. Use **Setup webhooks** on a connection (or per repository). `APP_BASE_URL` must be reachable from the forge.
+
 
 | Table | Role |
 |-------|------|

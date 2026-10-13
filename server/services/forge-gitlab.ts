@@ -502,6 +502,123 @@ export async function ensureGitLabProjectLabels(
   return { created, existing: already }
 }
 
+export type GitLabWebhookHook = {
+  id: number
+  url: string
+  issuesEvents: boolean
+  mergeRequestsEvents: boolean
+}
+
+/** List project webhooks (Maintainer+ required). */
+export async function listGitLabProjectWebhooks(
+  instanceUrl: string,
+  token: string,
+  projectPath: string,
+): Promise<GitLabWebhookHook[]> {
+  const base = normalizeGitLabInstanceUrl(instanceUrl)
+  const encodedProject = encodeURIComponent(projectPath.replace(/^\//, '').replace(/\.git$/, ''))
+  const res = await safeFetch(
+    `${base}/api/v4/projects/${encodedProject}/hooks?per_page=100`,
+    {
+      headers: gitlabHeaders(token),
+      timeoutMs: 30000,
+      expectedOrigin: base,
+    },
+  )
+  if (res.status === 401) {
+    throw new AppError(401, 'GitLab credentials are invalid or revoked', 'forge_unauthorized')
+  }
+  if (res.status === 403) {
+    throw new AppError(403, 'GitLab credentials lack permission to manage webhooks', 'forge_forbidden')
+  }
+  if (!res.ok) {
+    const text = redactSecrets(await res.text())
+    throw new AppError(502, `GitLab hooks list failed (${res.status}): ${text.slice(0, 200)}`, 'forge_api_error')
+  }
+  const hooks = await res.json() as Array<{
+    id: number
+    url?: string
+    issues_events?: boolean
+    merge_requests_events?: boolean
+  }>
+  return hooks.map((h) => ({
+    id: h.id,
+    url: String(h.url || ''),
+    issuesEvents: Boolean(h.issues_events),
+    mergeRequestsEvents: Boolean(h.merge_requests_events),
+  }))
+}
+
+/**
+ * Ensure a GitLab project webhook delivers issue + MR events to our URL.
+ * Updates an existing hook with the same URL; otherwise creates one.
+ */
+export async function ensureGitLabProjectWebhook(opts: {
+  instanceUrl: string
+  token: string
+  projectPath: string
+  callbackUrl: string
+  secret: string
+}): Promise<{ hookId: number, created: boolean, updated: boolean }> {
+  const base = normalizeGitLabInstanceUrl(opts.instanceUrl)
+  const encodedProject = encodeURIComponent(
+    opts.projectPath.replace(/^\//, '').replace(/\.git$/, ''),
+  )
+  const existing = await listGitLabProjectWebhooks(opts.instanceUrl, opts.token, opts.projectPath)
+  const match = existing.find((h) => h.url === opts.callbackUrl)
+
+  const body = {
+    url: opts.callbackUrl,
+    token: opts.secret,
+    enable_ssl_verification: true,
+    issues_events: true,
+    merge_requests_events: true,
+    push_events: false,
+    tag_push_events: false,
+    note_events: false,
+    pipeline_events: false,
+    wiki_page_events: false,
+    deployment_events: false,
+    job_events: false,
+    releases_events: false,
+  }
+
+  if (match) {
+    const res = await safeFetch(`${base}/api/v4/projects/${encodedProject}/hooks/${match.id}`, {
+      method: 'PUT',
+      headers: gitlabHeaders(opts.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+      timeoutMs: 30000,
+      expectedOrigin: base,
+    })
+    if (!res.ok) {
+      const text = redactSecrets(await res.text())
+      throw new AppError(502, `GitLab hook update failed (${res.status}): ${text.slice(0, 200)}`, 'forge_api_error')
+    }
+    return { hookId: match.id, created: false, updated: true }
+  }
+
+  const res = await safeFetch(`${base}/api/v4/projects/${encodedProject}/hooks`, {
+    method: 'POST',
+    headers: gitlabHeaders(opts.token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+    timeoutMs: 30000,
+    expectedOrigin: base,
+  })
+  if (res.status === 401) {
+    throw new AppError(401, 'GitLab credentials are invalid or revoked', 'forge_unauthorized')
+  }
+  if (res.status === 403) {
+    throw new AppError(403, 'GitLab credentials lack permission to manage webhooks', 'forge_forbidden')
+  }
+  if (!res.ok) {
+    const text = redactSecrets(await res.text())
+    throw new AppError(502, `GitLab hook create failed (${res.status}): ${text.slice(0, 200)}`, 'forge_api_error')
+  }
+  const created = await res.json() as { id: number }
+  return { hookId: created.id, created: true, updated: false }
+}
+
 export async function revokeGitLabToken(instanceUrl: string, token: string): Promise<void> {
   const clientId = process.env.GITLAB_OAUTH_CLIENT_ID
   const clientSecret = process.env.GITLAB_OAUTH_CLIENT_SECRET

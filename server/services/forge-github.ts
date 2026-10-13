@@ -469,6 +469,76 @@ export async function ensureGitHubRepoLabels(
   return { created, existing: already }
 }
 
+export type GitHubWebhookHook = {
+  id: number
+  url: string
+  active: boolean
+  events: string[]
+}
+
+/** List repository webhooks (admin required). */
+export async function listGitHubRepoWebhooks(
+  token: string,
+  fullName: string,
+): Promise<GitHubWebhookHook[]> {
+  const repo = normalizeGitHubRepoFullName(fullName)
+  const hooks = await githubApi<Array<{
+    id: number
+    active?: boolean
+    events?: string[]
+    config?: { url?: string }
+  }>>(`/repos/${repo}/hooks?per_page=100`, token)
+  return hooks.map((h) => ({
+    id: h.id,
+    url: String(h.config?.url || ''),
+    active: Boolean(h.active),
+    events: Array.isArray(h.events) ? h.events.map(String) : [],
+  }))
+}
+
+/**
+ * Ensure a GitHub repo webhook delivers issues + pull_request events to our URL.
+ * Updates an existing hook with the same URL; otherwise creates one.
+ */
+export async function ensureGitHubRepoWebhook(opts: {
+  token: string
+  fullName: string
+  callbackUrl: string
+  secret: string
+}): Promise<{ hookId: number, created: boolean, updated: boolean }> {
+  const repo = normalizeGitHubRepoFullName(opts.fullName)
+  const existing = await listGitHubRepoWebhooks(opts.token, repo)
+  const match = existing.find((h) => h.url === opts.callbackUrl)
+
+  const body = {
+    name: 'web',
+    active: true,
+    events: ['issues', 'pull_request'],
+    config: {
+      url: opts.callbackUrl,
+      content_type: 'json',
+      secret: opts.secret,
+      insecure_ssl: '0',
+    },
+  }
+
+  if (match) {
+    await githubApi(`/repos/${repo}/hooks/${match.id}`, opts.token, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return { hookId: match.id, created: false, updated: true }
+  }
+
+  const created = await githubApi<{ id: number }>(`/repos/${repo}/hooks`, opts.token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { hookId: created.id, created: true, updated: false }
+}
+
 export async function revokeGitHubToken(token: string): Promise<void> {
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID
   const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET

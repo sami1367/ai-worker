@@ -26,6 +26,7 @@ Maps every discovered existing capability to the AI Worker Platform. Status valu
 | 20 | Prompt templates | `worker/prompts/` seed → `prompt_templates` DB + UI | preserved + editable | Worker fetches from DB each job; seed files fallback |
 | 21 | Per-task log files | `logs/` naming | preserved + DB metadata | task_runs.log_ref |
 | 22 | Label setup (GH/GL) | `setup-labels.sh`, `setup-gitlab-labels.sh` | preserved + UI action | API triggers scripts |
+| 22b | Forge webhooks (label wake) | `server/services/webhooks.ts`, worker wake-poll | platform-new — optional | Unit tests + Setup webhooks UI |
 | 23 | GitLab API client | `lib/gitlab.sh` | preserved | Token via env/secrets |
 | 24 | GitHub via `gh` | runners | preserved | GH_TOKEN / gh auth volume |
 | 25 | systemd unit | `ai-worker.service` | adapted — points at wrappers / Docker preferred | Docs migration |

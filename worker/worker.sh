@@ -17,13 +17,21 @@ STATE_DIR="$BASE_DIR/state"
 
 WORKER_LOG="$LOG_DIR/worker.log"
 LOCK_FILE="$STATE_DIR/worker.lock"
+# Written by the web API when a forge webhook delivers an AI label event.
+WAKE_POLL_FILE="$STATE_DIR/wake-poll"
 
 CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
+# How many repositories to poll (forge API label checks) at once per pass.
+POLL_CONCURRENCY="${POLL_CONCURRENCY:-5}"
 # Max concurrent issue/PR agents (each agent runs exactly one task).
 # Still at most one task per repository. Default 1 = global single-task mode.
 WORKERS="${WORKERS:-1}"
 if ! [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]]; then
     echo "ERROR: WORKERS must be a positive integer (got: ${WORKERS})"
+    exit 1
+fi
+if ! [[ "$POLL_CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: POLL_CONCURRENCY must be a positive integer (got: ${POLL_CONCURRENCY})"
     exit 1
 fi
 
@@ -76,6 +84,7 @@ fi
 ai_log_banner "AI WORKER STARTED"
 echo "Started:              $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Check interval:       ${CHECK_INTERVAL}s"
+echo "Poll concurrency:     ${POLL_CONCURRENCY} repos at a time"
 echo "GitHub projects:      $PROJECTS_FILE"
 echo "GitLab projects:      $GITLAB_PROJECTS_FILE"
 echo "GitLab host:          ${GITLAB_HOST}"
@@ -329,22 +338,137 @@ launch_repo_job() {
     return 0
 }
 
-# Wake when any agent exits, or after CHECK_INTERVAL, whichever comes first.
-wait_for_running_agents() {
-    local sleeper
+# When POLL_LAUNCH_QUEUE is set (parallel poll), enqueue a launch for the parent
+# shell. Otherwise launch immediately (sequential poll / tests).
+# Usage: same as launch_repo_job
+queue_or_launch_repo_job() {
+    local project_dir="$1"
+    local project_name="$2"
+    local job_fn="$3"
+    local line
 
-    sleep "$CHECK_INTERVAL" &
-    sleeper=$!
-
-    wait -n || true
-
-    if kill -0 "$sleeper" 2>/dev/null; then
-        kill "$sleeper" 2>/dev/null || true
-        wait "$sleeper" 2>/dev/null || true
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] An agent finished; checking repositories again."
-    else
-        wait "$sleeper" 2>/dev/null || true
+    if [[ -z "${POLL_LAUNCH_QUEUE:-}" ]]; then
+        launch_repo_job "$@"
+        return $?
     fi
+
+    # Encode as JSON so paths/names with spaces stay intact.
+    line="$(jq -nc \
+        --arg project_dir "$project_dir" \
+        --arg project_name "$project_name" \
+        --arg job_fn "$job_fn" \
+        --arg arg1 "${4:-}" \
+        --arg arg2 "${5:-}" \
+        --arg arg3 "${6:-}" \
+        '{
+            project_dir: $project_dir,
+            project_name: $project_name,
+            job_fn: $job_fn,
+            args: [$arg1, $arg2, $arg3]
+        }')" || return 1
+
+    (
+        flock 8
+        printf '%s\n' "$line" >>"$POLL_LAUNCH_QUEUE"
+    ) 8>"${POLL_LAUNCH_QUEUE}.lock"
+    return 0
+}
+
+drain_poll_launch_queue() {
+    local queue_file="$1"
+    local line project_dir project_name job_fn a1 a2 a3
+
+    [[ -f "$queue_file" ]] || return 0
+
+    while IFS= read -r line || [[ -n "${line:-}" ]]; do
+        [[ -z "$line" ]] && continue
+        project_dir="$(jq -r '.project_dir // empty' <<<"$line")"
+        project_name="$(jq -r '.project_name // empty' <<<"$line")"
+        job_fn="$(jq -r '.job_fn // empty' <<<"$line")"
+        a1="$(jq -r '.args[0] // empty' <<<"$line")"
+        a2="$(jq -r '.args[1] // empty' <<<"$line")"
+        a3="$(jq -r '.args[2] // empty' <<<"$line")"
+        if [[ -z "$project_dir" || -z "$project_name" || -z "$job_fn" ]]; then
+            continue
+        fi
+        # Parent shell owns REPO_AGENT_* maps; re-check capacity/busy here.
+        launch_repo_job "$project_dir" "$project_name" "$job_fn" "$a1" "$a2" "$a3" || true
+    done <"$queue_file"
+}
+
+# Run one poll pass over all projects with up to POLL_CONCURRENCY parallel
+# forge checks; drain queued launches in the parent afterward.
+poll_projects_parallel() {
+    local projects_file="$1"
+    local callback="$2"
+    local queue_file
+
+    if [[ ! -f "$projects_file" ]]; then
+        return 0
+    fi
+
+    mkdir -p "$STATE_DIR"
+    queue_file="$(mktemp "$STATE_DIR/poll-launch.XXXXXX")"
+    POLL_LAUNCH_QUEUE="$queue_file"
+    ai_foreach_project_parallel "$projects_file" "$callback" "$POLL_CONCURRENCY" || true
+    POLL_LAUNCH_QUEUE=""
+    drain_poll_launch_queue "$queue_file"
+    rm -f "$queue_file" "${queue_file}.lock"
+}
+
+consume_wake_poll() {
+    if [[ -f "$WAKE_POLL_FILE" ]]; then
+        rm -f "$WAKE_POLL_FILE" 2>/dev/null || true
+        return 0
+    fi
+    return 1
+}
+
+# Sleep up to CHECK_INTERVAL, waking early if a forge webhook touched wake-poll
+# or (when wait_agents=1) if any background agent exits.
+interruptible_sleep() {
+    local wait_agents="${1:-0}"
+    local remaining="$CHECK_INTERVAL"
+    local chunk
+
+    while (( remaining > 0 )); do
+        if consume_wake_poll; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Webhook wake received; checking repositories again."
+            return 0
+        fi
+
+        chunk=5
+        if (( chunk > remaining )); then
+            chunk=$remaining
+        fi
+
+        if [[ "$wait_agents" -eq 1 && "${#REPO_AGENT_PIDS[@]}" -gt 0 ]]; then
+            sleep "$chunk" &
+            local sleeper=$!
+            wait -n || true
+            if kill -0 "$sleeper" 2>/dev/null; then
+                # An agent finished (or another child exited) before sleep ended.
+                kill "$sleeper" 2>/dev/null || true
+                wait "$sleeper" 2>/dev/null || true
+                if consume_wake_poll; then
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Webhook wake received; checking repositories again."
+                else
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] An agent finished; checking repositories again."
+                fi
+                return 0
+            fi
+            wait "$sleeper" 2>/dev/null || true
+        else
+            sleep "$chunk"
+        fi
+
+        remaining=$((remaining - chunk))
+    done
+}
+
+# Wake when any agent exits, after CHECK_INTERVAL, or on webhook wake file.
+wait_for_running_agents() {
+    interruptible_sleep 1
 }
 
 github_repo_from_dir() {
@@ -547,6 +671,10 @@ github_issue_job() {
     echo "Time:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
 
+    if ! ai_try_claim_repo_lock "github" "$REPO" "github_issue" "$ISSUE_NUMBER"; then
+        return 0
+    fi
+
     echo
     echo "Changing labels: ai -> ai-working"
 
@@ -625,6 +753,10 @@ gitlab_issue_job() {
     echo "Time:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
 
+    if ! ai_try_claim_repo_lock "gitlab" "$REPO_PATH" "gitlab_issue" "$ISSUE_NUMBER"; then
+        return 0
+    fi
+
     echo
     echo "Changing labels: ai -> ai-working"
 
@@ -697,6 +829,10 @@ github_pr_implement_job() {
     echo "Pull request:  #$PR_NUMBER"
     echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
+
+    if ! ai_try_claim_repo_lock "github" "$REPO" "github_pr_implement" "$PR_NUMBER"; then
+        return 0
+    fi
 
     echo
     echo "Changing labels: ai -> ai-working"
@@ -776,6 +912,10 @@ github_pr_review_job() {
     echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
 
+    if ! ai_try_claim_repo_lock "github" "$REPO" "github_pr_review" "$PR_NUMBER"; then
+        return 0
+    fi
+
     echo
     echo "Changing labels: ai-review -> ai-reviewing"
 
@@ -854,6 +994,10 @@ gitlab_mr_implement_job() {
     echo "Time:           $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
 
+    if ! ai_try_claim_repo_lock "gitlab" "$REPO_PATH" "gitlab_mr_implement" "$MR_IID"; then
+        return 0
+    fi
+
     echo
     echo "Changing labels: ai -> ai-working"
 
@@ -926,6 +1070,10 @@ gitlab_mr_review_job() {
     echo "Merge request:  !$MR_IID"
     echo "Time:           $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
+
+    if ! ai_try_claim_repo_lock "gitlab" "$REPO_PATH" "gitlab_mr_review" "$MR_IID"; then
+        return 0
+    fi
 
     echo
     echo "Changing labels: ai-review -> ai-reviewing"
@@ -1027,7 +1175,7 @@ process_github_project() {
         return 0
     fi
 
-    launch_repo_job "$PROJECT_DIR" "$PROJECT" github_issue_job "$PROJECT" "$REPO" "$ISSUE_NUMBER"
+    queue_or_launch_repo_job "$PROJECT_DIR" "$PROJECT" github_issue_job "$PROJECT" "$REPO" "$ISSUE_NUMBER"
     return 0
 }
 
@@ -1078,7 +1226,7 @@ process_gitlab_project() {
         return 0
     fi
 
-    launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_issue_job "$PROJECT" "$REPO_PATH" "$ISSUE_NUMBER"
+    queue_or_launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_issue_job "$PROJECT" "$REPO_PATH" "$ISSUE_NUMBER"
     return 0
 }
 
@@ -1124,7 +1272,7 @@ process_github_pr_implement() {
         return 0
     fi
 
-    launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_implement_job "$PROJECT" "$REPO" "$PR_NUMBER"
+    queue_or_launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_implement_job "$PROJECT" "$REPO" "$PR_NUMBER"
     return 0
 }
 
@@ -1170,7 +1318,7 @@ process_github_pr_review() {
         return 0
     fi
 
-    launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_review_job "$PROJECT" "$REPO" "$PR_NUMBER"
+    queue_or_launch_repo_job "$PROJECT_DIR" "$PROJECT" github_pr_review_job "$PROJECT" "$REPO" "$PR_NUMBER"
     return 0
 }
 
@@ -1215,7 +1363,7 @@ process_gitlab_mr_implement() {
         return 0
     fi
 
-    launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_mr_implement_job "$PROJECT" "$REPO_PATH" "$MR_IID"
+    queue_or_launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_mr_implement_job "$PROJECT" "$REPO_PATH" "$MR_IID"
     return 0
 }
 
@@ -1260,7 +1408,7 @@ process_gitlab_mr_review() {
         return 0
     fi
 
-    launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_mr_review_job "$PROJECT" "$REPO_PATH" "$MR_IID"
+    queue_or_launch_repo_job "$PROJECT_DIR" "$PROJECT" gitlab_mr_review_job "$PROJECT" "$REPO_PATH" "$MR_IID"
     return 0
 }
 
@@ -1270,6 +1418,8 @@ process_gitlab_mr_review() {
 # For each managed project, query the forge API by full_name for
 # open ai / ai-review work (no local clone required). Only when
 # work exists do we ensure the workspace and launch a job.
+# Forge checks run up to POLL_CONCURRENCY repos in parallel; agent
+# launches stay in the parent shell (shared REPO_AGENT_* state).
 # ============================================================
 
 while true; do
@@ -1278,6 +1428,9 @@ while true; do
     # (e.g. user connected GitHub/GitLab/Cursor while the worker was already up).
     ai_load_platform_credentials "$BASE_DIR"
 
+    # Clear a pending wake so we don't immediately re-wake after this poll.
+    consume_wake_poll || true
+
     reset_repo_busy_log
     reap_repo_agents
 
@@ -1285,27 +1438,27 @@ while true; do
     # then reviews. A launch marks that repository busy, so later
     # handlers in this cycle skip it. Other repositories still start.
     if [[ -f "$PROJECTS_FILE" ]]; then
-        ai_foreach_project "$PROJECTS_FILE" process_github_project || true
-        ai_foreach_project "$PROJECTS_FILE" process_github_pr_implement || true
-        ai_foreach_project "$PROJECTS_FILE" process_github_pr_review || true
+        poll_projects_parallel "$PROJECTS_FILE" process_github_project
+        poll_projects_parallel "$PROJECTS_FILE" process_github_pr_implement
+        poll_projects_parallel "$PROJECTS_FILE" process_github_pr_review
     fi
 
     if [[ -f "$GITLAB_PROJECTS_FILE" ]]; then
-        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_project || true
-        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_implement || true
-        ai_foreach_project "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review || true
+        poll_projects_parallel "$GITLAB_PROJECTS_FILE" process_gitlab_project
+        poll_projects_parallel "$GITLAB_PROJECTS_FILE" process_gitlab_mr_implement
+        poll_projects_parallel "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review
     fi
 
     if [[ "${#REPO_AGENT_PIDS[@]}" -eq 0 ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s."
-        sleep "$CHECK_INTERVAL"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s (or until webhook)."
+        interruptible_sleep 0
         continue
     fi
 
     if [[ "${#REPO_AGENT_PIDS[@]}" -eq 1 ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] 1 repository agent running. Checking again in ${CHECK_INTERVAL}s, or sooner when it finishes."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] 1 repository agent running. Checking again in ${CHECK_INTERVAL}s, or sooner when it finishes / webhook."
     else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] ${#REPO_AGENT_PIDS[@]} repository agents running. Checking again in ${CHECK_INTERVAL}s, or sooner when one finishes."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] ${#REPO_AGENT_PIDS[@]} repository agents running. Checking again in ${CHECK_INTERVAL}s, or sooner when one finishes / webhook."
     fi
     wait_for_running_agents
 

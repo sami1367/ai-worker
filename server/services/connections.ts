@@ -49,6 +49,7 @@ function decryptToken(ciphertext: string | null | undefined): string {
 }
 
 export function publicConnection(row: typeof forgeConnections.$inferSelect) {
+  const base = (process.env.APP_BASE_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '')
   return {
     id: row.id,
     provider: row.provider,
@@ -65,6 +66,8 @@ export function publicConnection(row: typeof forgeConnections.$inferSelect) {
     tokenExpiresAt: row.tokenExpiresAt,
     hasAccessToken: Boolean(row.accessTokenCiphertext),
     hasRefreshToken: Boolean(row.refreshTokenCiphertext),
+    hasWebhookSecret: Boolean(row.webhookSecretCiphertext),
+    webhookUrl: `${base}/api/v1/webhooks/${row.provider}/${row.id}`,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

@@ -6,7 +6,7 @@ This directory is the **canonical** Bash automation engine for the AI Worker Pla
 
 | Script | Role |
 |--------|------|
-| `worker.sh` | Poll loop (`WORKERS` concurrent agents; one task each; one per repo) |
+| `worker.sh` | Poll loop (`POLL_CONCURRENCY` parallel repo checks; `WORKERS` concurrent agents; one task each; one per repo) |
 | `run-issue.sh` / `run-gitlab-issue.sh` | Issue implement (+ release shortcut) |
 | `run-github-pr-implement.sh` / `run-gitlab-mr-implement.sh` | PR/MR implement |
 | `run-github-pr-review.sh` / `run-gitlab-mr-review.sh` | PR/MR review |
@@ -21,6 +21,10 @@ Invoke these scripts from this directory (or via absolute path). Root-level dupl
 |----------|---------|---------|
 | `WORKER_CODE_DIR` | Code: this directory (`lib/`, `prompts/`, sibling scripts) | Script directory |
 | `AI_WORKER_BASE_DIR` / `BASE_DIR` | Runtime: `*.conf`, `logs/`, `state/`, `.env` | Same as code dir |
+| `POLL_CONCURRENCY` | Repos polled in parallel per pass (forge label checks) | `5` |
+| `WORKERS` | Max concurrent agents (still one task per repo) | `1` |
+| `CHECK_INTERVAL` | Idle sleep between poll cycles (seconds) | `30` |
+| `REPO_CLAIM_TTL_SECONDS` | Multi-worker Postgres lease before label claim | `10` |
 
 Configuration templates: `github-projects.conf.example`, `gitlab-projects.conf.example`.
 

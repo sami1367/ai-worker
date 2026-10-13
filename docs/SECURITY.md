@@ -19,6 +19,7 @@ This platform can trigger AI agents that modify repository working trees and ope
 - GitLab instance URL SSRF protections + optional `GITLAB_TRUSTED_HOSTS` allowlist
 - No arbitrary shell/Docker endpoints
 - Worker control via allowlisted `control_requests`
+- Forge webhooks verified with per-connection secrets (GitHub HMAC-SHA256 / GitLab `X-Gitlab-Token`); endpoints are unauthenticated except for that secret
 - Remote URL validation (no embedded credentials, no `file:` / traversal)
 - Managed workspace IDs; path escape checks; async clone/sync queue
 - Log streaming only for authorized run IDs with basename-safe paths
@@ -32,7 +33,7 @@ This platform can trigger AI agents that modify repository working trees and ope
 
 - [ ] Postgres is internal-only; app/crypto secrets are Compose defaults (rotate in compose for hardened deploys)
 - [ ] Change default bootstrap secret (`changeme`) before exposing `/setup` beyond localhost
-- [ ] TLS reverse proxy; `APP_BASE_URL` is HTTPS and matches OAuth callback URLs
+- [ ] TLS reverse proxy; `APP_BASE_URL` is HTTPS and matches OAuth callback URLs (and is reachable by GitHub/GitLab for webhooks)
 - [ ] GitHub/GitLab OAuth apps configured with exact callback URLs
 - [ ] Backups of PostgreSQL + `/data` volumes; encryption key stored offline
 - [ ] Forge OAuth scopes reviewed (`repo` / GitLab `api` are powerful — treat as production secrets)

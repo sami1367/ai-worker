@@ -109,6 +109,8 @@ export const forgeConnections = pgTable('forge_connections', {
   scopes: text('scopes'),
   accessTokenCiphertext: text('access_token_ciphertext'),
   refreshTokenCiphertext: text('refresh_token_ciphertext'),
+  /** Shared secret for forge → platform webhooks (AES-GCM ciphertext). */
+  webhookSecretCiphertext: text('webhook_secret_ciphertext'),
   tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
   status: connectionStatusEnum('status').notNull().default('pending'),
   lastError: text('last_error'),
@@ -309,6 +311,22 @@ export const workerState = pgTable('worker_state', {
   }>>().notNull().default([]),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+/** Short-lived multi-worker lease so only one worker claims a repo before forge labels flip. */
+export const workerRepoClaims = pgTable('worker_repo_claims', {
+  lockKey: varchar('lock_key', { length: 512 }).primaryKey(),
+  holder: varchar('holder', { length: 256 }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  forgeType: forgeTypeEnum('forge_type'),
+  fullName: varchar('full_name', { length: 512 }),
+  taskType: varchar('task_type', { length: 64 }),
+  externalId: varchar('external_id', { length: 64 }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('worker_repo_claims_expires_idx').on(t.expiresAt),
+])
 
 export const controlRequests = pgTable('control_requests', {
   id: uuid('id').defaultRandom().primaryKey(),
