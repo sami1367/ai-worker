@@ -852,16 +852,7 @@ process_github_project() {
         return 0
     fi
 
-    ISSUE_NUMBER="$(
-        gh issue list \
-            --repo "$REPO" \
-            --label "ai" \
-            --state open \
-            --limit 1 \
-            --json number \
-            --jq '.[0].number // empty' \
-            2>/dev/null || true
-    )"
+    ISSUE_NUMBER="$(github_find_ai_issue "$REPO")"
 
     if [[ -z "$ISSUE_NUMBER" ]]; then
         return 0
