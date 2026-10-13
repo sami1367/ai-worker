@@ -1,101 +1,94 @@
-# AI Worker Platform
+# AI Worker
 
-Self-hosted web UI + worker for GitHub/GitLab issue implementation and PR/MR review (Cursor CLI / Claude Code).
+Self-hosted AI agent for **GitHub** and **GitLab**: implement issues and review PRs/MRs (Cursor CLI / Claude Code).
 
-## Run (no git clone — image only)
+**You do not need to clone this repository.** Only Docker is required. The app image is pulled from Docker Hub.
 
-You do **not** need the source code. Only Docker + this compose file (it pulls `sami1367/ai-worker` from Hub):
+Image: [`sami1367/ai-worker`](https://hub.docker.com/r/sami1367/ai-worker)
+
+---
+
+## 1. Download compose
 
 ```bash
 mkdir ai-worker && cd ai-worker
+
 curl -fsSL -o docker-compose.yml \
   https://raw.githubusercontent.com/sami1367/ai-worker/main/docker-compose.yml
+```
 
+## 2. Optional `.env`
+
+Compose already has defaults. Create a `.env` only if you want to override them (same folder as `docker-compose.yml`):
+
+```bash
+cat > .env <<'EOF'
+# First-admin setup secret (default in compose is changeme)
+INITIAL_ADMIN_BOOTSTRAP_SECRET=changeme
+
+# How many issues/PRs can run at once (default 1)
+WORKERS=1
+
+# Optional forge tokens (or connect later in the UI)
+# GitHub: https://github.com/settings/tokens  (classic scope: repo)
+GITHUB_TOKEN=
+
+# GitLab: https://gitlab.com/-/user_settings/personal_access_tokens
+# Scopes: api + write_repository
+GITLAB_HOST=gitlab.com
+GITLAB_TOKEN=
+EOF
+```
+
+## 3. Run
+
+```bash
 docker compose up -d
 curl -fsS http://127.0.0.1:8080/api/v1/health
 ```
 
-Open `http://127.0.0.1:8080/setup` — bootstrap secret default is **`changeme`**. Create admin (password ≥12 chars).
+## 4. Create admin
 
-No `.env` and no git clone. Optional overrides: create a `.env` next to the compose file (see [`.env.example`](.env.example) in the repo if you want names).
+1. Open http://127.0.0.1:8080/setup  
+2. Bootstrap secret: value from `.env`, or **`changeme`** if you skipped `.env`  
+3. Choose admin username + password (min 12 characters)
 
-Image: [`sami1367/ai-worker`](https://hub.docker.com/r/sami1367/ai-worker)
+Then connect GitHub/GitLab and AI provider keys in the UI (or use tokens in `.env`).
 
-## Publish image (you — build locally, push to Hub)
+---
 
-```bash
-docker login
-./scripts/publish-image.sh          # :latest
-./scripts/publish-image.sh 1.0.0    # :1.0.0 and :latest
-```
-
-Other Hub namespace:
-
-```bash
-AI_WORKER_IMAGE=myuser/ai-worker ./scripts/publish-image.sh
-```
-
-## Build from this repo (no Hub)
-
-```bash
-docker build -t sami1367/ai-worker:latest .
-docker compose up -d
-```
-
-## Environment (all optional)
-
-Defaults live in `docker-compose.yml`. Override via shell or `.env`:
-
-| Variable | Default | Notes |
-|----------|---------|--------|
-| `INITIAL_ADMIN_BOOTSTRAP_SECRET` | `changeme` | Used once at `/setup` |
-| `WORKERS` | `1` | Concurrent agents (one task each; one per repo) |
-| `GITHUB_TOKEN` | empty | Classic `repo`, or fine-grained Contents+Issues+PRs write. [Create](https://github.com/settings/tokens) |
-| `GITLAB_HOST` / `GITLAB_TOKEN` | empty | Scopes `api` + `write_repository`. [Create](https://gitlab.com/-/user_settings/personal_access_tokens) |
-| `APP_BASE_URL` | `http://127.0.0.1:8080` | Public URL behind TLS proxy |
-| `AI_WORKER_IMAGE` | `sami1367/ai-worker:latest` | Image to pull |
-
-Postgres and app crypto secrets are fixed in compose (DB is internal-only). Prefer connecting forge/AI credentials in the UI.
-
-## What you get
-
-- Admin dashboard (Nuxt 3)
-- PostgreSQL + migrate + web + worker
-- Volumes: `pgdata`, `data` (`/data`)
-- Cursor + Claude CLIs in the image; keys via **Providers** UI
-
-## Task workflow
+## Everyday use
 
 | Goal | Action |
 |------|--------|
-| Implement issue | Label open issue `ai` |
-| Review PR/MR | Label open PR/MR `ai-review` |
-| New release/tag | Issue titled `new release` / `new tag` + `ai` |
+| Implement an issue | Add label `ai` |
+| Review a PR/MR | Add label `ai-review` |
 
-## Development (Node)
+Update later:
 
 ```bash
-pnpm install
-docker compose up -d db
-pnpm db:migrate
-pnpm dev
+docker compose pull
+docker compose up -d
 ```
 
-## Docs
+Stop:
 
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/SECURITY.md](docs/SECURITY.md)
-- [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
+```bash
+docker compose down
+```
+
+---
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---------|--------|
-| Image pull fail | Image published? `docker pull sami1367/ai-worker:latest` |
-| `migrate` exit 1 / CREATE SCHEMA | Old Postgres volume password mismatch → `docker compose down -v && docker compose up -d` (wipes DB) |
-| `/setup` rejects secret | Default is `changeme` unless you overrode it |
-| `/ready` 503 | `docker compose logs db migrate` |
-| No tasks | Forge token in UI/env? `ai` / `ai-review` labels? |
+| Problem | Fix |
+|---------|-----|
+| Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
+| `migrate` fails / CREATE SCHEMA | Old DB volume: `docker compose down -v && docker compose up -d` (deletes data) |
+| Wrong bootstrap secret | Use `changeme`, or the value you set in `.env` |
 
-Operate only on repositories you are authorized to automate.
+---
+
+## Developers
+
+Building, publishing, and local Node setup: [README.DEVELOPMENT.md](README.DEVELOPMENT.md)
