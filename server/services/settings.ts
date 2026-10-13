@@ -5,7 +5,7 @@ import { getDb } from '#utils/db'
 import { writeAudit } from './audit'
 
 export const settingsSchema = z.object({
-  pollIntervalSeconds: z.number().int().min(15).max(3600).default(60),
+  pollIntervalSeconds: z.number().int().min(15).max(3600).default(30),
   maxGlobalConcurrentTasks: z.number().int().min(1).max(64).default(8),
   defaultAiProvider: z.enum(['cursor', 'claude']).default('cursor'),
   defaultBlockOnOpenPr: z.boolean().default(true),

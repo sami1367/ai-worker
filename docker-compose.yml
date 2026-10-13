@@ -17,6 +17,7 @@ x-env: &env
   GITLAB_HOST: ${GITLAB_HOST:-}
   GITLAB_TOKEN: ${GITLAB_TOKEN:-}
   WORKERS: ${WORKERS:-1}
+  CHECK_INTERVAL: ${CHECK_INTERVAL:-30}
 
 x-app: &app
   image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}

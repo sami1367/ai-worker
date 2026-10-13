@@ -18,7 +18,7 @@ STATE_DIR="$BASE_DIR/state"
 WORKER_LOG="$LOG_DIR/worker.log"
 LOCK_FILE="$STATE_DIR/worker.lock"
 
-CHECK_INTERVAL="${CHECK_INTERVAL:-60}"
+CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
 # Max concurrent issue/PR agents (each agent runs exactly one task).
 # Still at most one task per repository. Default 1 = global single-task mode.
 WORKERS="${WORKERS:-1}"
