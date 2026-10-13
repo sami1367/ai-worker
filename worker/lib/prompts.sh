@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Prompt template loading and rendering. Source after lib/common.sh.
-# Templates live in $WORKER_CODE_DIR/prompts/ — edit those files to change AI instructions.
+# Source of truth is the platform DB (seeded from worker/prompts/).
+# Before each render the worker fetches live content via the internal API.
 
 # Code directory (this lib's parent). Runtime data may differ via BASE_DIR / AI_WORKER_BASE_DIR.
 : "${WORKER_CODE_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -13,6 +14,7 @@ if [[ -z "${BASE_DIR:-}" ]]; then
 fi
 
 AI_PROMPT_VARS_FILE=""
+AI_PROMPTS_LIVE_DIR=""
 
 ai_prompt_tmpfile() {
     local dir="${BASE_DIR}/state"
@@ -20,8 +22,98 @@ ai_prompt_tmpfile() {
     mktemp "${dir}/.ai-prompt.XXXXXX"
 }
 
-ai_prompts_dir() {
+# Seed files shipped with the image/checkout (fallback when API is unavailable).
+ai_prompt_seed_dir() {
     printf '%s/prompts' "$WORKER_CODE_DIR"
+}
+
+ai_prompts_dir() {
+    if [[ -n "${AI_PROMPTS_LIVE_DIR:-}" && -d "$AI_PROMPTS_LIVE_DIR" ]]; then
+        printf '%s' "$AI_PROMPTS_LIVE_DIR"
+        return 0
+    fi
+    ai_prompt_seed_dir
+}
+
+# Fetch all prompts from the platform DB and materialize into a live cache dir.
+# Safe to call before every job; falls back to seed files on failure.
+ai_prompt_fetch_from_db() {
+    local web_url token body tmp_dir dest_dir item_count
+
+    web_url="${WEB_INTERNAL_URL:-}"
+    token="${WORKER_INTERNAL_TOKEN:-}"
+
+    if [[ -z "$web_url" || -z "$token" ]]; then
+        echo "WARNING: Prompt DB fetch skipped (WEB_INTERNAL_URL / WORKER_INTERNAL_TOKEN unset); using seed files" >&2
+        AI_PROMPTS_LIVE_DIR=""
+        return 1
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "WARNING: python3 required to sync prompts from DB; using seed files" >&2
+        AI_PROMPTS_LIVE_DIR=""
+        return 1
+    fi
+
+    body="$(
+        curl -fsS \
+            -H "Accept: application/json" \
+            -H "x-worker-token: $token" \
+            "${web_url}/api/v1/worker/internal/prompts" 2>/dev/null || true
+    )"
+
+    if [[ -z "$body" ]]; then
+        echo "WARNING: Prompt DB fetch failed; using seed files" >&2
+        AI_PROMPTS_LIVE_DIR=""
+        return 1
+    fi
+
+    item_count="$(jq -r '.items | length // 0' <<<"$body" 2>/dev/null || echo 0)"
+    if [[ ! "$item_count" =~ ^[0-9]+$ ]] || [[ "$item_count" -lt 1 ]]; then
+        echo "WARNING: Prompt DB returned no items; using seed files" >&2
+        AI_PROMPTS_LIVE_DIR=""
+        return 1
+    fi
+
+    dest_dir="${BASE_DIR}/state/prompts-live"
+    tmp_dir="${dest_dir}.tmp.$$"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir"
+
+    if ! python3 - "$body" "$tmp_dir" <<'PY'
+import json, os, sys
+
+payload = json.loads(sys.argv[1])
+out_dir = sys.argv[2]
+items = payload.get("items") or []
+if not items:
+    raise SystemExit(1)
+
+for item in items:
+    rel = item.get("path") or ""
+    content = item.get("content")
+    if not rel or content is None:
+        continue
+    # Refuse path escape
+    if ".." in rel.split("/") or rel.startswith("/") or "\\" in rel:
+        raise SystemExit(f"unsafe prompt path: {rel!r}")
+    full = os.path.join(out_dir, rel)
+    os.makedirs(os.path.dirname(full) or out_dir, exist_ok=True)
+    with open(full, "w", encoding="utf-8") as f:
+        f.write(content)
+PY
+    then
+        echo "WARNING: Failed to materialize prompts from DB; using seed files" >&2
+        rm -rf "$tmp_dir"
+        AI_PROMPTS_LIVE_DIR=""
+        return 1
+    fi
+
+    rm -rf "$dest_dir"
+    mv "$tmp_dir" "$dest_dir"
+    AI_PROMPTS_LIVE_DIR="$dest_dir"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Synced ${item_count} prompts from database"
+    return 0
 }
 
 ai_prompt_clear() {
@@ -115,10 +207,14 @@ PY
 }
 
 # Render a template (relative to prompts/) to an output file.
+# Fetches latest prompt content from the database before rendering.
 ai_prompt_render() {
     local template_rel="$1"
     local output_file="$2"
     local prompts_dir template_path expanded content
+
+    # Live DB fetch each job — edits in the UI apply without worker restart.
+    ai_prompt_fetch_from_db || true
 
     prompts_dir="$(ai_prompts_dir)"
     template_path="${prompts_dir}/${template_rel}"

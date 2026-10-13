@@ -23,7 +23,7 @@ Maps every discovered existing capability to the AI Worker Platform. Status valu
 | 17 | Decline unrelated tasks | prompts + runners | preserved | Prompt snippets |
 | 18 | Secret staging protection | `lib/common.sh` | preserved | Existing helpers |
 | 19 | Cleanup / branch restore | runner traps | preserved | EXIT/INT/TERM traps |
-| 20 | Prompt templates | `worker/prompts/` | preserved | Render path unchanged |
+| 20 | Prompt templates | `worker/prompts/` seed → `prompt_templates` DB + UI | preserved + editable | Worker fetches from DB each job; seed files fallback |
 | 21 | Per-task log files | `logs/` naming | preserved + DB metadata | task_runs.log_ref |
 | 22 | Label setup (GH/GL) | `setup-labels.sh`, `setup-gitlab-labels.sh` | preserved + UI action | API triggers scripts |
 | 23 | GitLab API client | `lib/gitlab.sh` | preserved | Token via env/secrets |

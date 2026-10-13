@@ -90,8 +90,12 @@ See [STRUCTURE_AUDIT.md](./STRUCTURE_AUDIT.md) for duplicate disposition.
 
 ### Path variables inside the worker
 
-- `WORKER_CODE_DIR` — scripts, `lib/`, `prompts/` (directory of the executing script).
+- `WORKER_CODE_DIR` — scripts, `lib/`, `prompts/` seed files (directory of the executing script).
 - `BASE_DIR` / `AI_WORKER_BASE_DIR` — runtime data: conf files, `logs/`, `state/`, `.env`.
+
+### Prompt templates (DB-backed)
+
+`worker/prompts/` files are **seeders**. On web startup, `ensurePromptRows()` inserts missing rows into `prompt_templates` (never overwrites UI edits). Admins edit content on the **Prompts** UI page. Before each job, `ai_prompt_render` fetches live content from `GET /api/v1/worker/internal/prompts` into `$BASE_DIR/state/prompts-live/` (falls back to seed files if the API is unavailable).
 
 ## Filesystem layout (runtime)
 

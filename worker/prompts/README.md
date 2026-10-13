@@ -1,10 +1,18 @@
-# AI prompt templates
+# AI prompt templates (seed files)
 
-Edit these files to change what the AI agent is told for each task. After changes, restart the worker:
+These files are the **seed source** for the `prompt_templates` database table.
 
-```bash
-sudo systemctl restart ai-worker
+On web service startup, missing rows are inserted from this tree. After that, the
+**database is the source of truth**. Edit prompts in the UI (**Prompts** page);
+the worker fetches them from the DB before every job — **no worker restart**.
+
+```text
+worker/prompts/*.txt          → seed on startup (INSERT … ON CONFLICT DO NOTHING)
+UI / Prompts panel            → edit content in Postgres
+worker ai_prompt_render       → GET /api/v1/worker/internal/prompts each job
 ```
+
+To restore a prompt to the seeded file content, use **Reset to seed** in the UI.
 
 ## Task templates
 
@@ -56,3 +64,8 @@ Rendered prompts are also saved to `logs/*.prompt.txt` for debugging.
 - `{{VARIABLE}}` — replaced with runtime value from the runner script
 
 Do not remove required placeholders unless you also change the runner scripts in `run-*.sh`.
+
+## Fallback
+
+If `WEB_INTERNAL_URL` / `WORKER_INTERNAL_TOKEN` are unset or the API fails, the
+worker falls back to these seed files on disk.

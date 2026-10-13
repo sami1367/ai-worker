@@ -71,6 +71,7 @@ export const workspaceOperationStatusEnum = pgEnum('workspace_operation_status',
   'failed',
   'cancelled',
 ])
+export const promptKindEnum = pgEnum('prompt_kind', ['template', 'snippet'])
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -340,4 +341,24 @@ export const loginAttempts = pgTable('login_attempts', {
 }, (t) => [
   index('login_attempts_username_created_idx').on(t.username, t.createdAt),
   index('login_attempts_ip_created_idx').on(t.ipHash, t.createdAt),
+])
+
+/** Prompt templates/snippets seeded from worker/prompts/; editable in UI; fetched by worker per job. */
+export const promptTemplates = pgTable('prompt_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  /** Relative path under prompts/, e.g. github-issue-implement.txt or snippets/minimal-changes.txt */
+  path: varchar('path', { length: 256 }).notNull(),
+  kind: promptKindEnum('kind').notNull(),
+  taskType: taskTypeEnum('task_type'),
+  displayName: varchar('display_name', { length: 128 }).notNull(),
+  description: text('description'),
+  content: text('content').notNull(),
+  contentVersion: integer('content_version').notNull().default(1),
+  seedChecksum: varchar('seed_checksum', { length: 64 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('prompt_templates_path_uidx').on(t.path),
+  index('prompt_templates_kind_idx').on(t.kind),
+  index('prompt_templates_task_type_idx').on(t.taskType),
 ])

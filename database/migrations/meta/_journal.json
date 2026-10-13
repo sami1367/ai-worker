@@ -15,6 +15,13 @@
       "when": 1791744000000,
       "tag": "0001_forge_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0002_prompt_templates",
+      "breakpoints": true
     }
   ]
 }

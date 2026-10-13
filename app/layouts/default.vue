@@ -9,6 +9,7 @@ const links = [
   { to: '/repositories', label: 'Repositories', icon: 'i-lucide-git-branch' },
   { to: '/tasks', label: 'Tasks', icon: 'i-lucide-list-checks' },
   { to: '/providers', label: 'Providers', icon: 'i-lucide-bot' },
+  { to: '/prompts', label: 'Prompts', icon: 'i-lucide-scroll-text' },
   { to: '/settings', label: 'Settings', icon: 'i-lucide-settings' },
   { to: '/system', label: 'System', icon: 'i-lucide-activity' },
   { to: '/audit', label: 'Audit', icon: 'i-lucide-shield' },
