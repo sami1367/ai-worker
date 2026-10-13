@@ -48,7 +48,7 @@ async function save() {
       <UFormField label="Max global concurrent tasks" hint="Informational soft limit for operators; per-repo lock remains authoritative.">
         <UInput v-model.number="data.maxGlobalConcurrentTasks" type="number" min="1" max="64" />
       </UFormField>
-      <UCheckbox v-model="data.defaultBlockOnOpenPr" label="Default block_on_open_pr for new repositories" />
+      <UCheckbox v-model="data.defaultBlockOnOpenPr" label="Default: block new issues while an AI-labeled PR/MR is open" />
       <UFormField label="Log retention (days)">
         <UInput v-model.number="data.logRetentionDays" type="number" min="1" max="365" />
       </UFormField>

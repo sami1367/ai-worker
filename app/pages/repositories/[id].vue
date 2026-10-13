@@ -153,7 +153,7 @@ onBeforeUnmount(() => stopPoll.value?.())
               :items="[{ label: 'cursor', value: 'cursor' }, { label: 'claude', value: 'claude' }]"
             />
           </UFormField>
-          <UCheckbox v-model="data.blockOnOpenPr" label="Block new issues while open PR/MR exists" />
+          <UCheckbox v-model="data.blockOnOpenPr" label="Block new issues while an AI-labeled PR/MR is open" />
           <UFormField
             label="Repository prompt"
             hint="Optional. Appended to every AI task for this repo only. Global prompts still apply. Leave empty for none."

@@ -54,6 +54,16 @@ gitlab_api() {
                 printf '[]'
             fi
             ;;
+        /projects/*/merge_requests\?*)
+            # Unlabeled / any-open queries must not be used for in-flight checks.
+            if [[ "$path" != *labels=* ]]; then
+                printf '[{"iid":372,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z"}]'
+            elif [[ "$path" == *labels=ai-pr* ]]; then
+                printf '[{"iid":100,"source_branch":"ai/issue-1","created_at":"2026-02-01T00:00:00Z"}]'
+            else
+                printf '[]'
+            fi
+            ;;
         /projects/*/issues)
             printf '{"iid":99,"web_url":"https://gitlab.example.test/g/p/-/issues/99"}'
             ;;
@@ -110,6 +120,64 @@ grep -q 'labels=ai-working' "$GITLAB_API_LOG" || fail "ai-working query missing"
 if grep -q 'assignee_id=' "$GITLAB_API_LOG"; then
     fail "ai-working lookup must not filter by assignee"
 fi
+
+# Open-MR in-flight check must require an AI implement label (ignore human MRs).
+: > "$GITLAB_API_LOG"
+mr_desc="$(gitlab_find_open_mr "group/project" || true)"
+[[ "$mr_desc" == "!100 (ai/issue-1, ai-pr)" ]] \
+    || fail "expected AI-labeled MR desc, got '$mr_desc'"
+grep -q 'labels=ai-pr' "$GITLAB_API_LOG" || fail "open MR check missing labels=ai-pr"
+if grep 'merge_requests?' "$GITLAB_API_LOG" | grep -vq 'labels='; then
+    fail "open MR check must not query unlabeled open MRs"
+fi
+
+# When no AI-labeled MRs exist, human open MRs must not block.
+gitlab_api() {
+    local method="$1"
+    local path="$2"
+    shift 2
+    printf '%s %s\n' "$method" "$path" >> "$GITLAB_API_LOG"
+    case "$path" in
+        /projects/*/merge_requests\?*)
+            if [[ "$path" != *labels=* ]]; then
+                printf '[{"iid":372,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z"}]'
+            else
+                printf '[]'
+            fi
+            ;;
+        *)
+            printf '{}'
+            ;;
+    esac
+}
+: > "$GITLAB_API_LOG"
+mr_desc="$(gitlab_find_open_mr "group/project" || true)"
+[[ -z "$mr_desc" ]] || fail "human-only open MRs must not block, got '$mr_desc'"
+grep -q 'labels=ai-pr' "$GITLAB_API_LOG" || fail "expected labeled MR queries even when empty"
+
+# Restore create-issue mock for following tests.
+gitlab_api() {
+    local method="$1"
+    local path="$2"
+    shift 2
+    local payload=""
+
+    printf '%s %s' "$method" "$path" >> "$GITLAB_API_LOG"
+    if [[ "${1:-}" == "-d" ]]; then
+        payload="${2:-}"
+        printf ' %s' "$payload" >> "$GITLAB_API_LOG"
+    fi
+    printf '\n' >> "$GITLAB_API_LOG"
+
+    case "$path" in
+        /projects/*/issues)
+            printf '{"iid":99,"web_url":"https://gitlab.example.test/g/p/-/issues/99"}'
+            ;;
+        *)
+            printf '{}'
+            ;;
+    esac
+}
 
 : > "$GITLAB_API_LOG"
 json="$(gitlab_create_issue "group/project" "Title" "Body" "ai")" || fail "create issue failed"

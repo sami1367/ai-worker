@@ -13,7 +13,7 @@ Maps every discovered existing capability to the AI Worker Platform. Status valu
 | 7 | Cursor CLI provider | `worker/lib/ai/cursor.sh` | preserved | Provider health check (detect binary) |
 | 8 | Claude Code CLI provider | `worker/lib/ai/claude.sh` | preserved | Provider health check (detect binary) |
 | 9 | JSON project registries | `github-projects.conf` / `gitlab-projects.conf` | adapted — DB authoritative; atomic export | Import + export tests |
-| 10 | Per-repo `block_on_open_pr` | `lib/common.sh`, worker poll | preserved via exported conf | `tests/related-tasks.sh` + UI setting |
+| 10 | Per-repo `block_on_open_pr` (AI-labeled PR/MR only) | `lib/common.sh`, worker poll | preserved via exported conf | `tests/assignee-filter.sh` + UI setting |
 | 11 | One task per repository | `worker.sh` locks | preserved | Lock behavior unchanged |
 | 12 | Cross-repo concurrency | `worker.sh` agent map | preserved | Observability via task_runs |
 | 13 | Global worker lock | `state/worker.lock` | preserved | Worker container single instance |

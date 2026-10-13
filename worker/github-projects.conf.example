@@ -6,9 +6,11 @@
 # Required fields: name, path
 # Optional fields:
 #   block_on_open_pr — if true (default), do not start a new `ai` issue
-#                      while this repo has any open pull request.
-#                      Set false to allow new issues even with open PRs.
-#                      (ai-working and a running agent still block.)
+#                      while this repo has an open PR labeled ai,
+#                      ai-working, ai-failed, or ai-pr. Human PRs without
+#                      those labels do not block. Set false to allow new
+#                      issues even with AI-labeled open PRs.
+#                      (ai-working issues and a running agent still block.)
 #
 # The name is what related-service detection matches in project docs.
 # Use the same name the documentation uses for that service.

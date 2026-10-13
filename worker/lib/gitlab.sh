@@ -166,25 +166,43 @@ gitlab_find_ai_issue() {
     gitlab_find_open_issue_with_label "$project_path" "ai"
 }
 
-# Print a short description of the oldest open merge request, or empty.
-# Example: "!12 (ai/issue-3)"
+# AI implement-workflow labels on an open MR that should block starting a new
+# `ai` issue (human MRs without these labels do not block).
+GITLAB_AI_IN_FLIGHT_MR_LABELS=(ai ai-working ai-failed ai-pr)
+
+# Print a short description of the oldest open MR carrying an AI implement
+# label, or empty. Example: "!12 (ai/issue-3, ai-pr)"
 gitlab_find_open_mr() {
     local project_path="$1"
-    local encoded body desc
+    local encoded label body
+    local best_created="" best_desc=""
+    local created desc
 
     encoded="$(gitlab_encode_path "$project_path")"
-    body="$(
-        gitlab_api GET \
-            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=1"
-    )" || return 1
+    for label in "${GITLAB_AI_IN_FLIGHT_MR_LABELS[@]}"; do
+        body="$(
+            gitlab_api GET \
+                "/projects/${encoded}/merge_requests?labels=${label}&state=opened&order_by=created_at&sort=asc&per_page=1"
+        )" || continue
 
-    desc="$(
-        jq -r '
-            .[0]
-            | if . then "!\(.iid) (\(.source_branch // "unknown"))" else empty end
-        ' <<<"$body"
-    )"
-    printf '%s' "$desc"
+        created="$(jq -r '.[0].created_at // empty' <<<"$body")"
+        [[ -n "$created" ]] || continue
+
+        desc="$(
+            jq -r --arg label "$label" '
+                .[0]
+                | if . then "!\(.iid) (\(.source_branch // "unknown"), \($label))" else empty end
+            ' <<<"$body"
+        )"
+        [[ -n "$desc" ]] || continue
+
+        if [[ -z "$best_created" || "$created" < "$best_created" ]]; then
+            best_created="$created"
+            best_desc="$desc"
+        fi
+    done
+
+    printf '%s' "$best_desc"
 }
 
 # Add and/or remove labels on an issue.

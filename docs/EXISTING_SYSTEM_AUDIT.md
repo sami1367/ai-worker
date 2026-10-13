@@ -41,7 +41,7 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 10. **One task per repository** — in-memory PID map + `state/slots/<key>.lock` via `flock`
 11. **Cross-repository concurrency** — multiple repo agents in parallel
 12. **Global worker lock** — `state/worker.lock` (single supervisor)
-13. **Open PR/MR blocking** — default on; per-project `block_on_open_pr: false`
+13. **Open AI-labeled PR/MR blocking** — default on (`ai` / `ai-working` / `ai-failed` / `ai-pr`); per-project `block_on_open_pr: false`
 14. **Related-service follow-ups** — parse agent JSON → open `ai` issues in other registered repos + `tasks/*.md`
 15. **Release/tag shortcut** — issue title `new release` / `new tag` → bump semver, push tag, draft/upcoming release
 16. **Implement merge notes** — post `.ai-pr-notes.md` content as PR/MR comment

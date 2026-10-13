@@ -92,8 +92,9 @@ echo "============================================================"
 # A new `ai` issue is not started when that repository already has:
 #   - an agent running, or
 #   - an open issue labeled ai-working, or
-#   - any open pull request / merge request (unless the project
-#     sets "block_on_open_pr": false)
+#   - an open PR/MR labeled ai / ai-working / ai-failed / ai-pr
+#     (unless the project sets "block_on_open_pr": false)
+# Human open PRs/MRs without those labels do not block.
 # Updating or reviewing an existing PR/MR is still allowed when
 # that repository's agent is idle.
 # ============================================================
@@ -384,20 +385,45 @@ github_find_open_issue_with_label() {
         2>/dev/null || true
 }
 
+# AI implement-workflow labels on an open PR that should block starting a new
+# `ai` issue (human PRs without these labels do not block).
+GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
+
+# Print a short description of the oldest open PR carrying an AI implement
+# label, or empty. Example: "#12 (ai/issue-3, ai-pr)"
 github_find_open_pr() {
     local repo="$1"
+    local label row created desc best_created="" best_desc=""
 
-    gh pr list \
-        --repo "$repo" \
-        --state open \
-        --limit 1 \
-        --json number,headRefName \
-        --jq '.[0] | if . then "#\(.number) (\(.headRefName))" else empty end' \
-        2>/dev/null || true
+    for label in "${GITHUB_AI_IN_FLIGHT_PR_LABELS[@]}"; do
+        row="$(
+            gh pr list \
+                --repo "$repo" \
+                --state open \
+                --label "$label" \
+                --limit 1 \
+                --json number,headRefName,createdAt \
+                --jq \
+                ".[0] | if . then \"\(.createdAt)\t#\(.number) (\(.headRefName // \\\"unknown\\\"), ${label})\" else empty end" \
+                2>/dev/null || true
+        )"
+        [[ -n "$row" ]] || continue
+
+        created="${row%%$'\t'*}"
+        desc="${row#*$'\t'}"
+        [[ -n "$created" && -n "$desc" ]] || continue
+
+        if [[ -z "$best_created" || "$created" < "$best_created" ]]; then
+            best_created="$created"
+            best_desc="$desc"
+        fi
+    done
+
+    printf '%s' "$best_desc"
 }
 
 # Print a reason if this GitHub project already has in-flight issue work.
-# When block_on_open_pr is 0, open PRs are ignored (ai-working still blocks).
+# When block_on_open_pr is 0, AI-labeled open PRs are ignored (ai-working still blocks).
 github_in_flight_issue_reason() {
     local project="$1"
     local project_dir="$2"
@@ -424,13 +450,13 @@ github_in_flight_issue_reason() {
 
     pr_desc="$(github_find_open_pr "$repo")"
     if [[ -n "$pr_desc" ]]; then
-        printf 'github %s: open pull request %s' "$project" "$pr_desc"
+        printf 'github %s: open AI-labeled pull request %s' "$project" "$pr_desc"
         return 0
     fi
 }
 
 # Print a reason if this GitLab project already has in-flight issue work.
-# When block_on_open_pr is 0, open MRs are ignored (ai-working still blocks).
+# When block_on_open_pr is 0, AI-labeled open MRs are ignored (ai-working still blocks).
 gitlab_in_flight_issue_reason() {
     local project="$1"
     local project_dir="$2"
@@ -461,7 +487,7 @@ gitlab_in_flight_issue_reason() {
 
     mr_desc="$(gitlab_find_open_mr "$repo_path" 2>/dev/null || true)"
     if [[ -n "$mr_desc" ]]; then
-        printf 'gitlab %s: open merge request %s' "$project" "$mr_desc"
+        printf 'gitlab %s: open AI-labeled merge request %s' "$project" "$mr_desc"
         return 0
     fi
 }
