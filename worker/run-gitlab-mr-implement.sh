@@ -192,19 +192,7 @@ LINKED_ISSUE_COUNT=0
 ai_build_gitlab_linked_issues_file "$REPO_PATH" "$MR_TITLE" "$MR_BODY" "$ISSUES_FILE" LINKED_ISSUE_COUNT
 
 ai_configure_ssh_git_remote "$PROJECT_DIR"
-echo "Fetching origin..."
-git -C "$PROJECT_DIR" fetch --prune origin
-
-echo "Checking out source branch: $SOURCE_BRANCH"
-if git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/remotes/origin/$SOURCE_BRANCH"; then
-    git -C "$PROJECT_DIR" checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
-elif git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
-    git -C "$PROJECT_DIR" checkout "$SOURCE_BRANCH"
-    git -C "$PROJECT_DIR" pull --ff-only origin "$SOURCE_BRANCH" || true
-else
-    echo "ERROR: Source branch not found: $SOURCE_BRANCH"
-    exit 13
-fi
+ai_fetch_and_checkout_source_branch "$PROJECT_DIR" "$SOURCE_BRANCH" || exit $?
 
 if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo "ERROR: Working tree is not clean after checkout."

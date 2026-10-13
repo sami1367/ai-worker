@@ -602,6 +602,39 @@ github_find_open_issue_with_label() {
         2>/dev/null || true
 }
 
+# Label open PRs whose head is ai/issue-N or ai/issue-N-* with ai-pr.
+# Usage: github_label_open_issue_prs_ai_pr <repo> <issue_number>
+github_label_open_issue_prs_ai_pr() {
+    local repo="$1"
+    local issue_number="$2"
+    local prefix="ai/issue-${issue_number}"
+    local pr_num
+
+    while IFS= read -r pr_num; do
+        [[ -n "$pr_num" ]] || continue
+        echo "Adding ai-pr label to pull request #$pr_num"
+        gh pr edit "$pr_num" \
+            --repo "$repo" \
+            --add-label "ai-pr" \
+            >/dev/null 2>&1 || echo "WARNING: Could not add ai-pr to PR #$pr_num"
+    done < <(
+        gh pr list \
+            --repo "$repo" \
+            --state open \
+            --limit 50 \
+            --json number,headRefName \
+            2>/dev/null \
+            | jq -r --arg p "$prefix" '
+                .[]
+                | select(
+                    .headRefName == $p
+                    or (.headRefName | startswith($p + "-"))
+                  )
+                | .number
+              ' || true
+    )
+}
+
 # AI implement-workflow labels on an open PR that should block starting a new
 # `ai` issue (human PRs without these labels do not block).
 GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
@@ -762,6 +795,8 @@ github_issue_job() {
         echo "Time:    $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "============================================================"
 
+        echo "Changing labels: ai-working -> ai-pr (issue + open PR)"
+
         gh issue edit "$ISSUE_NUMBER" \
             --repo "$REPO" \
             --add-label "ai-pr" \
@@ -772,6 +807,8 @@ github_issue_job() {
             --repo "$REPO" \
             --remove-label "ai-failed" \
             >/dev/null 2>&1 || true
+
+        github_label_open_issue_prs_ai_pr "$REPO" "$ISSUE_NUMBER"
 
     else
 
@@ -842,6 +879,8 @@ gitlab_issue_job() {
         echo "Time:    $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "============================================================"
 
+        echo "Changing labels: ai-working -> ai-pr (issue + open MR)"
+
         gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
             --add "ai-pr" \
             --remove "ai-working" \
@@ -850,6 +889,8 @@ gitlab_issue_job() {
         gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
             --remove "ai-failed" \
             >/dev/null 2>&1 || true
+
+        gitlab_label_open_issue_mrs_ai_pr "$REPO_PATH" "$ISSUE_NUMBER"
 
     else
 

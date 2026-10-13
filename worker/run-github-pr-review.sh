@@ -492,21 +492,7 @@ fi
 # Update remotes and check out source branch (read-only review)
 # ============================================================
 
-echo
-echo "Fetching origin..."
-git -C "$PROJECT_DIR" fetch --prune origin
-
-echo
-echo "Checking out source branch: $SOURCE_BRANCH"
-if git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/remotes/origin/$SOURCE_BRANCH"; then
-    git -C "$PROJECT_DIR" checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
-elif git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
-    git -C "$PROJECT_DIR" checkout "$SOURCE_BRANCH"
-    git -C "$PROJECT_DIR" pull --ff-only origin "$SOURCE_BRANCH" || true
-else
-    echo "ERROR: Source branch not found locally or on origin: $SOURCE_BRANCH"
-    exit 13
-fi
+ai_fetch_and_checkout_source_branch "$PROJECT_DIR" "$SOURCE_BRANCH" || exit $?
 
 if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo

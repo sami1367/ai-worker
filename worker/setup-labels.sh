@@ -64,7 +64,7 @@ else
         gh label create "ai-pr" \
             --repo "$REPO" \
             --color "1D76DB" \
-            --description "AI worker completed the issue and created a pull request" \
+            --description "AI worker opened a pull request (applied to issue and PR)" \
             --force
 
         gh label create "ai-failed" \
