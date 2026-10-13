@@ -1,6 +1,4 @@
-# End users: download ONLY this file (no git clone), then: docker compose up -d
-#   curl -fsSL -o docker-compose.yml \
-#     https://raw.githubusercontent.com/sami1367/ai-worker/main/docker-compose.yml
+# End users: see README.md quick start (download compose + .env, then up -d).
 # Maintainer build+push: ./scripts/publish-image.sh
 # Image: https://hub.docker.com/r/sami1367/ai-worker
 # Override: AI_WORKER_IMAGE=sami1367/ai-worker:1.0.0 docker compose up -d
