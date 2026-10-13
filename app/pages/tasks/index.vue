@@ -2,12 +2,37 @@
 const { api } = useApi()
 const page = ref(1)
 const q = ref('')
-const status = ref('')
-const taskType = ref('')
-const provider = ref('')
+const status = ref<string | null>(null)
+const taskType = ref<string | null>(null)
+const provider = ref<string | null>(null)
 const busy = ref('')
 const message = ref('')
 const messageColor = ref<'success' | 'error' | 'neutral'>('neutral')
+
+const statusItems = [
+  { label: 'Any status', value: null },
+  { label: 'queued', value: 'queued' },
+  { label: 'running', value: 'running' },
+  { label: 'succeeded', value: 'succeeded' },
+  { label: 'failed', value: 'failed' },
+  { label: 'cancelled', value: 'cancelled' },
+  { label: 'interrupted', value: 'interrupted' },
+]
+const providerItems = [
+  { label: 'Any provider', value: null },
+  { label: 'cursor', value: 'cursor' },
+  { label: 'claude', value: 'claude' },
+]
+const taskTypeItems = [
+  { label: 'Any type', value: null },
+  { label: 'github_issue', value: 'github_issue' },
+  { label: 'gitlab_issue', value: 'gitlab_issue' },
+  { label: 'github_pr_review', value: 'github_pr_review' },
+  { label: 'gitlab_mr_review', value: 'gitlab_mr_review' },
+  { label: 'github_pr_implement', value: 'github_pr_implement' },
+  { label: 'gitlab_mr_implement', value: 'gitlab_mr_implement' },
+  { label: 'release', value: 'release' },
+]
 
 const qs = computed(() => {
   const p = new URLSearchParams({ page: String(page.value), pageSize: '20' })
@@ -123,22 +148,6 @@ async function control(action: 'start' | 'stop') {
           <span v-if="queue.worker.activeTaskCount"> · {{ queue.worker.activeTaskCount }} active</span>
         </UBadge>
         <UButton
-          icon="i-lucide-play"
-          :loading="busy === 'start'"
-          @click="control('start')"
-        >
-          Start task
-        </UButton>
-        <UButton
-          color="warning"
-          variant="soft"
-          icon="i-lucide-square"
-          :loading="busy === 'stop'"
-          @click="control('stop')"
-        >
-          Stop task
-        </UButton>
-        <UButton
           color="neutral"
           variant="soft"
           icon="i-lucide-refresh-cw"
@@ -226,6 +235,7 @@ async function control(action: 'start' | 'stop') {
             <th class="px-4 py-3">Phase</th>
             <th class="px-4 py-3">Worker</th>
             <th class="px-4 py-3">Labels</th>
+            <th class="px-4 py-3">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -275,6 +285,30 @@ async function control(action: 'start' | 'stop') {
                 </UBadge>
               </div>
             </td>
+            <td class="px-4 py-3">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <UButton
+                  size="xs"
+                  icon="i-lucide-play"
+                  :loading="busy === 'start'"
+                  :disabled="!!busy && busy !== 'start'"
+                  @click="control('start')"
+                >
+                  Start
+                </UButton>
+                <UButton
+                  size="xs"
+                  color="warning"
+                  variant="soft"
+                  icon="i-lucide-square"
+                  :loading="busy === 'stop'"
+                  :disabled="!!busy && busy !== 'stop'"
+                  @click="control('stop')"
+                >
+                  Stop
+                </UButton>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -291,21 +325,9 @@ async function control(action: 'start' | 'stop') {
 
     <div class="aw-panel flex flex-wrap gap-3 rounded-xl p-4">
       <UInput v-model="q" placeholder="Search title / id…" class="min-w-56" />
-      <USelect
-        v-model="status"
-        :items="['', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted'].map((v) => ({ label: v || 'Any status', value: v }))"
-        class="w-44"
-      />
-      <USelect
-        v-model="provider"
-        :items="['', 'cursor', 'claude'].map((v) => ({ label: v || 'Any provider', value: v }))"
-        class="w-40"
-      />
-      <USelect
-        v-model="taskType"
-        :items="['', 'github_issue', 'gitlab_issue', 'github_pr_review', 'gitlab_mr_review', 'github_pr_implement', 'gitlab_mr_implement', 'release'].map((v) => ({ label: v || 'Any type', value: v }))"
-        class="w-56"
-      />
+      <USelect v-model="status" :items="statusItems" placeholder="Any status" class="w-44" />
+      <USelect v-model="provider" :items="providerItems" placeholder="Any provider" class="w-40" />
+      <USelect v-model="taskType" :items="taskTypeItems" placeholder="Any type" class="w-56" />
     </div>
 
     <div v-if="historyPending && !history" class="aw-panel h-48 animate-pulse rounded-xl" />

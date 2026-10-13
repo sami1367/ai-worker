@@ -86,10 +86,44 @@ WORKER_PID=""
 SHOULD_RUN=1
 STOP_REQUESTED=0
 
+# Re-source credentials materialized by the web UI onto the shared volume.
+# Entrypoint only loads these once at container start; connect/reload after
+# that must refresh the wrapper env before (re)spawning worker.sh.
+load_credential_env() {
+  local forge_file="$BASE_DIR/forge-credentials.env"
+  local provider_file="$BASE_DIR/provider-credentials.env"
+  if [[ -f "$forge_file" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$forge_file"
+    set +a
+    log "Loaded forge credentials"
+  fi
+  if [[ -f "$provider_file" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$provider_file"
+    set +a
+    log "Loaded provider credentials"
+  fi
+  if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] && command -v gh >/dev/null 2>&1; then
+    gh auth setup-git >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+    local gitlab_host="${GITLAB_HOST:-gitlab.com}"
+    gitlab_host="${gitlab_host#https://}"
+    gitlab_host="${gitlab_host#http://}"
+    gitlab_host="${gitlab_host%%/*}"
+    git config --global "credential.https://${gitlab_host}.helper" \
+      '!f() { echo "username=oauth2"; echo "password=${GITLAB_TOKEN}"; }; f' >/dev/null 2>&1 || true
+  fi
+}
+
 start_worker() {
   if [[ -n "$WORKER_PID" ]] && kill -0 "$WORKER_PID" 2>/dev/null; then
     return 0
   fi
+  load_credential_env
   log "Starting worker.sh"
   (
     # Prefer code next to this wrapper; runtime data via AI_WORKER_BASE_DIR/BASE_DIR
@@ -142,7 +176,15 @@ handle_control() {
     log "Control request $id action=$action"
     case "$action" in
       reload_config)
-        # Conf files are written by the web service; acknowledge reload for future polls.
+        # Conf + credential files are written by the web service. Re-source
+        # tokens and bounce worker.sh so the poll loop inherits them promptly.
+        load_credential_env
+        if [[ -n "$WORKER_PID" ]] && kill -0 "$WORKER_PID" 2>/dev/null; then
+          stop_worker_graceful
+          SHOULD_RUN=1
+          STOP_REQUESTED=0
+          start_worker
+        fi
         api POST "/api/v1/worker/internal/control/${id}/complete" '{"ok":true,"result":{"reloaded":true}}' >/dev/null
         ;;
       start)

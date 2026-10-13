@@ -34,6 +34,7 @@ source "$WORKER_CODE_DIR/lib/gitlab.sh"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 ai_load_env "$BASE_DIR/.env"
+ai_load_platform_credentials "$BASE_DIR"
 
 # ============================================================
 # Validate configuration
@@ -1208,6 +1209,10 @@ process_gitlab_mr_review() {
 # ============================================================
 
 while true; do
+
+    # Pick up forge/provider tokens written after this process started
+    # (e.g. user connected GitHub/GitLab/Cursor while the worker was already up).
+    ai_load_platform_credentials "$BASE_DIR"
 
     reset_repo_busy_log
     reap_repo_agents

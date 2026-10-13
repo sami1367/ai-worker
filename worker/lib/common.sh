@@ -61,6 +61,42 @@ ai_load_env() {
     fi
 }
 
+# Load forge + AI provider credentials written by the web control plane.
+# Safe to call repeatedly (e.g. each poll cycle) so tokens added after the
+# worker container started are picked up without a full container recreate.
+ai_load_platform_credentials() {
+    local base="${1:-${BASE_DIR:-.}}"
+    local forge_file="$base/forge-credentials.env"
+    local provider_file="$base/provider-credentials.env"
+
+    if [[ -f "$forge_file" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$forge_file"
+        set +a
+    fi
+
+    if [[ -f "$provider_file" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$provider_file"
+        set +a
+    fi
+
+    # Keep git HTTPS helpers in sync when tokens appear mid-run.
+    if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] && command -v gh >/dev/null 2>&1; then
+        gh auth setup-git >/dev/null 2>&1 || true
+    fi
+    if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+        local gitlab_host="${GITLAB_HOST:-gitlab.com}"
+        gitlab_host="${gitlab_host#https://}"
+        gitlab_host="${gitlab_host#http://}"
+        gitlab_host="${gitlab_host%%/*}"
+        git config --global "credential.https://${gitlab_host}.helper" \
+            '!f() { echo "username=oauth2"; echo "password=${GITLAB_TOKEN}"; }; f' >/dev/null 2>&1 || true
+    fi
+}
+
 ai_require_cmds() {
     local cmd
     for cmd in "$@"; do
