@@ -107,6 +107,17 @@ export async function exportForgeCredentialsForWorker(): Promise<{
   }
 }
 
+/** Export forge credentials and wake the worker so tokens apply on the next poll. */
+export async function exportForgeCredentialsAndWake(reason = 'forge.credentials'): Promise<void> {
+  await exportForgeCredentialsForWorker()
+  try {
+    const { applyWorkerRuntimeChange } = await import('./worker-runtime')
+    await applyWorkerRuntimeChange(reason, { forge: true })
+  } catch {
+    // wake is best-effort
+  }
+}
+
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }

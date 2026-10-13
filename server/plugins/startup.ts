@@ -5,6 +5,7 @@ import { startQueueScheduler } from '#services/queue-scheduler'
 import { exportForgeCredentialsForWorker } from '#services/forge-credentials'
 import { exportProviderCredentialsForWorker } from '#services/provider-credentials'
 import { exportWorkerConfig } from '#services/config-sync'
+import { exportWorkerRuntimeEnv } from '#services/worker-runtime'
 import { ensureProviderRows } from '#services/providers'
 import { ensurePromptRows } from '#services/prompts'
 
@@ -40,6 +41,7 @@ export default defineNitroPlugin(async () => {
         console.log(`[startup] Prompt seed: ${prompts.inserted} inserted, ${prompts.total} total`)
         await exportForgeCredentialsForWorker()
         await exportProviderCredentialsForWorker()
+        await exportWorkerRuntimeEnv()
         // Ensure project conf includes full_name for work-first discovery / lazy clone
         await exportWorkerConfig()
       } catch (err) {

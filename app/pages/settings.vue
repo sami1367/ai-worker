@@ -21,7 +21,7 @@ async function save() {
         uiTheme: data.value.uiTheme,
       },
     })
-    message.value = 'Saved. Operational changes apply to future tasks; worker reload may be required for poll interval.'
+    message.value = 'Saved. Worker picks up AI provider and poll interval on the next cycle (usually within a few seconds).'
     await refresh()
   } catch (e: any) {
     message.value = e?.data?.message || 'Save failed'
@@ -42,7 +42,7 @@ async function save() {
       <UFormField label="Default AI provider">
         <USelect v-model="data.defaultAiProvider" :items="[{ label: 'Cursor', value: 'cursor' }, { label: 'Claude Code', value: 'claude' }]" />
       </UFormField>
-      <UFormField label="Polling interval (seconds)" hint="Requires worker reload to take effect in the Bash loop if CHECK_INTERVAL is not env-driven yet.">
+      <UFormField label="Polling interval (seconds)" hint="Applied on the next worker poll cycle (no container restart).">
         <UInput v-model.number="data.pollIntervalSeconds" type="number" min="15" max="3600" />
       </UFormField>
       <UFormField label="Max global concurrent tasks" hint="Informational soft limit for operators; per-repo lock remains authoritative.">

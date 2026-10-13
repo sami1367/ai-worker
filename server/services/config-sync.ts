@@ -118,6 +118,20 @@ export async function exportWorkerConfig(
     })
   }
 
+  // New/enabled/disabled repos: wake the poll loop so conf is used immediately.
+  if (changed) {
+    try {
+      const { wakeWorkerPoll } = await import('./webhooks')
+      await wakeWorkerPoll('config.export', {
+        githubCount: github.length,
+        gitlabCount: gitlab.length,
+        configVersion: next.configVersion,
+      })
+    } catch {
+      // best-effort
+    }
+  }
+
   return {
     githubPath,
     gitlabPath,

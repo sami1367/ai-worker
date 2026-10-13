@@ -61,13 +61,15 @@ ai_load_env() {
     fi
 }
 
-# Load forge + AI provider credentials written by the web control plane.
-# Safe to call repeatedly (e.g. each poll cycle) so tokens added after the
-# worker container started are picked up without a full container recreate.
+# Load forge + AI provider credentials and UI runtime settings written by the
+# web control plane. Safe to call repeatedly (e.g. each poll cycle) so tokens,
+# default AI provider, and poll interval added after the worker started are
+# picked up without a full container recreate.
 ai_load_platform_credentials() {
     local base="${1:-${BASE_DIR:-.}}"
     local forge_file="$base/forge-credentials.env"
     local provider_file="$base/provider-credentials.env"
+    local runtime_file="$base/worker-runtime.env"
 
     if [[ -f "$forge_file" ]]; then
         set -a
@@ -80,6 +82,13 @@ ai_load_platform_credentials() {
         set -a
         # shellcheck disable=SC1090
         source "$provider_file"
+        set +a
+    fi
+
+    if [[ -f "$runtime_file" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$runtime_file"
         set +a
     fi
 

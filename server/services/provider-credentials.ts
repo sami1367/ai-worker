@@ -78,6 +78,17 @@ export async function exportProviderCredentialsForWorker(): Promise<{
   }
 }
 
+/** Export provider credentials and wake the worker so keys apply on the next poll. */
+export async function exportProviderCredentialsAndWake(reason = 'provider.credentials'): Promise<void> {
+  await exportProviderCredentialsForWorker()
+  try {
+    const { applyWorkerRuntimeChange } = await import('./worker-runtime')
+    await applyWorkerRuntimeChange(reason, { provider: true })
+  } catch {
+    // wake is best-effort
+  }
+}
+
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
