@@ -12,6 +12,7 @@ import {
   ensureAppSecrets,
   shouldFailOnSecretIssues,
 } from '#utils/app-secrets'
+import { ensurePlatformSshKey } from '#services/platform-ssh'
 
 export default defineNitroPlugin(async () => {
   const secrets = await ensureAppSecrets(process.env)
@@ -51,6 +52,17 @@ export default defineNitroPlugin(async () => {
     }
   } catch (err) {
     console.warn('[startup] Database check skipped:', err instanceof Error ? err.message : err)
+  }
+
+  try {
+    const ssh = await ensurePlatformSshKey()
+    console.log(
+      ssh.created
+        ? '[startup] Generated platform SSH key (add the public key in Connections)'
+        : '[startup] Platform SSH key ready',
+    )
+  } catch (err) {
+    console.warn('[startup] Platform SSH key not ready:', err instanceof Error ? err.message : err)
   }
 
   try {

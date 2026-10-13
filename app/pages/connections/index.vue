@@ -6,11 +6,34 @@ const { data, pending, refresh, error } = await useAsyncData('connections', () =
   api<any>('/api/v1/connections'),
 )
 
+const { data: sshKey, refresh: refreshSshKey } = await useAsyncData('platform-ssh-key', () =>
+  api<{
+    publicKey: string
+    fingerprint: string
+    keyType: string
+    comment: string
+    privateKeyPresent: boolean
+  }>('/api/v1/platform/ssh-key'),
+)
+
 const busy = ref('')
 const message = ref('')
 const messageError = ref(false)
 const showGitHub = ref(false)
 const showGitLab = ref(false)
+const sshCopied = ref(false)
+
+async function copySshPublicKey() {
+  if (!sshKey.value?.publicKey) return
+  try {
+    await navigator.clipboard.writeText(sshKey.value.publicKey)
+    sshCopied.value = true
+    setTimeout(() => { sshCopied.value = false }, 2000)
+  } catch {
+    message.value = 'Could not copy public key — select and copy manually'
+    messageError.value = true
+  }
+}
 
 const githubForm = reactive({
   token: '',
@@ -171,7 +194,8 @@ function formatTime(v: string | null | undefined) {
       <div>
         <h1 class="font-display text-3xl tracking-tight">Connections</h1>
         <p class="mt-1 text-sm opacity-70">
-          Connect with a personal access token (recommended), discover repositories, and clone selected workspaces.
+          Connect with a personal access token. Clone/push uses the token over HTTPS when the forge allows it.
+          The platform SSH key below is optional (needed only if git-over-HTTPS is disabled).
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -191,9 +215,50 @@ function formatTime(v: string | null | undefined) {
       variant="subtle"
     />
 
+    <div class="aw-panel space-y-3 rounded-xl p-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="font-medium">Platform SSH public key <span class="opacity-60">(optional)</span></p>
+          <p class="mt-1 text-sm opacity-70">
+            Generated once on this install; all workers share it. Not required when the forge allows
+            HTTPS git with your token (GitLab Admin → Enabled Git access protocols → Both or HTTP).
+            Add this public key only if git-over-HTTPS is disabled. The private key stays on the
+            data volume and is never shown.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <UButton size="sm" variant="soft" icon="i-lucide-copy" :disabled="!sshKey?.publicKey" @click="copySshPublicKey">
+            {{ sshCopied ? 'Copied' : 'Copy public key' }}
+          </UButton>
+          <UButton size="sm" variant="ghost" :loading="false" @click="refreshSshKey()">
+            Refresh
+          </UButton>
+        </div>
+      </div>
+      <p v-if="sshKey?.fingerprint" class="text-xs opacity-50">
+        {{ sshKey.keyType }} · {{ sshKey.fingerprint }}
+      </p>
+      <pre
+        class="max-h-28 overflow-auto rounded-lg bg-black/5 p-3 text-xs break-all whitespace-pre-wrap dark:bg-white/5"
+      >{{ sshKey?.publicKey || 'Generating platform SSH key…' }}</pre>
+      <ul class="list-disc space-y-1 pl-5 text-sm opacity-70">
+        <li>
+          <strong>GitLab:</strong> Preferences → SSH Keys → paste the key → Add key
+          (or Project → Settings → Repository → Deploy keys with write access).
+        </li>
+        <li>
+          <strong>GitHub:</strong> Settings → SSH and GPG keys → New SSH key → paste the key.
+        </li>
+      </ul>
+    </div>
+
     <div class="aw-panel rounded-xl p-4 text-sm opacity-80">
       <p class="font-medium">How to connect</p>
       <ul class="mt-2 list-disc space-y-1 pl-5 opacity-80">
+        <li>
+          <strong>SSH key:</strong> optional. Prefer enabling HTTPS git on the forge so the token
+          can clone. Add the public key above only if the forge is SSH-only for git.
+        </li>
         <li>
           <strong>GitHub:</strong> use a classic PAT with the full <code>repo</code> scope
           (<code>public_repo</code> alone only lists public repositories). Fine-grained PATs need
@@ -276,6 +341,7 @@ function formatTime(v: string | null | undefined) {
               Fine-grained tokens often miss private/org repos unless Repository access is
               <em>All repositories</em> and org private repos use the organization as resource owner.
               Token is stored encrypted and never shown again.
+              Optional: add the platform SSH public key from this page if HTTPS git clone is unavailable.
             </p>
             <UButton type="submit" block :loading="busy === 'github-token'" :disabled="!githubForm.token">
               Connect with token
@@ -320,6 +386,8 @@ function formatTime(v: string | null | undefined) {
             Create a token in GitLab → Preferences → Access Tokens with the <code>api</code> scope
             (<code>read_api</code> alone can list private projects, but worker ops need <code>api</code>).
             Self-managed hosts may need <code>GITLAB_TRUSTED_HOSTS</code>. Token is stored encrypted.
+            Prefer GitLab Admin → Enabled Git access protocols → <strong>Both</strong> or <strong>HTTP</strong>
+            so this token can clone over HTTPS. SSH public key on this page is optional fallback.
           </p>
           <div class="flex justify-end gap-2">
             <UButton type="button" variant="ghost" @click="showGitLab = false">Cancel</UButton>
