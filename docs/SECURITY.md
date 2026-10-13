@@ -30,8 +30,8 @@ This platform can trigger AI agents that modify repository working trees and ope
 
 ## Production checklist
 
-- [ ] Postgres is internal-only; app/crypto secrets are Compose defaults (rotate in compose if you need unique per-deploy values)
-- [ ] `INITIAL_ADMIN_BOOTSTRAP_SECRET` set in `.env` (required; used at `/setup` for first admin)
+- [ ] Postgres is internal-only; app/crypto secrets are Compose defaults (rotate in compose for hardened deploys)
+- [ ] Change default bootstrap secret (`changeme`) before exposing `/setup` beyond localhost
 - [ ] TLS reverse proxy; `APP_BASE_URL` is HTTPS and matches OAuth callback URLs
 - [ ] GitHub/GitLab OAuth apps configured with exact callback URLs
 - [ ] Backups of PostgreSQL + `/data` volumes; encryption key stored offline

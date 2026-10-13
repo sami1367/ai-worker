@@ -1,12 +1,16 @@
-# Requires .env with INITIAL_ADMIN_BOOTSTRAP_SECRET (see .env.example)
-# docker compose up --build -d
+# End users: download ONLY this file (no git clone), then: docker compose up -d
+#   curl -fsSL -o docker-compose.yml \
+#     https://raw.githubusercontent.com/sami1367/ai-worker/main/docker-compose.yml
+# Maintainer build+push: ./scripts/publish-image.sh
+# Image: https://hub.docker.com/r/sami1367/ai-worker
+# Override: AI_WORKER_IMAGE=sami1367/ai-worker:1.0.0 docker compose up -d
 
 x-env: &env
   DATABASE_URL: postgresql://aiworker:Aw7kP9mX2qR5vN8jL3hC6tY1wE4uS0bZ@db:5432/aiworker
   NUXT_SESSION_PASSWORD: n8Kx2mQ7pL4vR9wT1yH6jC3bF5dA0sE2uZ
   SECRET_ENCRYPTION_KEY: a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00
   WORKER_INTERNAL_TOKEN: wk_7f3a9c2e1b8d4f6a0e5c9b2d7a1f4e8c3b6d9e0a2f5c8
-  INITIAL_ADMIN_BOOTSTRAP_SECRET: ${INITIAL_ADMIN_BOOTSTRAP_SECRET:?INITIAL_ADMIN_BOOTSTRAP_SECRET is required}
+  INITIAL_ADMIN_BOOTSTRAP_SECRET: ${INITIAL_ADMIN_BOOTSTRAP_SECRET:-changeme}
   APP_BASE_URL: ${APP_BASE_URL:-http://127.0.0.1:8080}
   WEB_INTERNAL_URL: http://web:3000
   GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -15,11 +19,8 @@ x-env: &env
   WORKERS: ${WORKERS:-1}
 
 x-app: &app
-  build: .
+  image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}
   environment: *env
-  env_file:
-    - path: .env
-      required: false
   volumes:
     - data:/data
   networks:

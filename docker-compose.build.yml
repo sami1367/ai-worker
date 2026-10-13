@@ -1,0 +1,12 @@
+# Local build from this repo (no Hub pull required):
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+services:
+  migrate:
+    build: .
+    image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}
+  web:
+    build: .
+    image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}
+  worker:
+    build: .
+    image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}

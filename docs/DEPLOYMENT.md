@@ -2,64 +2,68 @@
 
 ## Prerequisites
 
-- Ubuntu host with Docker Engine and Docker Compose v2.24+ (optional `.env` support)
+- Docker Engine + Docker Compose v2+
 - Outbound network for GitHub/GitLab and AI provider APIs
 - At least 2 GB RAM recommended for concurrent agents
 
-## Fresh install
+## Fresh install (no git clone — Hub image only)
 
 ```bash
-git clone <repo-url> ai-worker-platform
-cd ai-worker-platform
+mkdir ai-worker && cd ai-worker
+curl -fsSL -o docker-compose.yml \
+  https://raw.githubusercontent.com/sami1367/ai-worker/main/docker-compose.yml
 
-cp .env.example .env
-# Set INITIAL_ADMIN_BOOTSTRAP_SECRET (required — any random string)
-# Optional: GITHUB_TOKEN / GITLAB_HOST / GITLAB_TOKEN
+docker compose up -d
 
-docker compose up --build -d
-
-# Wait for health
 curl -fsS http://127.0.0.1:8080/api/v1/health
 curl -fsS http://127.0.0.1:8080/api/v1/ready
 
-# Open http://127.0.0.1:8080/setup — enter username, password, and bootstrap secret
+# Open http://127.0.0.1:8080/setup — bootstrap secret default: changeme
 ```
 
-Default publish bind: `127.0.0.1:8080` (not public). Put a reverse proxy with TLS in front for remote access.
+Compose uses `image: sami1367/ai-worker` only (no `build:`). Source code is not required on the server.
 
-## Reverse proxy / HTTPS
+Default publish bind: `127.0.0.1:8080`. Put a reverse proxy with TLS in front for remote access. Set `APP_BASE_URL` to the public HTTPS origin.
 
-Terminate TLS at Caddy/Nginx/Traefik. Forward to `127.0.0.1:8080`. Set `APP_BASE_URL` to the public HTTPS origin. Ensure `X-Forwarded-For` / `X-Forwarded-Proto` are set; cookies use `Secure` when `NODE_ENV=production`.
+## Publish image (maintainer)
+
+```bash
+docker login
+./scripts/publish-image.sh        # sami1367/ai-worker:latest
+./scripts/publish-image.sh 1.0.0  # also tags :latest
+```
+
+## Build from source (no Hub)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+```
 
 ## Provider authentication
 
 ### GitHub
 
-Prefer connecting a token in the **Connections** UI, or set `GITHUB_TOKEN` in an optional `.env`. Do not bake tokens into the image.
+Prefer **Connections** UI, or set `GITHUB_TOKEN` in the environment. Do not bake tokens into the image.
 
 ### GitLab
 
-Connect in the UI, or set `GITLAB_HOST` and `GITLAB_TOKEN` in `.env`.
+Connect in the UI, or set `GITLAB_HOST` and `GITLAB_TOKEN`.
 
 ### Cursor CLI + Claude Code
 
-Both CLIs are installed during `docker compose build` via `scripts/install-ai-clis.sh`. Connect credentials in the **Providers** UI (encrypted → `provider-credentials.env`), or set `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` in Compose as a fallback. Presence of the binary alone does **not** mean authenticated.
+Installed in the image. Connect credentials in **Providers** UI.
 
 ## Updates
 
 ```bash
-git pull
-docker compose up --build -d
-# migrate service runs once per compose up
+docker compose pull
+docker compose up -d
+# migrate runs once per compose up
 ```
 
 ## Existing installs (volume layout)
 
-Compose now uses one `data` volume mounted at `/data` (replacing `configdata`, `workspaces`, `logsdata`, `statedata`). Fresh installs need no action. To keep old data, copy from the previous named volumes into the new `data` volume before starting.
-
-## Host systemd (legacy)
-
-The Bash worker still supports host installs via `ai-worker.service` pointing at `worker/`. Prefer Docker Compose for the full platform.
+Compose uses one `data` volume at `/data` (plus `pgdata`). Fresh installs need no action. Older installs with `configdata` / `workspaces` / … need a one-time copy into `data`.
 
 ## Verification limitations
 
