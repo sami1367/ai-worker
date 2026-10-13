@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+**/forge-credentials.env
+**/provider-credentials.env
 
 # Local project registries (host-specific absolute clone paths)
 github-projects.conf
