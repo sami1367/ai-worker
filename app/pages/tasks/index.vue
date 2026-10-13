@@ -153,11 +153,10 @@ async function control(action: 'start' | 'stop') {
     <UAlert v-if="message" :color="messageColor" :title="message" />
     <UAlert v-if="queueError" color="error" title="Could not load live queue" :description="String(queueError)" />
     <UAlert
-      v-for="err in queue?.errors || []"
-      :key="err.repositoryId"
+      v-if="queue?.errors?.length"
       color="warning"
-      :title="`Queue error: ${err.repositoryName}`"
-      :description="err.message"
+      :title="`Could not poll ${queue.errors.length} repositor${queue.errors.length === 1 ? 'y' : 'ies'}`"
+      :description="queue.errors.slice(0, 5).map((e: any) => `${e.repositoryName}: ${e.message}`).join(' · ') + (queue.errors.length > 5 ? ' · …' : '')"
     />
 
     <!-- Next task -->
