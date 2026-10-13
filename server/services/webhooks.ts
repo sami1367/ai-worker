@@ -284,6 +284,18 @@ export async function handleGitHubWebhook(opts: {
     })
   }
 
+  // Keep DB-backed Tasks queue fresh without waiting for the poll interval.
+  try {
+    const { syncQueueForRepositoryFullName } = await import('./task-queue')
+    void syncQueueForRepositoryFullName(
+      opts.connectionId,
+      parsed.repositoryFullName,
+      'github_webhook',
+    ).catch(() => {})
+  } catch {
+    /* optional */
+  }
+
   return {
     provider: 'github',
     connectionId: opts.connectionId,
@@ -312,6 +324,17 @@ export async function handleGitLabWebhook(opts: {
       externalId: parsed.externalId,
       labels: parsed.labels,
     })
+  }
+
+  try {
+    const { syncQueueForRepositoryFullName } = await import('./task-queue')
+    void syncQueueForRepositoryFullName(
+      opts.connectionId,
+      parsed.repositoryFullName,
+      'gitlab_webhook',
+    ).catch(() => {})
+  } catch {
+    /* optional */
   }
 
   return {

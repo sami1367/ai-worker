@@ -43,6 +43,8 @@ const qs = computed(() => {
   return p.toString()
 })
 
+const liveStatus = ref<'connecting' | 'live' | 'polling'>('connecting')
+
 const {
   data: queue,
   pending: queuePending,
@@ -52,19 +54,132 @@ const {
   server: false,
 })
 
-const { data: history, pending: historyPending } = await useAsyncData(
+const { data: history, pending: historyPending, refresh: refreshHistory } = await useAsyncData(
   'tasks-history',
   () => api<any>(`/api/v1/runs?${qs.value}`),
   { watch: [qs] },
 )
 
+function applyQueueSnapshot(next: unknown) {
+  if (!next || typeof next !== 'object') return
+  queue.value = next as typeof queue.value
+  liveStatus.value = 'live'
+  // Keep history fresh when assignment / runs change
+  void refreshHistory().catch(() => {})
+}
+
 let refreshTimer: ReturnType<typeof setInterval> | null = null
-onMounted(() => {
+let ws: WebSocket | null = null
+let es: EventSource | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearLiveConnections() {
+  if (ws) {
+    try { ws.close() } catch { /* ignore */ }
+    ws = null
+  }
+  if (es) {
+    try { es.close() } catch { /* ignore */ }
+    es = null
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+function startPollingFallback() {
+  liveStatus.value = 'polling'
+  if (refreshTimer) return
   refreshTimer = setInterval(() => {
     refreshQueue().catch(() => {})
-  }, 10_000)
+  }, 30_000)
+}
+
+function connectLiveQueue() {
+  if (!import.meta.client) return
+  clearLiveConnections()
+
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+  const wsUrl = `${proto}://${location.host}/ws/tasks-queue`
+
+  try {
+    ws = new WebSocket(wsUrl)
+    ws.onopen = () => {
+      liveStatus.value = 'live'
+      if (refreshTimer) {
+        clearInterval(refreshTimer)
+        refreshTimer = null
+      }
+    }
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(String(ev.data))
+        if (msg?.type === 'queue' && msg.queue) applyQueueSnapshot(msg.queue)
+      } catch { /* ignore malformed */ }
+    }
+    ws.onerror = () => {
+      // Fall through to SSE on close
+    }
+    ws.onclose = () => {
+      ws = null
+      connectSseFallback()
+    }
+    return
+  } catch {
+    connectSseFallback()
+  }
+}
+
+function connectSseFallback() {
+  if (!import.meta.client) return
+  if (es) return
+
+  es = new EventSource('/api/v1/tasks/queue/stream', { withCredentials: true })
+  es.onopen = () => {
+    liveStatus.value = 'live'
+    if (refreshTimer) {
+      clearInterval(refreshTimer)
+      refreshTimer = null
+    }
+  }
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data)
+      if (msg?.type === 'queue' && msg.queue) applyQueueSnapshot(msg.queue)
+    } catch { /* ignore */ }
+  }
+  es.onerror = () => {
+    es?.close()
+    es = null
+    startPollingFallback()
+    reconnectTimer = setTimeout(() => {
+      connectLiveQueue()
+    }, 10_000)
+  }
+}
+
+async function syncFromForge() {
+  busy.value = 'sync'
+  message.value = ''
+  try {
+    await api('/api/v1/tasks/queue/sync', { method: 'POST' })
+    await refreshQueue()
+    messageColor.value = 'success'
+    message.value = 'Synced queue from GitHub/GitLab into the database'
+  } catch (e: any) {
+    messageColor.value = 'error'
+    message.value = e?.data?.message || 'Queue sync failed'
+  } finally {
+    busy.value = ''
+  }
+}
+
+onMounted(() => {
+  connectLiveQueue()
 })
 onBeforeUnmount(() => {
+  clearLiveConnections()
   if (refreshTimer) clearInterval(refreshTimer)
 })
 
@@ -172,9 +287,18 @@ async function control(action: 'start' | 'stop') {
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 class="font-display text-3xl tracking-tight">Tasks</h1>
-        <p class="mt-1 text-sm opacity-70">Live AI queue from forge labels · worker assignment · run history</p>
+        <p class="mt-1 text-sm opacity-70">
+          Queue from database · live updates · worker assignment · run history
+          <span v-if="queue?.syncedAt" class="opacity-60"> · synced {{ new Date(queue.syncedAt).toLocaleString() }}</span>
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <UBadge
+          :color="liveStatus === 'live' ? 'success' : liveStatus === 'polling' ? 'warning' : 'neutral'"
+          variant="subtle"
+        >
+          {{ liveStatus === 'live' ? 'Live' : liveStatus === 'polling' ? 'Polling' : 'Connecting…' }}
+        </UBadge>
         <UBadge
           v-if="queue?.worker"
           :color="statusColor(queue.worker.status)"
@@ -183,6 +307,15 @@ async function control(action: 'start' | 'stop') {
           Worker: {{ queue.worker.status }}
           <span v-if="queue.worker.activeTaskCount"> · {{ queue.worker.activeTaskCount }} active</span>
         </UBadge>
+        <UButton
+          color="neutral"
+          variant="soft"
+          icon="i-lucide-database"
+          :loading="busy === 'sync'"
+          @click="syncFromForge()"
+        >
+          Sync forges
+        </UButton>
         <UButton
           color="neutral"
           variant="soft"
@@ -257,9 +390,9 @@ async function control(action: 'start' | 'stop') {
     <!-- Live queue by repository -->
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 class="font-display text-xl">Live queue by repository</h2>
+        <h2 class="font-display text-xl">Queue by repository</h2>
         <p class="mt-1 text-sm opacity-70">
-          Open AI-labeled issues and PR/MRs per repo · why idle · forge labels
+          Stored AI-labeled issues and PR/MRs · why idle · forge labels
         </p>
       </div>
       <p v-if="queue" class="text-sm opacity-60">

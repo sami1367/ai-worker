@@ -107,6 +107,18 @@ export async function listRecentWorkerEvents(limit = 20) {
 }
 
 /** Called by the worker wrapper (authenticated via shared worker token or internal network + token). */
+function activeTasksFingerprint(tasks: ActiveTask[]): string {
+  return JSON.stringify(
+    tasks.map((t) => ({
+      repositoryName: t.repositoryName || '',
+      taskType: t.taskType || '',
+      externalId: t.externalId || '',
+      branch: t.branch || '',
+      pid: t.pid ?? null,
+    })),
+  )
+}
+
 export async function workerHeartbeat(input: {
   status: 'starting' | 'running' | 'stopping' | 'stopped' | 'error'
   configVersionLoaded?: number
@@ -122,6 +134,12 @@ export async function workerHeartbeat(input: {
   const db = getDb()
   const now = new Date()
   const activeTasks = Array.isArray(input.activeTasks) ? input.activeTasks : []
+
+  const [prev] = await db.select({
+    status: workerState.status,
+    activeTasks: workerState.activeTasks,
+  }).from(workerState).where(eq(workerState.id, 1)).limit(1)
+
   const patch: Partial<typeof workerState.$inferInsert> = {
     status: input.status,
     lastHeartbeatAt: now,
@@ -144,6 +162,20 @@ export async function workerHeartbeat(input: {
   }
 
   await db.update(workerState).set(patch).where(eq(workerState.id, 1))
+
+  const prevTasks = (prev?.activeTasks ?? []) as ActiveTask[]
+  const assignmentChanged = !prev
+    || prev.status !== input.status
+    || activeTasksFingerprint(prevTasks) !== activeTasksFingerprint(activeTasks)
+
+  if (assignmentChanged) {
+    try {
+      const { notifyQueueChanged } = await import('./task-queue')
+      notifyQueueChanged('heartbeat')
+    } catch {
+      /* optional during early boot */
+    }
+  }
 }
 
 export async function claimControlRequests(limit = 5) {

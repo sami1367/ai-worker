@@ -275,6 +275,37 @@ export const taskRuns = pgTable('task_runs', {
   index('task_runs_external_idx').on(t.taskType, t.externalId),
 ])
 
+/** Persisted AI forge queue (issues / PRs / MRs with AI labels). Synced in background; UI reads from DB. */
+export const taskQueueItems = pgTable('task_queue_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  repositoryId: uuid('repository_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
+  kind: varchar('kind', { length: 32 }).notNull(),
+  taskType: taskTypeEnum('task_type').notNull(),
+  phase: varchar('phase', { length: 32 }).notNull(),
+  externalId: varchar('external_id', { length: 64 }).notNull(),
+  title: text('title').notNull().default(''),
+  url: text('url').notNull().default(''),
+  labels: jsonb('labels').$type<string[]>().notNull().default([]),
+  sourceBranch: varchar('source_branch', { length: 256 }),
+  forgeCreatedAt: timestamp('forge_created_at', { withTimezone: true }),
+  syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('task_queue_items_repo_kind_ext_uidx').on(t.repositoryId, t.kind, t.externalId),
+  index('task_queue_items_repo_idx').on(t.repositoryId),
+  index('task_queue_items_phase_idx').on(t.phase),
+  index('task_queue_items_synced_idx').on(t.syncedAt),
+])
+
+/** Per-repository forge sync status for the task queue. */
+export const taskQueueRepoSync = pgTable('task_queue_repo_sync', {
+  repositoryId: uuid('repository_id').primaryKey().references(() => repositories.id, { onDelete: 'cascade' }),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const workerEvents = pgTable('worker_events', {
   id: uuid('id').defaultRandom().primaryKey(),
   eventType: varchar('event_type', { length: 64 }).notNull(),

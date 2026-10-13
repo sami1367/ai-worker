@@ -1,6 +1,7 @@
 import { checkDatabaseConnectivity } from '#utils/db'
 import { startWorkspaceOperationWorker } from '#services/workspace-manager'
 import { startDiscoveryScheduler } from '#services/discovery-scheduler'
+import { startQueueScheduler } from '#services/queue-scheduler'
 import { exportForgeCredentialsForWorker } from '#services/forge-credentials'
 import { exportProviderCredentialsForWorker } from '#services/provider-credentials'
 import { exportWorkerConfig } from '#services/config-sync'
@@ -62,6 +63,12 @@ export default defineNitroPlugin(async () => {
     startDiscoveryScheduler()
   } catch (err) {
     console.warn('[startup] Discovery scheduler not started:', err instanceof Error ? err.message : err)
+  }
+
+  try {
+    startQueueScheduler()
+  } catch (err) {
+    console.warn('[startup] Task queue scheduler not started:', err instanceof Error ? err.message : err)
   }
 
   void required

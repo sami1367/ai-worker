@@ -208,12 +208,49 @@ agent_meta_from_job() {
         --arg externalId "$external_id" \
         --arg branch "$branch" \
         --arg startedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        --arg correlationId "$(date +%s)-${project_name}-${task_type}-${external_id}-$$" \
         '{
             repositoryName: $name,
             taskType: $taskType,
             externalId: $externalId,
-            startedAt: $startedAt
+            startedAt: $startedAt,
+            correlationId: $correlationId
         } + (if $branch != "" then {branch: $branch} else {} end)'
+}
+
+report_task_run_from_meta() {
+    local meta="$1"
+    local status="$2"
+    local exit_code="${3:-}"
+    local payload
+
+    [[ -n "$meta" ]] || return 0
+
+    payload="$(jq -nc \
+        --argjson meta "$meta" \
+        --arg status "$status" \
+        --arg exitCode "$exit_code" \
+        --arg finishedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        '
+        ($meta.taskType // "") as $tt
+        | {
+            repositoryName: ($meta.repositoryName // null),
+            forgeType: (if ($tt | startswith("gitlab_")) then "gitlab" else "github" end),
+            taskType: $tt,
+            externalId: ($meta.externalId // ""),
+            status: $status,
+            startedAt: ($meta.startedAt // null),
+            correlationId: ($meta.correlationId // null),
+            resultMetadata: (if ($meta.branch // "") != "" then {branch: $meta.branch} else {} end)
+          }
+        + (if $status == "running" or $status == "starting" then {} else {finishedAt: $finishedAt} end)
+        + (if $exitCode == "" then {} else {exitCode: ($exitCode | tonumber)} end)
+        + (if ($meta.title // "") != "" then {title: $meta.title} else {} end)
+        ' 2>/dev/null || true)"
+
+    if [[ -n "$payload" ]]; then
+        ai_report_task_run "$payload"
+    fi
 }
 
 reset_repo_busy_log() {
@@ -266,18 +303,25 @@ repo_agent_running() {
 }
 
 reap_repo_agents() {
-    local key pid name changed=0
+    local key pid name meta exit_code changed=0
 
     for key in "${!REPO_AGENT_PIDS[@]}"; do
         pid="${REPO_AGENT_PIDS[$key]}"
         if ! kill -0 "$pid" 2>/dev/null; then
-            wait "$pid" 2>/dev/null || true
+            exit_code=0
+            wait "$pid" 2>/dev/null || exit_code=$?
             name="${REPO_AGENT_NAMES[$key]:-$key}"
+            meta="${REPO_AGENT_META[$key]:-}"
+            if [[ "$exit_code" -eq 0 ]]; then
+                report_task_run_from_meta "$meta" "succeeded" "0"
+            else
+                report_task_run_from_meta "$meta" "failed" "$exit_code"
+            fi
             unset 'REPO_AGENT_PIDS[$key]'
             unset 'REPO_AGENT_NAMES[$key]'
             unset 'REPO_AGENT_META[$key]'
             changed=1
-            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Agent finished for ${name}."
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Agent finished for ${name} (exit ${exit_code})."
         fi
     done
     if [[ "$changed" -eq 1 ]]; then
@@ -334,6 +378,7 @@ launch_repo_job() {
     REPO_AGENT_NAMES[$key]="$project_name"
     REPO_AGENT_META[$key]="$(agent_meta_from_job "$project_name" "$job_fn" "$external_id")"
     write_active_agents_file
+    report_task_run_from_meta "${REPO_AGENT_META[$key]}" "running"
     echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Started agent for ${project_name} (pid ${pid})."
     return 0
 }

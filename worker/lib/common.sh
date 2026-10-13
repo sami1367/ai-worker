@@ -599,6 +599,27 @@ ai_try_claim_repo_lock() {
     return 1
 }
 
+# Report a task run to the platform DB (best-effort).
+# Usage: ai_report_task_run <json-fields...> via env-style args in a single JSON object string.
+# Example:
+#   ai_report_task_run '{"forgeType":"github","taskType":"github_issue","externalId":"12","status":"running",...}'
+ai_report_task_run() {
+    local payload="${1:-}"
+    local web_url token
+
+    web_url="${WEB_INTERNAL_URL:-}"
+    token="${WORKER_INTERNAL_TOKEN:-}"
+    if [[ -z "$web_url" || -z "$token" || -z "$payload" ]]; then
+        return 0
+    fi
+
+    curl -fsS -X POST \
+        -H "Content-Type: application/json" \
+        -H "x-worker-token: $token" \
+        -d "$payload" \
+        "${web_url}/api/v1/worker/internal/runs" >/dev/null 2>&1 || true
+}
+
 # Ask the platform to clone a managed workspace if missing.
 # Usage: ai_ensure_project_workspace <project_dir> <project_name> [forge] [full_name]
 # Returns:

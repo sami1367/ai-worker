@@ -48,6 +48,7 @@ export default defineNuxtConfig({
   nitro: {
     experimental: {
       asyncContext: true,
+      websocket: true,
     },
     alias: {
       '#services': fileURLToPath(new URL('./server/services', import.meta.url)),

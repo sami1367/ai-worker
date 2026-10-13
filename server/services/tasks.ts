@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, ilike, lte, or } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm'
 import { createReadStream } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
@@ -194,6 +194,71 @@ export async function upsertTaskRunFromWorker(input: {
   const finishedAt = input.finishedAt ? new Date(input.finishedAt) : null
   const durationMs = startedAt && finishedAt ? finishedAt.getTime() - startedAt.getTime() : null
   const correlationId = input.correlationId || newCorrelationId()
+  const now = new Date()
+
+  // Prefer updating an open run for the same correlation / external work item.
+  if (input.correlationId) {
+    const [existing] = await db.select().from(taskRuns)
+      .where(eq(taskRuns.correlationId, input.correlationId))
+      .limit(1)
+    if (existing) {
+      const [row] = await db.update(taskRuns).set({
+        repositoryId: repositoryId ?? existing.repositoryId,
+        forgeType: input.forgeType,
+        taskType: input.taskType,
+        externalId: input.externalId,
+        externalUrl: input.externalUrl ?? existing.externalUrl,
+        title: input.title ?? existing.title,
+        provider: input.provider ?? existing.provider,
+        status: input.status,
+        startedAt: startedAt ?? existing.startedAt,
+        finishedAt: finishedAt ?? existing.finishedAt,
+        durationMs: durationMs ?? existing.durationMs ?? undefined,
+        exitCode: input.exitCode ?? existing.exitCode,
+        errorSummary: input.errorSummary ?? existing.errorSummary,
+        resultMetadata: input.resultMetadata ?? existing.resultMetadata,
+        logPath: input.logPath ? basename(input.logPath) : existing.logPath,
+        updatedAt: now,
+      }).where(eq(taskRuns.id, existing.id)).returning()
+      try {
+        const { notifyQueueChanged } = await import('./task-queue')
+        notifyQueueChanged('task_run')
+      } catch { /* optional */ }
+      return row
+    }
+  }
+
+  const openStatuses = ['queued', 'starting', 'running'] as const
+  if (openStatuses.includes(input.status as typeof openStatuses[number]) || ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(input.status)) {
+    const [open] = await db.select().from(taskRuns).where(and(
+      eq(taskRuns.forgeType, input.forgeType),
+      eq(taskRuns.taskType, input.taskType),
+      eq(taskRuns.externalId, input.externalId),
+      inArray(taskRuns.status, ['queued', 'starting', 'running']),
+    )).limit(1)
+    if (open) {
+      const [row] = await db.update(taskRuns).set({
+        repositoryId: repositoryId ?? open.repositoryId,
+        externalUrl: input.externalUrl ?? open.externalUrl,
+        title: input.title ?? open.title,
+        provider: input.provider ?? open.provider,
+        status: input.status,
+        startedAt: startedAt ?? open.startedAt,
+        finishedAt: finishedAt ?? open.finishedAt,
+        durationMs: durationMs ?? open.durationMs ?? undefined,
+        exitCode: input.exitCode ?? open.exitCode,
+        errorSummary: input.errorSummary ?? open.errorSummary,
+        resultMetadata: input.resultMetadata ?? open.resultMetadata,
+        logPath: input.logPath ? basename(input.logPath) : open.logPath,
+        updatedAt: now,
+      }).where(eq(taskRuns.id, open.id)).returning()
+      try {
+        const { notifyQueueChanged } = await import('./task-queue')
+        notifyQueueChanged('task_run')
+      } catch { /* optional */ }
+      return row
+    }
+  }
 
   const [row] = await db.insert(taskRuns).values({
     repositoryId,
@@ -212,8 +277,13 @@ export async function upsertTaskRunFromWorker(input: {
     resultMetadata: input.resultMetadata ?? {},
     logPath: input.logPath ? basename(input.logPath) : null,
     correlationId,
-    updatedAt: new Date(),
+    updatedAt: now,
   }).returning()
+
+  try {
+    const { notifyQueueChanged } = await import('./task-queue')
+    notifyQueueChanged('task_run')
+  } catch { /* optional */ }
 
   return row
 }

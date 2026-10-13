@@ -1,10 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm'
-import { repositories, taskRuns } from '#db/schema'
+import { repositories, taskQueueItems, taskQueueRepoSync, taskRuns } from '#db/schema'
 import { getDb } from '#utils/db'
 import { redactSecrets } from '#utils/redact'
 import { getConnectionAccessToken } from './connections'
 import { listGitHubAiIssues, listGitHubAiPullRequests } from './forge-github'
 import { listGitLabAiIssues, listGitLabAiMergeRequests } from './forge-gitlab'
+import { publishQueueUpdated } from './queue-events'
 import { getWorkerStatus, type ActiveTask } from './worker'
 
 export type QueuePhase =
@@ -70,7 +71,21 @@ export type RepositoryQueueSummary = {
   /** Same wording as worker.log when the poller skips starting a new issue. */
   blockReason: string | null
   error: string | null
+  lastSyncedAt: string | null
   items: QueueItem[]
+}
+
+type RawForgeItem = {
+  kind: QueueKind
+  taskType: QueueTaskType
+  phase: QueuePhase
+  phaseLabel: string
+  externalId: string
+  title: string
+  url: string
+  labels: string[]
+  sourceBranch: string | null
+  createdAt: string
 }
 
 function resolveProjectRef(repo: typeof repositories.$inferSelect): string | null {
@@ -89,7 +104,7 @@ function lowerLabels(labels: string[]): string[] {
   return labels.map((l) => l.toLowerCase())
 }
 
-function classifyPhase(labels: string[], kind: QueueKind): { phase: QueuePhase, phaseLabel: string, taskTypeHint: 'implement' | 'review' } {
+export function classifyPhase(labels: string[], kind: QueueKind): { phase: QueuePhase, phaseLabel: string, taskTypeHint: 'implement' | 'review' } {
   const set = new Set(lowerLabels(labels))
 
   if (kind === 'pull_request' || kind === 'merge_request') {
@@ -121,6 +136,18 @@ function classifyPhase(labels: string[], kind: QueueKind): { phase: QueuePhase, 
   }
 
   return { phase: 'queued', phaseLabel: 'Queued', taskTypeHint: kind === 'issue' ? 'implement' : 'review' }
+}
+
+function phaseLabelFor(phase: QueuePhase, kind: QueueKind): string {
+  switch (phase) {
+    case 'working': return 'AI working'
+    case 'reviewing': return 'AI reviewing'
+    case 'review_queued': return 'Queued for AI review'
+    case 'failed': return kind === 'issue' ? 'AI failed' : 'AI review failed'
+    case 'completed': return kind === 'issue' ? 'AI PR created' : 'AI reviewed'
+    case 'queued': return kind === 'issue' ? 'Queued for AI' : 'Queued'
+    default: return 'Queued'
+  }
 }
 
 function resolveTaskType(
@@ -217,7 +244,6 @@ function computeNextTask(
       .map((i) => i.repositoryId),
   )
 
-  // Repos with ai-working issue or open AI-labeled PR/MR cannot start new implement issues
   const issueBlockedRepos = new Set<string>()
   for (const item of items) {
     if (item.kind === 'issue' && lowerLabels(item.labels).includes('ai-working')) {
@@ -234,7 +260,6 @@ function computeNextTask(
       if (i.assignedWorker) return false
       if (!(i.phase === 'queued' || i.phase === 'review_queued')) return false
       if (busyRepos.has(i.repositoryId)) return false
-      // Issue implement starts are blocked by in-flight PR/MR / ai-working
       if (i.kind === 'issue' && issueBlockedRepos.has(i.repositoryId)) return false
       return true
     })
@@ -247,10 +272,6 @@ function computeNextTask(
   return eligible[0] ?? null
 }
 
-/**
- * Labels that mark an open PR/MR as in-flight AI implement work.
- * Matches worker GITLAB_AI_IN_FLIGHT_MR_LABELS / GITHUB_AI_IN_FLIGHT_PR_LABELS.
- */
 const IMPLEMENT_IN_FLIGHT_PR_LABELS = new Set(['ai', 'ai-working', 'ai-failed', 'ai-pr'])
 
 function formatPrMrRef(item: QueueItem): string {
@@ -263,7 +284,6 @@ function formatPrMrRef(item: QueueItem): string {
   return ref
 }
 
-/** Oldest open AI-labeled PR/MR that blocks new issues (worker block_on_open_pr). */
 function findBlockingOpenPrMr(items: QueueItem[], repositoryId: string): QueueItem | null {
   const blockers = items
     .filter((i) =>
@@ -275,7 +295,6 @@ function findBlockingOpenPrMr(items: QueueItem[], repositoryId: string): QueueIt
   return blockers[0] ?? null
 }
 
-/** Open issue labeled ai-working (always blocks new issues in that repo). */
 function findAiWorkingIssue(items: QueueItem[], repositoryId: string): QueueItem | null {
   return items.find((i) =>
     i.repositoryId === repositoryId
@@ -299,7 +318,6 @@ function resolveItemBranch(item: QueueItem, allItems: QueueItem[]): string | nul
       ),
     )
     if (related?.sourceBranch) return related.sourceBranch
-    // Convention until heartbeat reports the exact checkout (may be timestamp-suffixed).
     return `ai/issue-${item.externalId}`
   }
 
@@ -347,7 +365,6 @@ function computeStatusReason(
 
   const repoBlock = repoBlockReasonById.get(item.repositoryId) || null
 
-  // The blocking PR/MR itself — explain it is why new issues are not started
   if (
     (item.kind === 'pull_request' || item.kind === 'merge_request')
     && lowerLabels(item.labels).some((l) => IMPLEMENT_IN_FLIGHT_PR_LABELS.has(l))
@@ -382,7 +399,6 @@ function computeStatusReason(
     return 'Not working — worker heartbeat stale / unknown'
   }
 
-  // Queued issues blocked by open AI PR/MR or ai-working — use worker wording
   if (item.kind === 'issue' && item.phase === 'queued' && repoBlock) {
     return repoBlock
   }
@@ -403,9 +419,19 @@ function computeStatusReason(
   return 'Not working'
 }
 
-async function fetchRepoQueueItems(
+function queueItemPublicId(
+  forgeType: 'github' | 'gitlab',
+  kind: QueueKind,
+  repositoryId: string,
+  externalId: string,
+): string {
+  const kindKey = kind === 'pull_request' ? 'pr' : kind === 'merge_request' ? 'mr' : 'issue'
+  return `${forgeType}:${kindKey}:${repositoryId}:${externalId}`
+}
+
+async function fetchRepoForgeItems(
   repo: typeof repositories.$inferSelect,
-): Promise<QueueItem[]> {
+): Promise<RawForgeItem[]> {
   if (!repo.connectionId) {
     throw new Error('Repository is not linked to a forge connection')
   }
@@ -415,7 +441,7 @@ async function fetchRepoQueueItems(
   }
 
   const { token, row: connection } = await getConnectionAccessToken(repo.connectionId)
-  const items: QueueItem[] = []
+  const items: RawForgeItem[] = []
 
   if (repo.forgeType === 'github') {
     const [issues, prs] = await Promise.all([
@@ -424,50 +450,32 @@ async function fetchRepoQueueItems(
     ])
     for (const issue of issues) {
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(issue.labels, 'issue')
-      const taskType = resolveTaskType('github', 'issue', taskTypeHint)
       items.push({
-        id: `github:issue:${repo.id}:${issue.externalId}`,
-        repositoryId: repo.id,
-        repositoryName: repo.name,
-        forgeType: 'github',
         kind: 'issue',
-        taskType,
+        taskType: resolveTaskType('github', 'issue', taskTypeHint),
         phase,
         phaseLabel,
-        statusReason: null,
         externalId: issue.externalId,
         title: issue.title,
         url: issue.url,
         labels: issue.labels,
         sourceBranch: null,
-        branch: null,
         createdAt: issue.createdAt,
-        assignedWorker: null,
-        isNext: false,
       })
     }
     for (const pr of prs) {
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(pr.labels, 'pull_request')
-      const taskType = resolveTaskType('github', 'pull_request', taskTypeHint)
       items.push({
-        id: `github:pr:${repo.id}:${pr.externalId}`,
-        repositoryId: repo.id,
-        repositoryName: repo.name,
-        forgeType: 'github',
         kind: 'pull_request',
-        taskType,
+        taskType: resolveTaskType('github', 'pull_request', taskTypeHint),
         phase,
         phaseLabel,
-        statusReason: null,
         externalId: pr.externalId,
         title: pr.title,
         url: pr.url,
         labels: pr.labels,
         sourceBranch: pr.sourceBranch || null,
-        branch: pr.sourceBranch || null,
         createdAt: pr.createdAt,
-        assignedWorker: null,
-        isNext: false,
       })
     }
   } else {
@@ -478,50 +486,32 @@ async function fetchRepoQueueItems(
     ])
     for (const issue of issues) {
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(issue.labels, 'issue')
-      const taskType = resolveTaskType('gitlab', 'issue', taskTypeHint)
       items.push({
-        id: `gitlab:issue:${repo.id}:${issue.externalId}`,
-        repositoryId: repo.id,
-        repositoryName: repo.name,
-        forgeType: 'gitlab',
         kind: 'issue',
-        taskType,
+        taskType: resolveTaskType('gitlab', 'issue', taskTypeHint),
         phase,
         phaseLabel,
-        statusReason: null,
         externalId: issue.externalId,
         title: issue.title,
         url: issue.url,
         labels: issue.labels,
         sourceBranch: null,
-        branch: null,
         createdAt: issue.createdAt,
-        assignedWorker: null,
-        isNext: false,
       })
     }
     for (const mr of mrs) {
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(mr.labels, 'merge_request')
-      const taskType = resolveTaskType('gitlab', 'merge_request', taskTypeHint)
       items.push({
-        id: `gitlab:mr:${repo.id}:${mr.externalId}`,
-        repositoryId: repo.id,
-        repositoryName: repo.name,
-        forgeType: 'gitlab',
         kind: 'merge_request',
-        taskType,
+        taskType: resolveTaskType('gitlab', 'merge_request', taskTypeHint),
         phase,
         phaseLabel,
-        statusReason: null,
         externalId: mr.externalId,
         title: mr.title,
         url: mr.url,
         labels: mr.labels,
         sourceBranch: mr.sourceBranch || null,
-        branch: mr.sourceBranch || null,
         createdAt: mr.createdAt,
-        assignedWorker: null,
-        isNext: false,
       })
     }
   }
@@ -529,39 +519,228 @@ async function fetchRepoQueueItems(
   return items
 }
 
-export async function getLiveTaskQueue() {
+async function persistRepoQueueItems(
+  repo: typeof repositories.$inferSelect,
+  forgeItems: RawForgeItem[],
+): Promise<void> {
   const db = getDb()
-  const [repos, runningRuns, worker] = await Promise.all([
-    db.select().from(repositories).where(and(
-      eq(repositories.isEnabled, true),
-      eq(repositories.isArchived, false),
-    )),
-    db.select().from(taskRuns).where(inArray(taskRuns.status, ['running', 'starting'])),
-    getWorkerStatus(),
-  ])
+  const now = new Date()
+  const keepKeys = new Set(forgeItems.map((i) => `${i.kind}:${i.externalId}`))
 
-  const items: QueueItem[] = []
+  for (const item of forgeItems) {
+    await db.insert(taskQueueItems).values({
+      repositoryId: repo.id,
+      kind: item.kind,
+      taskType: item.taskType,
+      phase: item.phase,
+      externalId: item.externalId,
+      title: item.title,
+      url: item.url,
+      labels: item.labels,
+      sourceBranch: item.sourceBranch,
+      forgeCreatedAt: item.createdAt ? new Date(item.createdAt) : null,
+      syncedAt: now,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: [taskQueueItems.repositoryId, taskQueueItems.kind, taskQueueItems.externalId],
+      set: {
+        taskType: item.taskType,
+        phase: item.phase,
+        title: item.title,
+        url: item.url,
+        labels: item.labels,
+        sourceBranch: item.sourceBranch,
+        forgeCreatedAt: item.createdAt ? new Date(item.createdAt) : null,
+        syncedAt: now,
+        updatedAt: now,
+      },
+    })
+  }
+
+  const existing = await db.select({
+    id: taskQueueItems.id,
+    kind: taskQueueItems.kind,
+    externalId: taskQueueItems.externalId,
+  }).from(taskQueueItems).where(eq(taskQueueItems.repositoryId, repo.id))
+
+  const staleIds = existing
+    .filter((row) => !keepKeys.has(`${row.kind}:${row.externalId}`))
+    .map((row) => row.id)
+
+  if (staleIds.length) {
+    await db.delete(taskQueueItems).where(inArray(taskQueueItems.id, staleIds))
+  }
+
+  await db.insert(taskQueueRepoSync).values({
+    repositoryId: repo.id,
+    lastSyncedAt: now,
+    lastError: null,
+    updatedAt: now,
+  }).onConflictDoUpdate({
+    target: taskQueueRepoSync.repositoryId,
+    set: {
+      lastSyncedAt: now,
+      lastError: null,
+      updatedAt: now,
+    },
+  })
+}
+
+async function markRepoSyncError(repositoryId: string, message: string): Promise<void> {
+  const db = getDb()
+  const now = new Date()
+  await db.insert(taskQueueRepoSync).values({
+    repositoryId,
+    lastSyncedAt: null,
+    lastError: message,
+    updatedAt: now,
+  }).onConflictDoUpdate({
+    target: taskQueueRepoSync.repositoryId,
+    set: {
+      lastError: message,
+      updatedAt: now,
+    },
+  })
+}
+
+export async function syncRepositoryQueue(
+  repo: typeof repositories.$inferSelect,
+): Promise<{ ok: boolean, itemCount: number, error?: string }> {
+  try {
+    const forgeItems = await fetchRepoForgeItems(repo)
+    await persistRepoQueueItems(repo, forgeItems)
+    return { ok: true, itemCount: forgeItems.length }
+  } catch (err) {
+    const message = redactSecrets(err instanceof Error ? err.message : String(err))
+    await markRepoSyncError(repo.id, message)
+    return { ok: false, itemCount: 0, error: message }
+  }
+}
+
+export async function syncTaskQueueFromForges(opts?: {
+  repositoryIds?: string[]
+  reason?: string
+}): Promise<{
+  repositories: number
+  ok: number
+  failed: number
+  itemCount: number
+  errors: Array<{ repositoryId: string, repositoryName: string, message: string }>
+}> {
+  const db = getDb()
+  const conditions = [
+    eq(repositories.isEnabled, true),
+    eq(repositories.isArchived, false),
+  ]
+  if (opts?.repositoryIds?.length) {
+    conditions.push(inArray(repositories.id, opts.repositoryIds))
+  }
+
+  const repos = await db.select().from(repositories).where(and(...conditions))
   const errors: Array<{ repositoryId: string, repositoryName: string, message: string }> = []
+  let ok = 0
+  let itemCount = 0
 
-  // Bound concurrency so many repos don't stampede forge APIs
   const concurrency = 4
   for (let i = 0; i < repos.length; i += concurrency) {
     const chunk = repos.slice(i, i + concurrency)
-    const results = await Promise.allSettled(chunk.map((repo) => fetchRepoQueueItems(repo)))
+    const results = await Promise.all(chunk.map((repo) => syncRepositoryQueue(repo)))
     for (let j = 0; j < results.length; j++) {
       const repo = chunk[j]
       const result = results[j]
-      if (result.status === 'fulfilled') {
-        items.push(...result.value)
+      if (result.ok) {
+        ok++
+        itemCount += result.itemCount
       } else {
         errors.push({
           repositoryId: repo.id,
           repositoryName: repo.name,
-          message: redactSecrets(result.reason instanceof Error ? result.reason.message : String(result.reason)),
+          message: result.error || 'sync failed',
         })
       }
     }
   }
+
+  publishQueueUpdated(opts?.reason || 'forge_sync')
+
+  return {
+    repositories: repos.length,
+    ok,
+    failed: errors.length,
+    itemCount,
+    errors,
+  }
+}
+
+export async function syncQueueForRepositoryFullName(
+  connectionId: string,
+  repositoryFullName: string | null | undefined,
+  reason = 'webhook',
+): Promise<void> {
+  if (!repositoryFullName) return
+  const db = getDb()
+  const normalized = repositoryFullName.replace(/\.git$/, '').toLowerCase()
+  const repos = await db.select().from(repositories).where(and(
+    eq(repositories.connectionId, connectionId),
+    eq(repositories.isEnabled, true),
+    eq(repositories.isArchived, false),
+  ))
+  const match = repos.find((repo) => {
+    const candidates = [
+      repo.canonicalProjectIdentifier,
+      repo.name,
+      repo.remoteUrl
+        ?.replace(/\.git$/, '')
+        .replace(/^https?:\/\/[^/]+\//, '')
+        .replace(/^git@[^:]+:/, ''),
+    ].filter(Boolean).map((s) => String(s).toLowerCase())
+    return candidates.includes(normalized)
+  })
+  if (!match) return
+  await syncRepositoryQueue(match)
+  publishQueueUpdated(reason)
+}
+
+function buildQueuePayload(
+  repos: Array<typeof repositories.$inferSelect>,
+  rows: Array<typeof taskQueueItems.$inferSelect>,
+  syncRows: Array<typeof taskQueueRepoSync.$inferSelect>,
+  runningRuns: Array<typeof taskRuns.$inferSelect>,
+  worker: Awaited<ReturnType<typeof getWorkerStatus>>,
+) {
+  const syncByRepo = new Map(syncRows.map((s) => [s.repositoryId, s]))
+  const repoById = new Map(repos.map((r) => [r.id, r]))
+
+  const items: QueueItem[] = rows.map((row) => {
+    const repo = repoById.get(row.repositoryId)
+    const kind = row.kind as QueueKind
+    const phase = row.phase as QueuePhase
+    return {
+      id: queueItemPublicId(
+        (repo?.forgeType || 'github') as 'github' | 'gitlab',
+        kind,
+        row.repositoryId,
+        row.externalId,
+      ),
+      repositoryId: row.repositoryId,
+      repositoryName: repo?.name || 'unknown',
+      forgeType: (repo?.forgeType || 'github') as 'github' | 'gitlab',
+      kind,
+      taskType: row.taskType as QueueTaskType,
+      phase,
+      phaseLabel: phaseLabelFor(phase, kind),
+      statusReason: null,
+      externalId: row.externalId,
+      title: row.title,
+      url: row.url,
+      labels: row.labels || [],
+      sourceBranch: row.sourceBranch || null,
+      branch: row.sourceBranch || null,
+      createdAt: (row.forgeCreatedAt || row.createdAt).toISOString(),
+      assignedWorker: null,
+      isNext: false,
+    }
+  })
 
   for (const item of items) {
     item.assignedWorker = pickAssignedWorker(
@@ -608,7 +787,6 @@ export async function getLiveTaskQueue() {
     return a.createdAt.localeCompare(b.createdAt)
   })
 
-  const errorByRepo = new Map(errors.map((e) => [e.repositoryId, e.message]))
   const itemsByRepo = new Map<string, QueueItem[]>()
   for (const item of items) {
     const list = itemsByRepo.get(item.repositoryId) || []
@@ -621,6 +799,7 @@ export async function getLiveTaskQueue() {
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((repo) => {
       const repoItems = itemsByRepo.get(repo.id) || []
+      const sync = syncByRepo.get(repo.id)
       return {
         repositoryId: repo.id,
         repositoryName: repo.name,
@@ -629,10 +808,26 @@ export async function getLiveTaskQueue() {
         itemCount: repoItems.length,
         busy: repoItems.some((i) => i.phase === 'working' || i.phase === 'reviewing' || i.assignedWorker),
         blockReason: repoBlockReasonById.get(repo.id) || null,
-        error: errorByRepo.get(repo.id) || null,
+        error: sync?.lastError || null,
+        lastSyncedAt: sync?.lastSyncedAt?.toISOString() ?? null,
         items: repoItems,
       }
     })
+
+  const errors = byRepository
+    .filter((r) => r.error)
+    .map((r) => ({
+      repositoryId: r.repositoryId,
+      repositoryName: r.repositoryName,
+      message: r.error as string,
+    }))
+
+  const syncedAtCandidates = syncRows
+    .map((s) => s.lastSyncedAt?.getTime() ?? 0)
+    .filter((t) => t > 0)
+  const syncedAt = syncedAtCandidates.length
+    ? new Date(Math.max(...syncedAtCandidates)).toISOString()
+    : null
 
   return {
     worker,
@@ -640,5 +835,56 @@ export async function getLiveTaskQueue() {
     items,
     byRepository,
     errors,
+    source: 'database' as const,
+    syncedAt,
   }
+}
+
+/** Fast path: assemble queue from PostgreSQL (no forge I/O). */
+export async function getTaskQueue() {
+  const db = getDb()
+  const [repos, runningRuns, worker] = await Promise.all([
+    db.select().from(repositories).where(and(
+      eq(repositories.isEnabled, true),
+      eq(repositories.isArchived, false),
+    )),
+    db.select().from(taskRuns).where(inArray(taskRuns.status, ['running', 'starting'])),
+    getWorkerStatus(),
+  ])
+
+  if (!repos.length) {
+    return {
+      worker,
+      nextTask: null,
+      items: [] as QueueItem[],
+      byRepository: [] as RepositoryQueueSummary[],
+      errors: [] as Array<{ repositoryId: string, repositoryName: string, message: string }>,
+      source: 'database' as const,
+      syncedAt: null as string | null,
+    }
+  }
+
+  const repoIds = repos.map((r) => r.id)
+  const [rows, syncRows] = await Promise.all([
+    db.select().from(taskQueueItems).where(inArray(taskQueueItems.repositoryId, repoIds)),
+    db.select().from(taskQueueRepoSync).where(inArray(taskQueueRepoSync.repositoryId, repoIds)),
+  ])
+
+  return buildQueuePayload(repos, rows, syncRows, runningRuns, worker)
+}
+
+/**
+ * Back-compat entry used by the API.
+ * Default = DB. Pass refresh=true to sync forges first (slow).
+ */
+export async function getLiveTaskQueue(opts?: { refresh?: boolean }) {
+  if (opts?.refresh) {
+    await syncTaskQueueFromForges({ reason: 'manual_refresh' })
+  }
+  return getTaskQueue()
+}
+
+/** Used by heartbeat / run ingest to refresh assignment without forge I/O. */
+export function notifyQueueChanged(reason: string) {
+  publishQueueUpdated(reason)
 }
