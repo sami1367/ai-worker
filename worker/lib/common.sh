@@ -79,7 +79,7 @@ ai_detect_cursor() {
 }
 
 # Emit one JSON object per registered project (NDJSON).
-# Fields: name, path, block_on_open_pr (bool; default true).
+# Fields: name, path, block_on_open_pr (bool; default true), optional custom_prompt.
 # File must be a JSON array of objects. Leading blank/# comment lines are allowed.
 ai_list_project_entries() {
     local projects_file="$1"
@@ -142,7 +142,8 @@ ai_list_project_entries() {
             ),
             full_name: (.full_name // .repo // "" | tostring),
             remote_url: (.remote_url // "" | tostring),
-            forge: (.forge // "" | tostring)
+            forge: (.forge // "" | tostring),
+            custom_prompt: (.custom_prompt // "" | tostring)
           }
         | with_entries(select(.value != ""))
         | select(.name != "" and .path != "")

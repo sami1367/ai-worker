@@ -519,6 +519,7 @@ fi
 rm -f "$REVIEW_FILE"
 
 ai_prompt_clear
+ai_prompt_load_repo_custom "$PROJECTS_FILE" "$PROJECT"
 ai_prompt_set REPO "$REPO"
 ai_prompt_set PROJECT_DIR "$PROJECT_DIR"
 ai_prompt_set PR_NUMBER "$PR_NUMBER"

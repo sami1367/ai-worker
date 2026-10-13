@@ -19,6 +19,8 @@ export interface ExportedProject {
   full_name: string
   remote_url: string
   forge: 'github' | 'gitlab'
+  /** Optional per-repo instructions appended to every AI prompt. Omitted when empty. */
+  custom_prompt?: string
 }
 
 /** Derive org/repo (or group/project) from a remote URL when canonical id is missing. */
@@ -66,6 +68,10 @@ export async function exportWorkerConfig(
     const fullName = row.canonicalProjectIdentifier
       || fullNameFromRemoteUrl(row.remoteUrl)
       || row.name
+    const customPromptRaw = row.settings && typeof row.settings.customPrompt === 'string'
+      ? row.settings.customPrompt
+      : ''
+    const customPrompt = customPromptRaw.trim()
     const entry: ExportedProject = {
       name: row.name,
       path: row.localPath,
@@ -73,6 +79,7 @@ export async function exportWorkerConfig(
       full_name: fullName,
       remote_url: row.remoteUrl,
       forge: row.forgeType,
+      ...(customPrompt ? { custom_prompt: customPrompt } : {}),
     }
     if (row.forgeType === 'github') github.push(entry)
     else gitlab.push(entry)

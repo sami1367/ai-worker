@@ -65,6 +65,13 @@ Rendered prompts are also saved to `logs/*.prompt.txt` for debugging.
 
 Do not remove required placeholders unless you also change the runner scripts in `run-*.sh`.
 
+## Repository-specific prompts
+
+Global templates/snippets apply to every repository. Each repository can also have
+an optional **Repository prompt** (edited on the repository page). When non-empty,
+the worker appends it to the rendered prompt as a final
+`REPOSITORY-SPECIFIC INSTRUCTIONS` section. Default is empty.
+
 ## Fallback
 
 If `WEB_INTERNAL_URL` / `WORKER_INTERNAL_TOKEN` are unset or the API fails, the

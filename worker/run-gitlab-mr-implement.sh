@@ -214,6 +214,7 @@ RELATED_TASKS_FILE="$PROJECT_DIR/.ai-related-tasks.json"
 rm -f "$RELATED_TASKS_FILE"
 
 ai_prompt_clear
+ai_prompt_load_repo_custom "$PROJECTS_FILE" "$PROJECT"
 ai_prompt_set REPO_PATH "$REPO_PATH"
 ai_prompt_set GITLAB_HOST "$GITLAB_HOST"
 ai_prompt_set PROJECT_DIR "$PROJECT_DIR"

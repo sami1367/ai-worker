@@ -9,6 +9,11 @@ import { writeAudit } from './audit'
 import { exportWorkerConfig } from './config-sync'
 import { getSettings } from './settings'
 
+export const repositorySettingsSchema = z.object({
+  /** Optional instructions appended to every AI prompt for this repository. Default empty. */
+  customPrompt: z.string().max(100_000).optional(),
+}).passthrough()
+
 export const createRepositorySchema = z.object({
   name: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._/-]+$/),
   forgeType: z.enum(['github', 'gitlab']),
@@ -17,12 +22,19 @@ export const createRepositorySchema = z.object({
   defaultBranch: z.string().min(1).max(128).default('main'),
   blockOnOpenPr: z.boolean().optional(),
   defaultAiProvider: z.enum(['cursor', 'claude']).nullable().optional(),
+  settings: repositorySettingsSchema.optional(),
   activate: z.boolean().default(false),
   localPath: z.string().max(1024).optional(),
   allowHostPath: z.boolean().default(false),
 })
 
 export const updateRepositorySchema = createRepositorySchema.partial().omit({ name: true, forgeType: true })
+
+/** Read the per-repo custom prompt from settings (default empty). */
+export function customPromptFromSettings(settings: Record<string, unknown> | null | undefined): string {
+  const value = settings?.customPrompt
+  return typeof value === 'string' ? value : ''
+}
 
 export async function listRepositories(opts: {
   page: number
@@ -178,6 +190,17 @@ export async function updateRepository(
     remoteUrl = remote.normalized
   }
 
+  const nextSettings = parsed.settings === undefined
+    ? existing.settings
+    : {
+        ...(existing.settings || {}),
+        ...parsed.settings,
+        // Always persist customPrompt as a string (empty = no repo-specific prompt)
+        customPrompt: typeof parsed.settings.customPrompt === 'string'
+          ? parsed.settings.customPrompt
+          : customPromptFromSettings(existing.settings),
+      }
+
   const [row] = await db.update(repositories).set({
     remoteUrl,
     canonicalProjectIdentifier: parsed.canonicalProjectIdentifier ?? existing.canonicalProjectIdentifier,
@@ -186,6 +209,7 @@ export async function updateRepository(
     defaultAiProvider: parsed.defaultAiProvider === undefined
       ? existing.defaultAiProvider
       : parsed.defaultAiProvider,
+    settings: nextSettings,
     updatedAt: new Date(),
   }).where(eq(repositories.id, id)).returning()
 
@@ -195,7 +219,13 @@ export async function updateRepository(
     action: 'repository.update',
     targetType: 'repository',
     targetId: id,
-    metadata: { fields: Object.keys(parsed) },
+    metadata: {
+      fields: Object.keys(parsed),
+      customPromptUpdated: parsed.settings?.customPrompt !== undefined,
+      customPromptBytes: typeof nextSettings?.customPrompt === 'string'
+        ? nextSettings.customPrompt.length
+        : 0,
+    },
     ipHash,
   })
   await exportWorkerConfig(actor)

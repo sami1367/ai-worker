@@ -121,6 +121,24 @@ ai_prompt_clear() {
     printf '{}' > "$AI_PROMPT_VARS_FILE"
 }
 
+# Load optional per-repository custom prompt from the projects conf entry.
+# Usage: ai_prompt_load_repo_custom <projects_file> <project_name>
+# Sets REPO_CUSTOM_PROMPT (empty when unset). ai_prompt_render appends it when non-empty.
+ai_prompt_load_repo_custom() {
+    local projects_file="$1"
+    local project="$2"
+    local entry prompt=""
+
+    if [[ -n "$projects_file" && -n "$project" ]] && command -v jq >/dev/null 2>&1; then
+        entry="$(ai_resolve_project_entry "$projects_file" "$project" 2>/dev/null || true)"
+        if [[ -n "$entry" ]]; then
+            prompt="$(jq -r '.custom_prompt // empty' <<<"$entry" 2>/dev/null || true)"
+        fi
+    fi
+
+    ai_prompt_set REPO_CUSTOM_PROMPT "${prompt:-}"
+}
+
 # Set a template variable (replaces {{NAME}} in templates).
 ai_prompt_set() {
     local name="$1"
@@ -226,6 +244,19 @@ ai_prompt_render() {
 
     expanded="$(ai_prompt_expand_includes "$template_path")" || return 1
     content="$(ai_prompt_substitute "$expanded")" || return 1
+
+    # Append repository-specific instructions when present (global templates stay unchanged).
+    local repo_custom=""
+    if [[ -n "$AI_PROMPT_VARS_FILE" && -f "$AI_PROMPT_VARS_FILE" ]]; then
+        repo_custom="$(jq -r '.REPO_CUSTOM_PROMPT // empty' "$AI_PROMPT_VARS_FILE" 2>/dev/null || true)"
+    fi
+    if [[ -n "${repo_custom//[[:space:]]/}" ]]; then
+        content+=$'\n\n============================================================\n'
+        content+='REPOSITORY-SPECIFIC INSTRUCTIONS'
+        content+=$'\n============================================================\n\n'
+        content+="$repo_custom"
+        content+=$'\n'
+    fi
 
     mkdir -p "$(dirname "$output_file")"
     printf '%s' "$content" > "$output_file"
