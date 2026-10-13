@@ -959,7 +959,7 @@ ai_gitlab_discussion_items_from_notes() {
             author: (.author.username // .author.name // "unknown"),
             role: (.review_role // "unknown"),
             created_at: .created_at,
-            body: .body // "",
+            body: (.body // ""),
             is_ai_review: (
                 (.body // "") | (contains("was processed automatically") and contains("ai-review"))
             )
@@ -1047,7 +1047,7 @@ ai_github_discussion_items_from_pr() {
                 author: (.user.login // "unknown"),
                 role: (.review_role // "unknown"),
                 created_at: .created_at,
-                body: .body // "",
+                body: (.body // ""),
                 is_ai_review: ((.body // "") | (contains("was processed automatically") and contains("ai-review")))
             })),
             ($inline | map({
@@ -1362,7 +1362,7 @@ ai_github_format_pr_discussion() {
                     kind: "comment",
                     created_at: .created_at,
                     author: (.user.login // "unknown"),
-                    body: .body // ""
+                    body: (.body // "")
                 })),
                 ($inline | map({
                     kind: "inline",
