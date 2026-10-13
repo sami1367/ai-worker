@@ -13,7 +13,7 @@ This platform can trigger AI agents that modify repository working trees and ope
 - Generic authentication failure messages
 - Role checks (`admin` / `operator`) on mutating APIs
 - CSRF mitigation via SameSite cookies for browser clients
-- Encrypted AI provider secrets and forge OAuth tokens (AES-256-GCM) with `SECRET_ENCRYPTION_KEY`
+- Encrypted AI provider secrets and forge OAuth tokens (AES-256-GCM) with `SECRET_ENCRYPTION_KEY` (compose `.env` keys are an alternative to UI-stored secrets)
 - Secrets scrubbed from audit metadata, logs, and API payloads (`redactSecrets`)
 - OAuth authorization-code + PKCE; one-time `state`; callback open-redirect blocked
 - GitLab instance URL SSRF protections + optional `GITLAB_TRUSTED_HOSTS` allowlist

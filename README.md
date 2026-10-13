@@ -37,6 +37,14 @@ GITHUB_TOKEN=
 # Scopes: api + write_repository
 GITLAB_HOST=gitlab.com
 GITLAB_TOKEN=
+
+# Optional AI provider keys (or connect later in the UI)
+# Cursor: https://cursor.com/dashboard → API Keys
+CURSOR_API_KEY=
+
+# Claude: Anthropic API key and/or Claude Code OAuth token
+ANTHROPIC_API_KEY=
+# CLAUDE_CODE_OAUTH_TOKEN=
 EOF
 ```
 
@@ -53,7 +61,7 @@ curl -fsS http://127.0.0.1:8080/api/v1/health
 2. Bootstrap secret: value from `.env`, or **`changeme`** if you skipped `.env`  
 3. Choose admin username + password (min 12 characters)
 
-Then connect GitHub/GitLab and AI provider keys in the UI (or use tokens in `.env`).
+Forge and AI provider tokens can stay in `.env` next to `docker-compose.yml` — you do not need the Providers UI if those are set. Restart (`docker compose up -d`) after changing `.env`.
 
 ---
 

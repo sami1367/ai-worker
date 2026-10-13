@@ -149,7 +149,11 @@ function secretHint(p: any): string {
     <div>
       <h1 class="font-display text-3xl tracking-tight">AI providers</h1>
       <p class="mt-1 text-sm opacity-70">
-        Cursor and Claude CLIs are installed in the Docker image. Connect API keys here — secrets are encrypted at rest and never shown again.
+        Cursor and Claude CLIs are installed in the Docker image. Set
+        <code class="text-xs">CURSOR_API_KEY</code> /
+        <code class="text-xs">ANTHROPIC_API_KEY</code> /
+        <code class="text-xs">CLAUDE_CODE_OAUTH_TOKEN</code>
+        in the compose <code class="text-xs">.env</code>, or paste secrets here (encrypted at rest, never shown again).
       </p>
     </div>
     <UAlert
@@ -179,7 +183,9 @@ function secretHint(p: any): string {
         <p class="text-sm"><span class="opacity-60">Version:</span> {{ p.detectedVersion || 'unavailable' }}</p>
         <p class="text-sm">
           <span class="opacity-60">Connected:</span>
-          {{ p.hasSecret ? 'yes (secret stored)' : 'no' }}
+          <template v-if="p.secretSource === 'stored'">yes (secret stored)</template>
+          <template v-else-if="p.secretSource === 'env'">yes (from environment / .env)</template>
+          <template v-else>no</template>
         </p>
         <UCheckbox v-model="p.isEnabled" label="Enabled" />
         <UCheckbox v-model="p.isDefault" label="Default provider" />
@@ -245,7 +251,7 @@ function secretHint(p: any): string {
             {{ p.hasSecret ? 'Update secret' : 'Connect' }}
           </UButton>
           <UButton
-            v-if="p.hasSecret"
+            v-if="p.hasStoredSecret"
             size="sm"
             color="error"
             variant="ghost"

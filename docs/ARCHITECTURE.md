@@ -159,9 +159,9 @@ Verified with per-connection secrets (GitHub HMAC / GitLab token). On `ai` or `a
 
 1. Tokens encrypted in PostgreSQL with `SECRET_ENCRYPTION_KEY` (AES-256-GCM).
 2. On forge connect/disconnect/refresh, web writes `/data/config/forge-credentials.env` (0600).
-3. On AI provider connect/disconnect (Providers UI), web writes `/data/config/provider-credentials.env` (0600) with `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`.
-3. `scripts/worker-entrypoint.sh` sources that file before `platform-wrapper.sh`.
-4. Project conf JSON never contains tokens.
+3. On AI provider connect/disconnect (Providers UI) — or from compose `.env` `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` — web writes `/data/config/provider-credentials.env` (0600). DB-stored secrets override env when both are set.
+4. `scripts/worker-entrypoint.sh` sources that file before `platform-wrapper.sh`.
+5. Project conf JSON never contains tokens.
 
 ### SSRF policy for GitLab URLs
 

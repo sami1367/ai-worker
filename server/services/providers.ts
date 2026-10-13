@@ -35,7 +35,17 @@ export async function listProviders() {
   return rows.map(publicProvider)
 }
 
+function envCredentialPresent(providerType: string): boolean {
+  if (providerType === 'cursor') return Boolean(process.env.CURSOR_API_KEY)
+  if (providerType === 'claude') {
+    return Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN)
+  }
+  return false
+}
+
 function publicProvider(row: typeof providerConfigs.$inferSelect) {
+  const hasStoredSecret = Boolean(row.secretCiphertext)
+  const hasEnvSecret = envCredentialPresent(row.providerType)
   return {
     id: row.id,
     providerType: row.providerType,
@@ -43,7 +53,9 @@ function publicProvider(row: typeof providerConfigs.$inferSelect) {
     isEnabled: row.isEnabled,
     isDefault: row.isDefault,
     config: row.config,
-    hasSecret: Boolean(row.secretCiphertext),
+    hasSecret: hasStoredSecret || hasEnvSecret,
+    hasStoredSecret,
+    secretSource: hasStoredSecret ? 'stored' as const : hasEnvSecret ? 'env' as const : null,
     lastHealthCheckAt: row.lastHealthCheckAt,
     healthStatus: row.healthStatus,
     healthMessage: row.healthMessage,
@@ -186,7 +198,7 @@ export async function testProvider(providerType: string) {
         healthMessage = `Binary found at ${bin}. Credential material is configured (not verified against the API).`
       } else {
         healthStatus = 'degraded'
-        healthMessage = `Binary found at ${bin}. Connect an Anthropic API key or Claude OAuth token in Providers.`
+        healthMessage = `Binary found at ${bin}. Connect credentials in Providers, or set ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN.`
       }
     }
   } else {
