@@ -245,6 +245,8 @@ echo "Source: $SOURCE_BRANCH"
 echo "Target: $TARGET_BRANCH"
 echo "URL:    $MR_URL"
 
+printf 'branch=%s\n' "$SOURCE_BRANCH" >> "$STATE_FILE"
+
 if [[ "$MR_STATE" != "opened" ]]; then
     echo
     echo "Merge request is not open."

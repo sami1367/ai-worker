@@ -469,6 +469,9 @@ echo "$BRANCH"
 
 git -C "$PROJECT_DIR" checkout -b "$BRANCH" main
 
+# Expose branch to platform heartbeat / Tasks UI while this run is active.
+printf 'branch=%s\n' "$BRANCH" >> "$STATE_FILE"
+
 # ============================================================
 # Build AI prompt
 # ============================================================

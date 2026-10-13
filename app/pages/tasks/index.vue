@@ -112,6 +112,42 @@ function workerLabel(item: any) {
   return parts.length ? parts.join(' · ') : 'Assigned'
 }
 
+const repositories = computed(() => {
+  if (queue.value?.byRepository?.length) return queue.value.byRepository
+  // Fallback: group flat items when older API has no byRepository
+  const map = new Map<string, any>()
+  for (const item of queue.value?.items || []) {
+    const key = item.repositoryId || item.repositoryName
+    if (!map.has(key)) {
+      map.set(key, {
+        repositoryId: item.repositoryId,
+        repositoryName: item.repositoryName,
+        forgeType: item.forgeType,
+        itemCount: 0,
+        busy: false,
+        error: null,
+        items: [] as any[],
+      })
+    }
+    const row = map.get(key)
+    row.items.push(item)
+    row.itemCount++
+    if (item.phase === 'working' || item.phase === 'reviewing' || item.assignedWorker) row.busy = true
+  }
+  return [...map.values()].sort((a, b) => String(a.repositoryName).localeCompare(String(b.repositoryName)))
+})
+
+function reasonColor(reason: string | null | undefined, phase: string) {
+  if (!reason) {
+    if (phase === 'working' || phase === 'reviewing') return 'success'
+    return 'neutral'
+  }
+  if (reason.startsWith('Next')) return 'primary'
+  if (reason.startsWith('Done')) return 'neutral'
+  if (reason.includes('failed') || reason.includes('stopped') || reason.includes('stale')) return 'error'
+  return 'warning'
+}
+
 async function control(action: 'start' | 'stop') {
   const label = action === 'start' ? 'start' : 'stop'
   if (!confirm(`Confirm worker ${label}? Active AI runs are not force-killed on graceful stop.`)) return
@@ -184,6 +220,9 @@ async function control(action: 'start' | 'stop') {
               {{ queue.nextTask.repositoryName }}
               · {{ taskTypeLabel(queue.nextTask.taskType) }}
               · {{ queue.nextTask.phaseLabel }}
+              <template v-if="queue.nextTask.branch || queue.nextTask.sourceBranch">
+                · <code class="text-xs">{{ queue.nextTask.branch || queue.nextTask.sourceBranch }}</code>
+              </template>
             </p>
             <div class="mt-2 flex flex-wrap gap-1.5">
               <UBadge
@@ -215,105 +254,211 @@ async function control(action: 'start' | 'stop') {
       </div>
     </div>
 
-    <!-- Live queue -->
-    <div>
-      <h2 class="font-display text-xl">Live queue</h2>
-      <p class="mt-1 text-sm opacity-70">All open AI-labeled issues and pull / merge requests</p>
+    <!-- Live queue by repository -->
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 class="font-display text-xl">Live queue by repository</h2>
+        <p class="mt-1 text-sm opacity-70">
+          Open AI-labeled issues and PR/MRs per repo · why idle · forge labels
+        </p>
+      </div>
+      <p v-if="queue" class="text-sm opacity-60">
+        {{ queue.items?.length || 0 }} item{{ (queue.items?.length || 0) === 1 ? '' : 's' }}
+        · {{ repositories.length }} repositor{{ repositories.length === 1 ? 'y' : 'ies' }}
+      </p>
     </div>
 
     <div v-if="queuePending && !queue" class="aw-panel h-48 animate-pulse rounded-xl" />
-    <div v-else-if="!queue?.items?.length" class="aw-panel rounded-xl p-8 text-center text-sm opacity-70">
-      No AI-labeled issues or PR/MR reviews found on enabled repositories.
+    <div v-else-if="!repositories.length" class="aw-panel rounded-xl p-8 text-center text-sm opacity-70">
+      No enabled repositories. Enable repos under Repositories to see their AI labels here.
     </div>
-    <div v-else class="aw-panel overflow-x-auto rounded-xl">
-      <table class="min-w-full text-sm">
-        <thead class="border-b border-[var(--aw-line)] text-left opacity-70">
-          <tr>
-            <th class="px-4 py-3">Title</th>
-            <th class="px-4 py-3">Repo</th>
-            <th class="px-4 py-3">Type</th>
-            <th class="px-4 py-3">Phase</th>
-            <th class="px-4 py-3">Worker</th>
-            <th class="px-4 py-3">Labels</th>
-            <th class="px-4 py-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in queue.items"
-            :key="item.id"
-            class="border-b border-[var(--aw-line)]"
-            :class="item.isNext ? 'bg-black/[0.03] dark:bg-white/[0.04]' : ''"
-          >
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                <UBadge v-if="item.isNext" size="sm" color="primary" variant="subtle">Next</UBadge>
-                <a
-                  v-if="item.url"
-                  :href="item.url"
-                  target="_blank"
-                  class="font-medium hover:underline"
+    <div v-else class="space-y-4">
+      <div
+        v-for="repo in repositories"
+        :key="repo.repositoryId"
+        class="aw-panel overflow-x-auto rounded-xl"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--aw-line)] px-4 py-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <NuxtLink
+              :to="`/repositories/${repo.repositoryId}`"
+              class="font-display text-lg hover:underline"
+            >
+              {{ repo.repositoryName }}
+            </NuxtLink>
+            <UBadge size="sm" color="neutral" variant="subtle">{{ repo.forgeType }}</UBadge>
+            <UBadge
+              v-if="repo.busy"
+              size="sm"
+              color="success"
+              variant="subtle"
+            >
+              Working
+            </UBadge>
+            <UBadge
+              v-else-if="repo.blockReason"
+              size="sm"
+              color="warning"
+              variant="subtle"
+            >
+              Not starting new issues
+            </UBadge>
+            <UBadge
+              v-else-if="repo.error"
+              size="sm"
+              color="error"
+              variant="subtle"
+            >
+              Poll error
+            </UBadge>
+            <UBadge
+              v-else-if="!repo.itemCount"
+              size="sm"
+              color="neutral"
+              variant="subtle"
+            >
+              Idle · no AI labels
+            </UBadge>
+            <UBadge
+              v-else
+              size="sm"
+              color="warning"
+              variant="subtle"
+            >
+              {{ repo.itemCount }} open
+            </UBadge>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <UButton
+              size="xs"
+              icon="i-lucide-play"
+              :loading="busy === 'start'"
+              :disabled="!!busy && busy !== 'start'"
+              @click="control('start')"
+            >
+              Start
+            </UButton>
+            <UButton
+              size="xs"
+              color="warning"
+              variant="soft"
+              icon="i-lucide-square"
+              :loading="busy === 'stop'"
+              :disabled="!!busy && busy !== 'stop'"
+              @click="control('stop')"
+            >
+              Stop
+            </UButton>
+          </div>
+        </div>
+
+        <p v-if="repo.error" class="border-b border-[var(--aw-line)] px-4 py-2 text-sm text-[var(--aw-danger,#b91c1c)]">
+          {{ repo.error }}
+        </p>
+        <p
+          v-if="repo.blockReason"
+          class="border-b border-[var(--aw-line)] bg-amber-500/10 px-4 py-2.5 text-sm"
+        >
+          {{ repo.blockReason }}
+        </p>
+
+        <div v-if="!repo.items?.length" class="px-4 py-6 text-sm opacity-60">
+          <template v-if="repo.blockReason">
+            Worker is skipping new issues for this repository (see reason above).
+          </template>
+          <template v-else>
+            No open AI-labeled issues or PR/MRs on this repository.
+          </template>
+        </div>
+        <table v-else class="min-w-full text-sm">
+          <thead class="border-b border-[var(--aw-line)] text-left opacity-70">
+            <tr>
+              <th class="px-4 py-3">Title</th>
+              <th class="px-4 py-3">Type</th>
+              <th class="px-4 py-3">Phase</th>
+              <th class="px-4 py-3">Branch</th>
+              <th class="px-4 py-3">Status / why not working</th>
+              <th class="px-4 py-3">Worker</th>
+              <th class="px-4 py-3">Labels</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in repo.items"
+              :key="item.id"
+              class="border-b border-[var(--aw-line)]"
+              :class="item.isNext ? 'bg-black/[0.03] dark:bg-white/[0.04]' : ''"
+            >
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <UBadge v-if="item.isNext" size="sm" color="primary" variant="subtle">Next</UBadge>
+                  <a
+                    v-if="item.url"
+                    :href="item.url"
+                    target="_blank"
+                    class="font-medium hover:underline"
+                  >
+                    {{ item.title || `#${item.externalId}` }}
+                  </a>
+                  <span v-else class="font-medium">{{ item.title || `#${item.externalId}` }}</span>
+                </div>
+                <p class="mt-0.5 text-xs opacity-50">#{{ item.externalId }} · {{ item.kind }}</p>
+              </td>
+              <td class="px-4 py-3">{{ taskTypeLabel(item.taskType) }}</td>
+              <td class="px-4 py-3">
+                <UBadge :color="phaseColor(item.phase)" variant="subtle">{{ item.phaseLabel }}</UBadge>
+              </td>
+              <td class="px-4 py-3">
+                <code
+                  v-if="item.branch || item.sourceBranch"
+                  class="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10"
+                  :title="item.phase === 'working' || item.phase === 'reviewing' || item.assignedWorker ? 'Branch currently being worked on' : 'Related branch'"
                 >
-                  {{ item.title || `#${item.externalId}` }}
-                </a>
-                <span v-else class="font-medium">{{ item.title || `#${item.externalId}` }}</span>
-              </div>
-              <p class="mt-0.5 text-xs opacity-50">#{{ item.externalId }} · {{ item.kind }}</p>
-            </td>
-            <td class="px-4 py-3">{{ item.repositoryName }}</td>
-            <td class="px-4 py-3">{{ taskTypeLabel(item.taskType) }}</td>
-            <td class="px-4 py-3">
-              <UBadge :color="phaseColor(item.phase)" variant="subtle">{{ item.phaseLabel }}</UBadge>
-            </td>
-            <td class="px-4 py-3">
-              <span v-if="item.assignedWorker" class="inline-flex items-center gap-1.5">
-                <span class="aw-pulse-dot inline-block size-1.5 rounded-full bg-[var(--aw-accent)]" />
-                {{ workerLabel(item) }}
-              </span>
-              <span v-else class="opacity-50">—</span>
-            </td>
-            <td class="px-4 py-3">
-              <div class="flex flex-wrap gap-1">
+                  {{ item.branch || item.sourceBranch }}
+                </code>
+                <span v-else class="opacity-50">—</span>
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  v-if="!item.statusReason && (item.phase === 'working' || item.phase === 'reviewing' || item.assignedWorker)"
+                  class="text-[var(--aw-accent)]"
+                >
+                  In progress
+                </span>
                 <UBadge
-                  v-for="label in item.labels"
-                  :key="label"
-                  size="sm"
-                  color="neutral"
+                  v-else-if="item.statusReason"
+                  :color="reasonColor(item.statusReason, item.phase)"
                   variant="subtle"
+                  class="max-w-xs whitespace-normal text-left"
                 >
-                  {{ label }}
+                  {{ item.statusReason }}
                 </UBadge>
-              </div>
-            </td>
-            <td class="px-4 py-3">
-              <div class="flex flex-wrap items-center gap-1.5">
-                <UButton
-                  size="xs"
-                  icon="i-lucide-play"
-                  :loading="busy === 'start'"
-                  :disabled="!!busy && busy !== 'start'"
-                  @click="control('start')"
-                >
-                  Start
-                </UButton>
-                <UButton
-                  size="xs"
-                  color="warning"
-                  variant="soft"
-                  icon="i-lucide-square"
-                  :loading="busy === 'stop'"
-                  :disabled="!!busy && busy !== 'stop'"
-                  @click="control('stop')"
-                >
-                  Stop
-                </UButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="px-4 py-3 text-sm opacity-70">
-        {{ queue.items.length }} open item{{ queue.items.length === 1 ? '' : 's' }}
+                <span v-else class="opacity-50">—</span>
+              </td>
+              <td class="px-4 py-3">
+                <span v-if="item.assignedWorker" class="inline-flex items-center gap-1.5">
+                  <span class="aw-pulse-dot inline-block size-1.5 rounded-full bg-[var(--aw-accent)]" />
+                  {{ workerLabel(item) }}
+                </span>
+                <span v-else class="opacity-50">—</span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex flex-wrap gap-1">
+                  <UBadge
+                    v-for="label in item.labels"
+                    :key="label"
+                    size="sm"
+                    color="neutral"
+                    variant="subtle"
+                  >
+                    {{ label }}
+                  </UBadge>
+                  <span v-if="!item.labels?.length" class="opacity-50">—</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 

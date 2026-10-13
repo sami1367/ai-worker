@@ -303,6 +303,7 @@ export const workerState = pgTable('worker_state', {
     taskType?: string
     externalId?: string
     title?: string
+    branch?: string
     pid?: number
     startedAt?: string
   }>>().notNull().default([]),

@@ -182,6 +182,8 @@ echo "State:  $PR_STATE"
 echo "Source: $SOURCE_BRANCH"
 echo "URL:    $PR_URL"
 
+printf 'branch=%s\n' "$SOURCE_BRANCH" >> "$STATE_FILE"
+
 if [[ "$PR_STATE" != "OPEN" ]]; then
     echo "Pull request is not open. Nothing to do."
     exit 0

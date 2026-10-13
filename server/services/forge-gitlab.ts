@@ -332,6 +332,8 @@ export type ForgeLabeledItem = {
   labels: string[]
   createdAt: string
   kind: 'issue' | 'merge_request'
+  /** Source branch for MRs (used in worker block messages). */
+  sourceBranch?: string | null
 }
 
 const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr'] as const
@@ -415,6 +417,7 @@ export async function listGitLabAiMergeRequests(
         title?: string
         web_url?: string
         created_at?: string
+        source_branch?: string
         labels?: unknown
       }>>(
         instanceUrl,
@@ -433,6 +436,7 @@ export async function listGitLabAiMergeRequests(
           labels,
           createdAt: String(mr.created_at || new Date(0).toISOString()),
           kind: 'merge_request',
+          sourceBranch: mr.source_branch || null,
         })
       }
       if (batch.length < 100) break

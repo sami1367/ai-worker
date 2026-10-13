@@ -114,9 +114,29 @@ repo_slot_key() {
     printf '%s' "$canon" | tr -c 'A-Za-z0-9._-' '_'
 }
 
+# Read branch= from a task state file matching project + external id (if any).
+active_task_branch_from_state() {
+    local project_name="$1"
+    local external_id="$2"
+    local f branch=""
+
+    [[ -n "$project_name" && -n "$external_id" ]] || return 0
+    shopt -s nullglob
+    for f in "$STATE_DIR/${project_name}"-*-"${external_id}".running; do
+        branch="$(awk -F= '/^branch=/{print substr($0, index($0,$2)); exit}' "$f" 2>/dev/null || true)"
+        if [[ -n "$branch" ]]; then
+            printf '%s' "$branch"
+            shopt -u nullglob
+            return 0
+        fi
+    done
+    shopt -u nullglob
+    return 0
+}
+
 # Persist currently running agents for the platform heartbeat / Tasks UI.
 write_active_agents_file() {
-    local key pid meta tmp
+    local key pid meta tmp branch name external_id
     local items='[]'
 
     mkdir -p "$STATE_DIR"
@@ -124,13 +144,24 @@ write_active_agents_file() {
         pid="${REPO_AGENT_PIDS[$key]}"
         [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null || continue
         meta="${REPO_AGENT_META[$key]:-}"
+        name="${REPO_AGENT_NAMES[$key]:-$key}"
         if [[ -z "$meta" ]]; then
             meta="$(jq -nc \
-                --arg name "${REPO_AGENT_NAMES[$key]:-$key}" \
+                --arg name "$name" \
                 --argjson pid "$pid" \
                 '{repositoryName:$name,pid:$pid}')"
         else
             meta="$(jq -c --argjson pid "$pid" '. + {pid:$pid}' <<<"$meta" 2>/dev/null || printf '%s' "$meta")"
+        fi
+        # Prefer live branch from the run state file (set after checkout / create).
+        external_id="$(jq -r '.externalId // empty' <<<"$meta" 2>/dev/null || true)"
+        branch="$(active_task_branch_from_state "$name" "$external_id")"
+        if [[ -z "$branch" ]]; then
+            branch="$(jq -r '.branch // empty' <<<"$meta" 2>/dev/null || true)"
+        fi
+        if [[ -n "$branch" ]]; then
+            meta="$(jq -c --arg branch "$branch" '. + {branch:$branch}' <<<"$meta" 2>/dev/null || printf '%s' "$meta")"
+            REPO_AGENT_META[$key]="$(jq -c 'del(.pid)' <<<"$meta" 2>/dev/null || printf '%s' "${REPO_AGENT_META[$key]}")"
         fi
         items="$(jq -c --argjson item "$meta" '. + [$item]' <<<"$items" 2>/dev/null || printf '%s' "$items")"
     done
@@ -145,6 +176,7 @@ agent_meta_from_job() {
     local job_fn="$2"
     local external_id="${3:-}"
     local task_type=""
+    local branch=""
 
     case "$job_fn" in
         github_issue_job) task_type="github_issue" ;;
@@ -156,17 +188,23 @@ agent_meta_from_job() {
         *) task_type="$job_fn" ;;
     esac
 
+    # Provisional issue branch until the run writes the real name to its state file.
+    if [[ -n "$external_id" && ( "$task_type" == "github_issue" || "$task_type" == "gitlab_issue" ) ]]; then
+        branch="ai/issue-${external_id}"
+    fi
+
     jq -nc \
         --arg name "$project_name" \
         --arg taskType "$task_type" \
         --arg externalId "$external_id" \
+        --arg branch "$branch" \
         --arg startedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
         '{
             repositoryName: $name,
             taskType: $taskType,
             externalId: $externalId,
             startedAt: $startedAt
-        }'
+        } + (if $branch != "" then {branch: $branch} else {} end)'
 }
 
 reset_repo_busy_log() {

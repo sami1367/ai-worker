@@ -285,6 +285,8 @@ export type ForgeLabeledItem = {
   labels: string[]
   createdAt: string
   kind: 'issue' | 'pull_request'
+  /** Head branch for PRs (used in worker block messages). */
+  sourceBranch?: string | null
 }
 
 const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr'] as const
@@ -388,11 +390,27 @@ export async function listGitHubAiPullRequests(
         labels,
         createdAt: String(pr.created_at || new Date(0).toISOString()),
         kind: 'pull_request',
+        sourceBranch: null,
       })
     }
     if (batch.length < 100) break
     page += 1
   }
+
+  // Search results omit head ref; fill sourceBranch from the pulls API (bounded).
+  const ids = [...byId.keys()].slice(0, 30)
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const pr = await githubApi<{ head?: { ref?: string } }>(
+        `/repos/${repo}/pulls/${id}`,
+        token,
+      )
+      const item = byId.get(id)
+      if (item && pr.head?.ref) item.sourceBranch = pr.head.ref
+    } catch {
+      // Best-effort; branch column can stay empty for this PR.
+    }
+  }))
 
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }

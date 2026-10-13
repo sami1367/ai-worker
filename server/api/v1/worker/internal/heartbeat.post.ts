@@ -10,6 +10,7 @@ const activeTaskSchema = z.object({
   taskType: z.string().optional(),
   externalId: z.string().optional(),
   title: z.string().optional(),
+  branch: z.string().optional(),
   pid: z.number().int().optional(),
   startedAt: z.string().optional(),
 })

@@ -13,6 +13,7 @@ export type ActiveTask = {
   taskType?: string
   externalId?: string
   title?: string
+  branch?: string
   pid?: number
   startedAt?: string
 }
