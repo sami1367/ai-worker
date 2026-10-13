@@ -295,6 +295,11 @@ repo_agent_running() {
         if [[ -z "${REPO_BUSY_LOGGED[$key]:-}" ]]; then
             REPO_BUSY_LOGGED[$key]=1
             echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] ${project_name} already has an agent running; not starting another task in this repository."
+            # No tracked PID but lock held: usually a prior job's child inherited the
+            # slot fd (fixed in launch_repo_job) or a still-running job after restart.
+            if ! compgen -G "$STATE_DIR/${project_name}-"*.running > /dev/null 2>&1; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] WARNING: ${project_name} slot lock is held with no tracked agent or .running file. If this persists after the job finished, clear holders with: fuser -k ${lock}"
+            fi
         fi
         return 0
     fi
@@ -371,7 +376,12 @@ launch_repo_job() {
             echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a second task in ${project_name} (repository lock is held)."
             exit 0
         fi
-        "$@"
+        # Hold the lock on fd 8 in this outer shell only. Run the job in an
+        # inner shell with fd 8 closed so Cursor/git/helper children cannot
+        # inherit it — otherwise they keep the slot busy after the job exits.
+        (
+            "$@"
+        ) 8>&-
     ) &
     pid=$!
     REPO_AGENT_PIDS[$key]="$pid"
