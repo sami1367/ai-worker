@@ -2,6 +2,17 @@
   "name": "ai-worker-platform",
   "version": "1.0.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Sami Rahimi <sjd.rhm@gmail.com>",
+  "homepage": "https://github.com/sami1367/ai-worker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sami1367/ai-worker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sami1367/ai-worker/issues"
+  },
+  "description": "Self-hosted AI agent for GitHub and GitLab: implement issues and review PRs/MRs.",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "scripts": {

@@ -1,11 +1,43 @@
 # AI Worker
 
-Self-hosted AI agent for **GitHub** and **GitLab**: implement issues and review PRs/MRs (Cursor CLI / Claude Code).
+Self-hosted AI agent platform for **GitHub** and **GitLab**. Label an issue or merge request, and AI Worker runs coding agents (Cursor CLI / Claude Code) in your environment to implement work or review changes.
 
-**You do not need to clone this repository.** Only Docker is required. The app image is pulled from Docker Hub.
+AI Worker is designed for teams that want automation **on their own infrastructure**—including companies running **GitLab Self-Managed**—without sending repositories to a third-party hosted agent service.
 
-Image: [`sami1367/ai-worker`](https://hub.docker.com/r/sami1367/ai-worker)  
-Repo: [github.com/sami1367/ai-worker](https://github.com/sami1367/ai-worker)
+**You do not need to clone this repository** for a standard deployment. Only Docker is required. The app image is pulled from Docker Hub.
+
+| | |
+|---|---|
+| Image | [`sami1367/ai-worker`](https://hub.docker.com/r/sami1367/ai-worker) |
+| Source | [github.com/sami1367/ai-worker](https://github.com/sami1367/ai-worker) |
+| License | [Apache-2.0](LICENSE) (see [third-party notices](THIRD_PARTY_NOTICES.md) and [license audit](docs/LICENSE_AUDIT.md)) |
+
+---
+
+## Commercial Services
+
+AI Worker is **self-hosted**. You run it on your servers (or private cloud) and connect it to your GitHub or GitLab instance with your own AI provider credentials.
+
+For organizations—especially those using **GitLab Self-Managed**—paid professional services are available on request:
+
+- **Installation and deployment** — production-oriented Docker Compose setup, networking, and operational handoff
+- **Security hardening** — secret handling, access controls, and alignment with your environment’s security practices
+- **GitLab Self-Managed integration** — webhooks, tokens, labels, and workflow fit for internal GitLab
+- **AI workflow and prompt customization** — adapt implement/review behavior to your engineering standards
+- **Optional maintenance and technical support** — ongoing help after go-live, by agreement
+
+Services are scoped per engagement. Contact details are below; no public price list is published here.
+
+---
+
+## Contact
+
+| Channel | |
+|---------|--|
+| GitHub | [github.com/sami1367/ai-worker](https://github.com/sami1367/ai-worker) · [github.com/sami1367](https://github.com/sami1367) |
+| Business email | [sjd.rhm@gmail.com](mailto:sjd.rhm@gmail.com) |
+| Website | [vibeplus1.com](https://vibeplus1.com/) |
+| LinkedIn | [linkedin.com/in/sami-rahimi](https://www.linkedin.com/in/sami-rahimi/) |
 
 ---
 
@@ -80,6 +112,17 @@ docker compose down
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
 | `migrate` fails / CREATE SCHEMA | Password mismatch or old DB volume: see [docs/SECURITY.md](docs/SECURITY.md#migrating-from-older-compose-defaults) |
 | Wrong bootstrap secret | Use the value printed by `generate-env.sh` / in `.env` (not a placeholder) |
+
+---
+
+## License and notices
+
+- Project source: [Apache License 2.0](LICENSE)
+- Copyright and notice: [NOTICE](NOTICE)
+- Third-party and proprietary CLI terms: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- Audit findings and unresolved vendor questions: [docs/LICENSE_AUDIT.md](docs/LICENSE_AUDIT.md)
+
+Cursor Agent CLI and Claude Code are proprietary products of their vendors. AI Worker does not relicense them. Operators must use their own provider credentials and comply with Cursor and Anthropic terms.
 
 ---
 
