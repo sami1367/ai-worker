@@ -20,6 +20,7 @@
     "db:migrate": "pnpm exec tsx database/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "migrate:config": "pnpm exec tsx scripts/migrate-config.ts",
+    "generate-env": "bash scripts/generate-env.sh",
     "diagnostics": "pnpm exec tsx scripts/diagnostics.ts",
     "backup": "bash scripts/backup.sh",
     "restore": "bash scripts/restore.sh",

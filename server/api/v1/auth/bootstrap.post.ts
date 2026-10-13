@@ -4,6 +4,7 @@ import { handleApi, clientIpHash } from '#utils/api'
 import { bootstrapAdmin } from '#services/auth'
 import { setSessionCookie } from '#utils/session'
 import { login } from '#services/auth'
+import { isInsecureSecret, SECRET_MIN_LENGTHS } from '#utils/app-secrets'
 
 const schema = z.object({
   username: z.string().min(3).max(64).optional(),
@@ -19,6 +20,12 @@ export default defineEventHandler((event) => handleApi(event, async () => {
     throw createError({ statusCode: 400, statusMessage: 'Username required' })
   }
   const expected = config.initialAdminBootstrapSecret || process.env.INITIAL_ADMIN_BOOTSTRAP_SECRET || ''
+  if (isInsecureSecret(expected, SECRET_MIN_LENGTHS.INITIAL_ADMIN_BOOTSTRAP_SECRET)) {
+    throw createError({
+      statusCode: 503,
+      statusMessage: 'Bootstrap secret is not configured securely. Run scripts/generate-env.sh and restart.',
+    })
+  }
   await bootstrapAdmin({
     username,
     password: body.password,

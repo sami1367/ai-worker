@@ -20,6 +20,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'forge-credentials.env' \
     --exclude 'provider-credentials.env' \
     --exclude 'worker-runtime.env' \
+    --exclude 'app-secrets.env' \
     --exclude '.env' \
     "$SRC/" "$DEST/"
 else
@@ -40,8 +41,17 @@ if [[ ! -f "$DEST/gitlab-projects.conf" ]]; then
 fi
 
 export AI_WORKER_BASE_DIR="$DEST"
+export CONFIG_DIR="${CONFIG_DIR:-$DEST}"
 export LOGS_DIR="${LOGS_DIR:-$DEST/logs}"
 export STATE_DIR="${STATE_DIR:-$DEST/state}"
+
+# Load persisted app secrets when present (e.g. after host .env removal).
+# Outer app-entrypoint.sh usually already did this; safe to re-fill empties.
+if [[ -f /app/scripts/lib/app-secrets.sh ]]; then
+  # shellcheck disable=SC1091
+  source /app/scripts/lib/app-secrets.sh
+  load_persisted_app_secrets || true
+fi
 
 # Load forge credentials materialized by the web control plane (0600 env file).
 # Never logs file contents. Compose env vars remain a fallback when the file is absent.

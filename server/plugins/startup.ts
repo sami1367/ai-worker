@@ -8,26 +8,24 @@ import { exportWorkerConfig } from '#services/config-sync'
 import { exportWorkerRuntimeEnv } from '#services/worker-runtime'
 import { ensureProviderRows } from '#services/providers'
 import { ensurePromptRows } from '#services/prompts'
+import {
+  ensureAppSecrets,
+  shouldFailOnSecretIssues,
+} from '#utils/app-secrets'
 
 export default defineNitroPlugin(async () => {
-  const required = ['DATABASE_URL', 'NUXT_SESSION_PASSWORD']
-  // SESSION_SECRET accepted as alias during boot validation message
-  const missing: string[] = []
-  if (!process.env.DATABASE_URL) missing.push('DATABASE_URL')
-  if (!process.env.NUXT_SESSION_PASSWORD && !process.env.SESSION_SECRET) {
-    missing.push('NUXT_SESSION_PASSWORD (or SESSION_SECRET)')
-  }
-  if (!process.env.SECRET_ENCRYPTION_KEY) missing.push('SECRET_ENCRYPTION_KEY')
-
-  if (missing.length && process.env.NODE_ENV === 'production') {
-    console.error(`[startup] Missing required configuration: ${missing.join(', ')}`)
-  } else if (missing.length) {
-    console.warn(`[startup] Configuration incomplete (dev): ${missing.join(', ')}`)
-  }
-
-  // Alias SESSION_SECRET -> NUXT_SESSION_PASSWORD for nuxt-auth-utils if needed
-  if (!process.env.NUXT_SESSION_PASSWORD && process.env.SESSION_SECRET) {
-    process.env.NUXT_SESSION_PASSWORD = process.env.SESSION_SECRET
+  const secrets = await ensureAppSecrets(process.env)
+  if (!secrets.ok) {
+    const line = `[startup] ${secrets.message}`
+    if (shouldFailOnSecretIssues(process.env)) {
+      console.error(line)
+      throw new Error(secrets.message)
+    }
+    console.warn(`${line} (continuing in non-strict mode)`)
+  } else if (secrets.filledFromDisk.length) {
+    console.log(`[startup] Loaded ${secrets.filledFromDisk.length} secret(s) from persisted app-secrets.env`)
+  } else if (secrets.persisted) {
+    console.log('[startup] Application secrets ready (persisted on data volume)')
   }
 
   try {
@@ -72,6 +70,4 @@ export default defineNitroPlugin(async () => {
   } catch (err) {
     console.warn('[startup] Task queue scheduler not started:', err instanceof Error ? err.message : err)
   }
-
-  void required
 })

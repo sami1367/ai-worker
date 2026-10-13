@@ -4,7 +4,7 @@
 
 1. PostgreSQL database (users, repos, settings, task metadata, audit logs, sessions)
 2. Persistent volumes: `pgdata` (Postgres) and `data` (`/data` — config, workspaces, logs, state)
-3. Offline copy of secrets (`SECRET_ENCRYPTION_KEY`, session secret, forge tokens) — from `.env` or wherever you set them
+3. Offline copy of secrets (`SECRET_ENCRYPTION_KEY`, session secret, Postgres password, worker token) — from host `.env` and/or `/data/config/app-secrets.env` on the data volume
 
 Task history rows remain even if log files expire (`log_expired` flag).
 
