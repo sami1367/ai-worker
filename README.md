@@ -98,6 +98,77 @@ On first successful start, required secrets are saved on the Docker `data` volum
 
 ---
 
+## Connect GitHub or GitLab
+
+After admin setup, open **Connections** at http://127.0.0.1:8080/connections.
+
+Use a **personal access token** for API access (issues, MRs, labels, comments).  
+**Git clone/push** uses that same token over HTTPS when the forge allows it. A platform SSH key is **optional** (see below).
+
+### GitHub token
+
+1. Open [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)  
+   - Classic: [https://github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)**  
+   - Fine-grained: [https://github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens) → **Generate new token**
+2. In AI Worker → **Connections** → **Connect GitHub**, paste the token.
+
+**Classic PAT — required scopes**
+
+| Scope | Why |
+|-------|-----|
+| `repo` | Full private/public repo access (clone via HTTPS, issues, PRs, contents). Prefer this over `public_repo` alone. |
+| `workflow` | Optional; only if agents must edit GitHub Actions workflows |
+
+**Fine-grained PAT — required permissions**
+
+| Permission | Access |
+|------------|--------|
+| Repository access | Select the repos AI Worker will use (or all) |
+| **Metadata** | Read-only |
+| **Contents** | Read and write |
+| **Issues** | Read and write |
+| **Pull requests** | Read and write |
+| **Workflows** | Read and write (optional; same as classic `workflow`) |
+
+For **organization private repos**, create the fine-grained token with that **organization as the resource owner**, and ensure the org allows fine-grained PATs.
+
+### GitLab token
+
+Works with **gitlab.com** and **self-managed** (e.g. `https://git.example.com`).
+
+1. Open your GitLab → **Preferences → Access Tokens**  
+   - gitlab.com: [https://gitlab.com/-/user_settings/personal_access_tokens](https://gitlab.com/-/user_settings/personal_access_tokens)  
+   - Self-managed: `https://<your-gitlab-host>/-/user_settings/personal_access_tokens`
+2. Create a token and in AI Worker → **Connections** → **Connect GitLab**, set the **server URL** (e.g. `https://gitlab.com` or `https://git.example.com`) and paste the token.
+
+**Required scopes**
+
+| Scope | Why |
+|-------|-----|
+| `api` | **Recommended.** API + repository access for issues, MRs, labels, comments, and HTTPS git when enabled |
+| `read_api` | Minimum to *list* private projects only — not enough for full worker ops; use `api` |
+
+### HTTPS git clone (token only) vs optional SSH
+
+AI Worker clones with **HTTPS + your token by default**. That works when the forge allows git over HTTP(S).
+
+**GitLab self-managed:** if clone fails with `Git access over HTTP is not allowed`, an admin can enable HTTPS git (no SSH required):
+
+1. GitLab **Admin** → **Settings** → **General** → **Visibility and access controls**
+2. **Enabled Git access protocols** → set to **Both** or **HTTP** (not “Only SSH”)
+3. Save, then in AI Worker open the repository → **Retry clone**
+
+(“HTTP” here means git over **HTTPS** to your `https://…` GitLab URL — not plain `http://`.)
+
+**Platform SSH key (optional):** on first start AI Worker generates one shared key on the data volume. The **public** key is shown on **Connections**; the private key never leaves the volume. Add it only if you keep GitLab on **Only SSH**, or prefer SSH for git:
+
+- GitLab: [Preferences → SSH Keys](https://gitlab.com/-/user_settings/ssh_keys) (self-managed: `https://<host>/-/user_settings/ssh_keys`)
+- GitHub: [Settings → SSH and GPG keys](https://github.com/settings/keys)
+
+If HTTPS git is enabled, you can ignore the SSH key and use the token alone for clone and push.
+
+---
+
 ## Everyday use
 
 | Goal | Action |
@@ -129,6 +200,8 @@ docker compose down
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
 | `migrate` fails / CREATE SCHEMA | Password mismatch or old DB volume: see [docs/SECURITY.md](docs/SECURITY.md#migrating-from-older-compose-defaults) |
 | Wrong bootstrap secret | Use the value printed by `generate-env.sh` / in `.env` (not a placeholder) |
+| `Git access over HTTP is not allowed` | GitLab admin: enable **Both** or **HTTP** git protocols (see above), then Retry clone — or add the optional platform SSH public key from Connections |
+| Clone works after enabling HTTPS git | Expected — token-only path; SSH not required |
 
 ---
 

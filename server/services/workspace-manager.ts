@@ -6,7 +6,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 import { repositories, workspaceOperations } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
-import { managedWorkspacePath, workerBaseDir, workspaceRootFromEnv } from '#utils/paths'
+import { managedWorkspacePath, workspaceRootFromEnv } from '#utils/paths'
 import { newCorrelationId } from '#utils/crypto'
 import { redactSecrets } from '#utils/redact'
 import {
@@ -17,6 +17,7 @@ import {
 import { getConnectionAccessToken } from './connections'
 import { exportWorkerConfig } from './config-sync'
 import { writeAudit } from './audit'
+import { ensurePlatformSshKey, platformSshKeyPathIfPresent } from './platform-ssh'
 
 const execFileAsync = promisify(execFile)
 
@@ -35,13 +36,13 @@ function originsMatch(a: string, b: string): boolean {
 }
 
 async function platformSshKeyPath(): Promise<string | null> {
-  const key = join(workerBaseDir(), 'ssh', 'id_ed25519')
+  // Ensure key exists for optional SSH fallback (forges that disable HTTPS git).
   try {
-    await access(key)
-    return key
+    await ensurePlatformSshKey()
   } catch {
-    return null
+    // HTTPS + token remains the primary path when the forge allows it.
   }
+  return platformSshKeyPathIfPresent()
 }
 
 function sshGitEnv(keyPath: string): NodeJS.ProcessEnv {
@@ -358,19 +359,18 @@ async function executeOperation(op: typeof workspaceOperations.$inferSelect) {
 }
 
 async function resolveCloneAuth(repo: typeof repositories.$inferSelect) {
-  const sshKey = await platformSshKeyPath()
-  // Prefer SSH when a platform key exists — many self-hosted GitLab instances
-  // disable HTTP(S) git while still allowing API tokens and SSH.
-  if (sshKey && /^https:\/\//i.test(repo.remoteUrl)) {
-    return {
-      token: null as string | null,
-      authUrl: httpsRemoteToSshUrl(repo.remoteUrl),
-      sshKey,
-      via: 'ssh' as const,
-    }
-  }
-
+  // Prefer HTTPS + forge token when available. SSH is optional fallback for
+  // instances that disable git-over-HTTP(S) (GitLab "Enabled Git access protocols").
   if (!repo.connectionId) {
+    const sshKey = await platformSshKeyPath()
+    if (sshKey && /^https:\/\//i.test(repo.remoteUrl)) {
+      return {
+        token: null as string | null,
+        authUrl: httpsRemoteToSshUrl(repo.remoteUrl),
+        sshKey,
+        via: 'ssh' as const,
+      }
+    }
     return {
       token: null as string | null,
       authUrl: repo.remoteUrl,
