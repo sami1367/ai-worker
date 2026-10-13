@@ -37,11 +37,11 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | `implement-process.txt` | Issue implementation steps |
 | `test-coverage.txt` | Tests must cover more than 80% of the lines this task changed |
 | `implement-final-response.txt` | What to report after implementing |
-| `implement-merge-notes.txt` | Write `.ai-*-notes.md` for the PR/MR comment (env, deploy, verify) |
+| `implement-merge-notes.txt` | Write `.ai-*-notes.md` for the PR/MR comment (brief summary/API impact, deploy, curl test) |
 | `minimal-changes.txt` | Required change only: no extra files, refactors, or improvements unless the issue asks |
 | `related-services.txt` | From project docs, list other registered repos this change affects |
 | `review-tests.txt` | On PR/MR review, read and run tests and report coverage of the change |
-| `review-output-guidelines.txt` | Markdown structure for review comments |
+| `review-output-guidelines.txt` | Markdown structure for review comments (brief summary/API impact, deploy, curl test, verdict) |
 | `review-scope.txt` | Review only the current PR/MR diff; no project-wide comments |
 
 ## Placeholders

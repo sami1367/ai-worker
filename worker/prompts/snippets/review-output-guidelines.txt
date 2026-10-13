@@ -1,52 +1,70 @@
-Structure the Markdown review like this:
+Structure the Markdown review like this. Keep it concise — do not
+retell the whole task or summarize the entire project.
 
 ## Summary
-Brief overall assessment of THIS change only (what the diff does and whether it looks ready). Do not summarize or judge the rest of the project.
+2–4 short sentences on THIS diff only:
+- what the change is and what it does
+- impact: where it lands and which HTTP/API endpoints, RPC methods,
+  CLI commands, or events are affected (name method + path when known)
+- whether it looks ready to merge
+
+Do not dump file lists or narrate every hunk.
+
+## Deployment
+What must happen after merge for this change to work in a real
+environment, inferred from the diff (migrations, one-off commands,
+env/config names, feature flags). Use `- [ ]` items or `None`.
+Call out missing deploy docs as a finding when the diff clearly
+needs ops steps but none are documented in the PR/MR.
+
+## How to test
+Required. Concise verification for THIS change:
+- sample `curl` (or equivalent) when an API/HTTP surface changed,
+  plus expected status and key response fields
+- other steps to confirm the behavior works
+- test files in this diff (or "none"), commands you ran and results,
+  coverage of changed executable lines (tool, command, percent) or
+  "not measured" and why
+
+Changed executable lines must be above 80% covered. If tests are
+missing, weak, failing, or coverage is 80% or below, list it as a
+major issue unless the diff has no executable logic.
 
 ## Issue / task alignment
-If linked issues were provided: for each issue, say whether the PR/MR addresses it (fully / partially / not at all), with concrete evidence from the diff. If no linked issues, write "No linked issues referenced."
+If linked issues were provided: for each, fully / partially / not at
+all — with one concrete evidence line from the diff. If none: "No
+linked issues referenced."
 
 ## Responses to discussion
-Required when developers commented after a prior AI review: answer each recent developer comment directly (acknowledge, reasoning, impact on verdict). Required when maintainers commented: confirm how you applied their override (e.g. dropped CI/CD findings).
+Required when developers commented after a prior AI review: answer
+each recent developer comment directly. Required when maintainers
+commented: confirm how you applied their override.
 
 ## Changes since previous AI review
-Required when a prior automated AI review appears in the thread: what you dropped from the previous review, what still applies, what's new.
-
-## Strengths
-What looks good.
+Required when a prior automated AI review appears in the thread:
+what you dropped, what still applies, what's new — briefly.
 
 ## Issues
 Ordered by severity (blocker / major / minor / nit).
-For each issue include:
-- file path and approximate location when possible
-- what is wrong
-- why it matters
-- a concrete suggestion
-Include unmet acceptance criteria from linked issues as findings when applicable.
-
-## Testing
-Required. This section is how a reviewer sees whether the change was tested. Do not skip it and do not audit tests or coverage of unchanged code.
-Write each of these, with file paths from the diff:
-- Test files in this diff, or "none"
-- What those tests assert about the changed behavior, and which branches or error paths in the diff they miss
-- Commands you ran and the results, or why they could not run
-- Coverage of changed executable lines: tool, command, and percent, or "not measured" and why
-Changed executable lines must be above 80% covered. If tests are missing, weak, failing, or that coverage is 80% or below, list it as a major issue unless the diff has no executable logic.
+For each: file path, what is wrong, why it matters, concrete suggestion.
+Prefer fewer high-signal findings. Include unmet acceptance criteria
+from linked issues when applicable.
 
 ## Verdict
-One of: Approve / Request changes / Needs discussion — with one short sentence why.
-If linked issues are only partially met, prefer Request changes unless the gap is clearly out of scope.
-If executable code changed and the tests for it are missing, weak, failing, or not above 80% coverage of the changed lines, use Request changes.
+One of: Approve / Request changes / Needs discussion — with one short
+sentence why.
+If linked issues are only partially met, prefer Request changes unless
+the gap is clearly out of scope.
+If executable code changed and tests are missing, weak, failing, or
+not above 80% coverage of the changed lines, use Request changes.
 
-Be specific and technical. Prefer fewer high-signal findings over vague advice.
+Every bullet in Summary, Deployment, How to test, and Issues must
+point at THIS PR/MR diff. Do not discuss unrelated modules or
+pre-existing code.
+
+Do not flag style/formatting on unrelated code. Do not recommend
+drive-by refactors. If the diff touches files the issue did not
+require, call that out as scope creep.
+Focus on correctness, requirements, bugs, deploy/test readiness,
+and risk in the actual diff.
 If the diff is truncated, say so and review only the visible hunks.
-
-Every bullet in Strengths, Issues, and Testing must point at a changed
-file/hunk from the PR/MR diff. Do not discuss unrelated modules,
-pre-existing code, or the rest of the project.
-
-Do not flag style, formatting, or "make this prettier" issues on unchanged
-or unrelated code. Do not recommend drive-by refactors, extra files, or
-reformatting of existing classes. If the diff touches files or classes
-that the issue did not require, call that out as scope creep.
-Focus on correctness, requirements, bugs, and risk in the actual diff.

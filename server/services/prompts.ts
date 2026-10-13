@@ -116,7 +116,7 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     kind: 'snippet',
     taskType: null,
     displayName: 'Implement merge notes',
-    description: 'Write merge/PR notes for the runner comment',
+    description: 'Concise PR/MR notes: summary, API impact, deploy steps, curl test',
   },
   {
     path: 'snippets/related-services.txt',
@@ -151,7 +151,7 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     kind: 'snippet',
     taskType: null,
     displayName: 'Review output guidelines',
-    description: 'Markdown structure for review comments',
+    description: 'Concise review comment: summary, API impact, deploy, curl test, verdict',
   },
 ]
 

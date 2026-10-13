@@ -10,58 +10,67 @@ A separate automation script will post that file as a comment on the
 pull request or merge request. Do not commit this file yourself
 (leave it uncommitted; the runner will move it aside).
 
-Write practical notes for the human who will review and merge.
-Be concrete. Prefer checklists. If a section does not apply, write
-`None` — do not invent work.
+Write a SHORT comment for the human who will review and merge.
+Be concise — do not narrate the whole task. Prefer checklists and
+concrete API/path names. If a section does not apply, write `None`.
 
 If you declined the task (see WHEN NOT TO IMPLEMENT), write this
 structure instead of the usual sections. The runner puts this
 explanation on the pull/merge request (new empty-commit PR/MR for
 issues; a comment on an existing PR/MR).
 
-## Why this was not implemented
+## Summary
 
 State which case applies: unrelated to this repository, not
-acceptable, or not useful. Then explain with specifics from the
-issue or comments and what you inspected in the repo.
+acceptable, or not useful. One or two sentences with specifics.
+No code changes; empty pull/merge request for the record.
 
-## What this change does
-
-No code changes. Empty pull/merge request for the record.
-
-## Before merging / deploying
+## Deployment
 
 None. Close this PR/MR after reading the explanation unless a human
 explicitly wants the empty commit.
 
-## Configuration / environment
-
-None
-
-## How to verify
+## How to test
 
 The PR/MR diff should contain no product-file changes.
 
-## Risks / limitations
-
-None
-
 Otherwise, when you did implement, use this structure:
 
-## What this change does
+## Summary
 
-2–5 sentences summarizing the behavior change for reviewers.
+2–4 short sentences only:
+- what changed (behavior, not a file dump)
+- what it does for users/operators
+- impact: where it lands (modules, routes, services) and which
+  HTTP/API endpoints, RPC methods, CLI commands, or events are
+  affected — name them explicitly (method + path when applicable)
 
-## Before merging / deploying
+Do not restate the full issue or walk through every step you took.
 
-Checklist of actions humans must do outside this PR/MR, for example:
-- add or update environment variables (name + purpose only — never secret values)
-- run database migrations
-- update secrets managers / CI variables / hosting config
+## Deployment
+
+Precise steps required after merge, or `None`.
+Cover only what humans must run or configure outside the code:
+- database operations / migration commands (exact command when known)
+- one-off scripts or CLI commands
+- env var / secret / CI variable **names** (never secret values)
 - feature flags, DNS, or third-party dashboard settings
-- document ops steps that code alone does not cover
 
-Use `- [ ]` checklist items. If nothing is required, write `None`.
+Use `- [ ]` checklist items. Be explicit when nothing is needed
+(e.g. `None — no migrations or deploy commands`).
+
+## How to test
+
+Short verification steps a reviewer can run.
+When an HTTP/API surface changed or was added, include:
+- a sample `curl` request (realistic path, headers, body; use
+  placeholders for secrets)
+- the expected response (status + key JSON/body fields)
+- how to confirm success (status code, response field, UI check,
+  log line, etc.)
+
+Also include the coverage command and percent of changed lines
+covered (must be above 80%), or say why coverage was not measured.
 
 ## Configuration / environment
 
@@ -69,14 +78,8 @@ List new or changed config keys and env var **names** with a short
 purpose. Never include real passwords, tokens, API keys, or private
 key material. If none, write `None`.
 
-## How to verify
-
-Short steps a reviewer can use to confirm the change works.
-Include the coverage command and the percent of changed lines covered
-(must be above 80%). If coverage could not be measured, say so.
-
 ## Risks / limitations
 
-Known gaps, follow-ups, or flaky areas. If none, write `None`.
+Known gaps or follow-ups in one or two bullets. If none, write `None`.
 
 After writing {{NOTES_FILE}}, continue with your normal final response.
