@@ -675,7 +675,8 @@ MR_JSON="$(
         "$BRANCH" \
         "main" \
         "$MR_TITLE" \
-        "$(cat "$MR_BODY_FILE")"
+        "$(cat "$MR_BODY_FILE")" \
+        "ai-pr"
 )"
 
 MR_URL="$(jq -r '.web_url // empty' <<<"$MR_JSON")"
@@ -686,6 +687,13 @@ if [[ -z "$MR_URL" || -z "$MR_IID" ]]; then
     echo "ERROR: Merge request creation could not be verified."
     echo "$MR_JSON"
     exit 40
+fi
+
+# Ensure ai-pr even if create omitted/ignored labels (label must already exist).
+echo
+echo "Ensuring merge request has label ai-pr..."
+if ! gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" --add "ai-pr"; then
+    echo "WARNING: Could not add ai-pr label to merge request !$MR_IID."
 fi
 
 # ============================================================

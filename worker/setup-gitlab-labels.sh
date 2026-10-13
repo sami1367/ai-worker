@@ -59,7 +59,7 @@ setup_one() {
         "AI worker is currently processing this issue"
 
     gitlab_create_label "$REPO_PATH" "ai-pr" "1D76DB" \
-        "AI worker completed the issue and created a merge request"
+        "AI worker opened a merge request (applied to issue and MR)"
 
     gitlab_create_label "$REPO_PATH" "ai-failed" "D73A4A" \
         "AI worker failed; review logs before retrying"

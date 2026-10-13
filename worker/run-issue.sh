@@ -815,6 +815,14 @@ PR_NUMBER="$(
         --jq '.number'
 )"
 
+echo
+echo "Ensuring pull request has label ai-pr..."
+if ! gh pr edit "$PR_NUMBER" \
+    --repo "$REPO" \
+    --add-label "ai-pr"; then
+    echo "WARNING: Could not add ai-pr label to pull request #$PR_NUMBER."
+fi
+
 if [[ -f "$NOTES_SAVED" ]]; then
     if NOTES_COMMENT_URL="$(ai_post_github_pr_notes "$REPO" "$PR_NUMBER" "$NOTES_SAVED")"; then
         :

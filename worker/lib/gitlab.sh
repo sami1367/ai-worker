@@ -166,6 +166,37 @@ gitlab_find_ai_issue() {
     gitlab_find_open_issue_with_label "$project_path" "ai"
 }
 
+# Label open MRs whose source_branch is ai/issue-N or ai/issue-N-* with ai-pr.
+# Usage: gitlab_label_open_issue_mrs_ai_pr <project_path> <issue_iid>
+gitlab_label_open_issue_mrs_ai_pr() {
+    local project_path="$1"
+    local issue_iid="$2"
+    local prefix="ai/issue-${issue_iid}"
+    local encoded body mr_iid
+
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=desc&per_page=50"
+    )" || return 0
+
+    while IFS= read -r mr_iid; do
+        [[ -n "$mr_iid" ]] || continue
+        echo "Adding ai-pr label to merge request !$mr_iid"
+        gitlab_edit_mr_labels "$project_path" "$mr_iid" --add "ai-pr" \
+            >/dev/null 2>&1 || echo "WARNING: Could not add ai-pr to MR !$mr_iid"
+    done < <(
+        jq -r --arg p "$prefix" '
+            .[]
+            | select(
+                .source_branch == $p
+                or (.source_branch | startswith($p + "-"))
+              )
+            | .iid
+        ' <<<"$body"
+    )
+}
+
 # AI implement-workflow labels on an open MR that should block starting a new
 # `ai` issue (human MRs without these labels do not block).
 GITLAB_AI_IN_FLIGHT_MR_LABELS=(ai ai-working ai-failed ai-pr)
@@ -308,12 +339,14 @@ gitlab_create_label() {
     rm -f "$tmp"
 }
 
+# Create a merge request. Optional 6th arg: comma-separated labels (e.g. ai-pr).
 gitlab_create_mr() {
     local project_path="$1"
     local source_branch="$2"
     local target_branch="$3"
     local title="$4"
     local description="$5"
+    local labels="${6:-}"
     local encoded payload
 
     encoded="$(gitlab_encode_path "$project_path")"
@@ -323,13 +356,15 @@ gitlab_create_mr() {
             --arg target "$target_branch" \
             --arg title "$title" \
             --arg description "$description" \
+            --arg labels "$labels" \
             '{
                 source_branch: $source,
                 target_branch: $target,
                 title: $title,
                 description: $description,
                 remove_source_branch: false
-            }'
+            }
+            + (if $labels == "" then {} else {labels: $labels} end)'
     )"
 
     gitlab_api POST "/projects/${encoded}/merge_requests" -d "$payload"

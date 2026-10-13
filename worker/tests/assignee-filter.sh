@@ -246,4 +246,51 @@ if grep -q -- '@me' "$TMP/gh-create.log"; then
     fail "related create must not set @me"
 fi
 
+# Creating an MR for an issue should include ai-pr labels in the payload.
+gitlab_api() {
+    local method="$1"
+    local path="$2"
+    shift 2
+    local payload=""
+
+    printf '%s %s' "$method" "$path" >> "$GITLAB_API_LOG"
+    if [[ "${1:-}" == "-d" ]]; then
+        payload="${2:-}"
+        printf ' %s' "$payload" >> "$GITLAB_API_LOG"
+    fi
+    printf '\n' >> "$GITLAB_API_LOG"
+
+    case "$path" in
+        /projects/*/merge_requests)
+            printf '{"iid":633,"web_url":"https://gitlab.example.test/g/p/-/merge_requests/633"}'
+            ;;
+        /projects/*/merge_requests\?*)
+            printf '[{"iid":633,"source_branch":"ai/issue-9"},{"iid":634,"source_branch":"feat/human"}]'
+            ;;
+        /projects/*/merge_requests/*)
+            printf '{}'
+            ;;
+        *)
+            printf '{}'
+            ;;
+    esac
+}
+
+: > "$GITLAB_API_LOG"
+json="$(gitlab_create_mr "group/project" "ai/issue-9" "main" "Fix #9" "body" "ai-pr")" \
+    || fail "gitlab_create_mr failed"
+[[ "$(jq -r '.iid' <<<"$json")" == "633" ]] || fail "create mr response"
+grep -Eq '"labels"[[:space:]]*:[[:space:]]*"ai-pr"' "$GITLAB_API_LOG" \
+    || fail "create mr missing ai-pr labels"
+
+: > "$GITLAB_API_LOG"
+gitlab_label_open_issue_mrs_ai_pr "group/project" "9" >/dev/null
+grep -q 'PUT /projects/.*/merge_requests/633' "$GITLAB_API_LOG" \
+    || fail "expected ai-pr label PUT on MR !633"
+grep -Eq '"add_labels"[[:space:]]*:[[:space:]]*"ai-pr"' "$GITLAB_API_LOG" \
+    || fail "expected add_labels ai-pr on MR"
+if grep -q 'merge_requests/634' "$GITLAB_API_LOG"; then
+    fail "must not label unrelated human MR"
+fi
+
 echo "assignee-filter tests passed"

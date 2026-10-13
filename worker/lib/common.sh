@@ -341,6 +341,53 @@ ai_validate_project_dir() {
     return 0
 }
 
+# Fetch and check out a PR/MR source branch for implement/review runners.
+#
+# Managed workspaces are cloned with --single-branch, so remote.origin.fetch only
+# covers the default branch. In that mode `git push -u` does not create
+# refs/remotes/origin/<branch>, and a plain `git fetch --prune origin` never
+# learns about task branches — review then fails with exit 13 even though the
+# branch exists on the forge (and the MR/PR was opened from it).
+#
+# Usage: ai_fetch_and_checkout_source_branch <project_dir> <source_branch>
+# Returns 13 if the branch is not on origin and not present locally.
+ai_fetch_and_checkout_source_branch() {
+    local project_dir="$1"
+    local source_branch="$2"
+
+    if [[ -z "$project_dir" || -z "$source_branch" ]]; then
+        echo "ERROR: ai_fetch_and_checkout_source_branch requires project_dir and source_branch"
+        return 13
+    fi
+
+    echo
+    echo "Fetching origin..."
+    git -C "$project_dir" fetch --prune origin
+
+    # Explicit refspec: required for --single-branch clones.
+    echo "Fetching source branch from origin: $source_branch"
+    if ! git -C "$project_dir" fetch origin \
+        "+refs/heads/${source_branch}:refs/remotes/origin/${source_branch}"; then
+        echo "WARNING: Could not fetch origin/${source_branch}; will try local refs only."
+    fi
+
+    echo
+    echo "Checking out source branch: $source_branch"
+    if git -C "$project_dir" show-ref --verify --quiet "refs/remotes/origin/$source_branch"; then
+        git -C "$project_dir" checkout -B "$source_branch" "origin/$source_branch"
+        return 0
+    fi
+
+    if git -C "$project_dir" show-ref --verify --quiet "refs/heads/$source_branch"; then
+        git -C "$project_dir" checkout "$source_branch"
+        git -C "$project_dir" pull --ff-only origin "$source_branch" || true
+        return 0
+    fi
+
+    echo "ERROR: Source branch not found locally or on origin: $source_branch"
+    return 13
+}
+
 # When /data/config/ssh/id_ed25519 exists, point origin at git@host:path and
 # ensure GIT_SSH_COMMAND is set. Needed for forges that disable HTTP(S) git.
 # Usage: ai_configure_ssh_git_remote <project_dir>
