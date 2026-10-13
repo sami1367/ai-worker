@@ -38,7 +38,8 @@ AI_WORKER_IMAGE=myuser/ai-worker ./scripts/publish-image.sh
 ## Build from this repo (no Hub)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+docker build -t sami1367/ai-worker:latest .
+docker compose up -d
 ```
 
 ## Environment (all optional)

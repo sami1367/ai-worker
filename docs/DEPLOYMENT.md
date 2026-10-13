@@ -36,7 +36,8 @@ docker login
 ## Build from source (no Hub)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+docker build -t sami1367/ai-worker:latest .
+docker compose up -d
 ```
 
 ## Provider authentication
