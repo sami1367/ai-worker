@@ -7,6 +7,7 @@ import { getDb } from '#utils/db'
 import { decryptSecret, encryptSecret } from '#utils/crypto'
 import { writeAudit } from './audit'
 import { exportProviderCredentialsForWorker } from './provider-credentials'
+import { getSettings, updateSettings } from './settings'
 
 const execFileAsync = promisify(execFile)
 
@@ -114,6 +115,37 @@ export async function updateProvider(
     } catch (err) {
       console.warn(
         '[providers] Failed to export provider credentials for worker:',
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
+
+  // Keep Settings.defaultAiProvider aligned when Providers UI marks a default.
+  if (input.isDefault && (providerType === 'cursor' || providerType === 'claude')) {
+    try {
+      const current = await getSettings()
+      if (current.defaultAiProvider !== providerType) {
+        await updateSettings({ defaultAiProvider: providerType }, actor, ipHash)
+      }
+    } catch (err) {
+      console.warn(
+        '[providers] Failed to sync defaultAiProvider setting:',
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
+
+  if (input.secret !== undefined || input.isDefault || input.isEnabled !== undefined) {
+    try {
+      const { applyWorkerRuntimeChange } = await import('./worker-runtime')
+      await applyWorkerRuntimeChange('provider.update', {
+        providerType,
+        secretChanged: input.secret !== undefined,
+        isDefault: row.isDefault,
+      })
+    } catch (err) {
+      console.warn(
+        '[providers] Failed to apply worker runtime change:',
         err instanceof Error ? err.message : err,
       )
     }

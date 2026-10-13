@@ -59,26 +59,56 @@ read_active_tasks() {
 
 heartbeat() {
   local status="$1"
-  local active_tasks active_count payload
+  local active_tasks active_count payload config_version
   active_tasks="$(read_active_tasks)"
   active_count="$(jq 'length' <<<"$active_tasks" 2>/dev/null || echo 0)"
-  payload="$(jq -n \
-    --arg status "$status" \
-    --arg host "$(hostname 2>/dev/null || echo unknown)" \
-    --arg ver "$APP_VERSION" \
-    --argjson pid "$$" \
-    --argjson active "$active_count" \
-    --argjson tasks "$active_tasks" \
-    '{
-      status: $status,
-      hostname: $host,
-      pid: $pid,
-      version: $ver,
-      activeTaskCount: $active,
-      activeTasks: $tasks,
-      pollSucceeded: true,
-      providerAvailability: {}
-    }')"
+  # Refresh runtime env so CONFIG_VERSION / AI_PROVIDER stay current in heartbeats.
+  if [[ -f "$BASE_DIR/worker-runtime.env" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$BASE_DIR/worker-runtime.env"
+    set +a
+  fi
+  config_version="${CONFIG_VERSION:-}"
+  if [[ -n "$config_version" && "$config_version" =~ ^[0-9]+$ ]]; then
+    payload="$(jq -n \
+      --arg status "$status" \
+      --arg host "$(hostname 2>/dev/null || echo unknown)" \
+      --arg ver "$APP_VERSION" \
+      --argjson pid "$$" \
+      --argjson active "$active_count" \
+      --argjson tasks "$active_tasks" \
+      --argjson cfg "$config_version" \
+      '{
+        status: $status,
+        hostname: $host,
+        pid: $pid,
+        version: $ver,
+        activeTaskCount: $active,
+        activeTasks: $tasks,
+        pollSucceeded: true,
+        providerAvailability: {},
+        configVersionLoaded: $cfg
+      }')"
+  else
+    payload="$(jq -n \
+      --arg status "$status" \
+      --arg host "$(hostname 2>/dev/null || echo unknown)" \
+      --arg ver "$APP_VERSION" \
+      --argjson pid "$$" \
+      --argjson active "$active_count" \
+      --argjson tasks "$active_tasks" \
+      '{
+        status: $status,
+        hostname: $host,
+        pid: $pid,
+        version: $ver,
+        activeTaskCount: $active,
+        activeTasks: $tasks,
+        pollSucceeded: true,
+        providerAvailability: {}
+      }')"
+  fi
   api POST /api/v1/worker/internal/heartbeat "$payload" >/dev/null
 }
 
@@ -92,6 +122,7 @@ STOP_REQUESTED=0
 load_credential_env() {
   local forge_file="$BASE_DIR/forge-credentials.env"
   local provider_file="$BASE_DIR/provider-credentials.env"
+  local runtime_file="$BASE_DIR/worker-runtime.env"
   if [[ -f "$forge_file" ]]; then
     # shellcheck disable=SC1090
     set -a
@@ -105,6 +136,13 @@ load_credential_env() {
     source "$provider_file"
     set +a
     log "Loaded provider credentials"
+  fi
+  if [[ -f "$runtime_file" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$runtime_file"
+    set +a
+    log "Loaded worker runtime env (AI_PROVIDER=${AI_PROVIDER:-?} CHECK_INTERVAL=${CHECK_INTERVAL:-?} CONFIG_VERSION=${CONFIG_VERSION:-?})"
   fi
   if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] && command -v gh >/dev/null 2>&1; then
     gh auth setup-git >/dev/null 2>&1 || true

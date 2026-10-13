@@ -1469,9 +1469,15 @@ process_gitlab_mr_review() {
 
 while true; do
 
-    # Pick up forge/provider tokens written after this process started
-    # (e.g. user connected GitHub/GitLab/Cursor while the worker was already up).
+    # Pick up forge/provider tokens and UI runtime settings written after this
+    # process started (connect GitHub/GitLab/Cursor, change AI agent, poll interval).
     ai_load_platform_credentials "$BASE_DIR"
+    # Refresh interval each cycle so Settings → poll interval applies without reload.
+    if [[ "${CHECK_INTERVAL:-}" =~ ^[0-9]+$ ]] && (( CHECK_INTERVAL >= 15 )); then
+        :
+    else
+        CHECK_INTERVAL=30
+    fi
 
     # Clear a pending wake so we don't immediately re-wake after this poll.
     consume_wake_poll || true

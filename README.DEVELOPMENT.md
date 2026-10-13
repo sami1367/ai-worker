@@ -20,6 +20,7 @@ AI_WORKER_IMAGE=myuser/ai-worker ./scripts/publish-image.sh
 
 ```bash
 docker build -t sami1367/ai-worker:latest .
+./scripts/generate-env.sh    # required — no Compose default secrets
 docker compose up -d
 ```
 
@@ -27,10 +28,14 @@ docker compose up -d
 
 ```bash
 pnpm install
+./scripts/generate-env.sh    # creates .env with secure secrets
 docker compose up -d db
+# Point DATABASE_URL at localhost if using docker-compose.dev.yml
 pnpm db:migrate
 pnpm dev
 ```
+
+Do not use `changeme` or other placeholder secrets. Unit tests do not require a full `.env`; integration tests need `DATABASE_URL`.
 
 Optional: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` (exposes Postgres on `127.0.0.1:5432`).
 

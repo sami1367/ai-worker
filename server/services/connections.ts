@@ -27,7 +27,7 @@ import {
 } from './forge-gitlab'
 import { newCodeVerifier, newOAuthState } from './pkce'
 import { writeAudit } from './audit'
-import { exportForgeCredentialsForWorker } from './forge-credentials'
+import { exportForgeCredentialsAndWake, exportForgeCredentialsForWorker } from './forge-credentials'
 
 function encryptionKey(): string {
   const key = process.env.SECRET_ENCRYPTION_KEY || ''
@@ -123,7 +123,7 @@ export async function getConnectionAccessToken(id: string): Promise<{
         updatedAt: new Date(),
       }).where(eq(forgeConnections.id, id)).returning()
       token = bundle.accessToken
-      await exportForgeCredentialsForWorker()
+      await exportForgeCredentialsAndWake('forge.token_refresh')
       return { token, row: updated }
     } catch (err) {
       const db = getDb()
@@ -244,7 +244,7 @@ async function upsertActiveConnection(opts: {
     }).where(eq(forgeConnections.id, connection.id))
   }
 
-  await exportForgeCredentialsForWorker()
+  await exportForgeCredentialsAndWake('forge.connect')
   const [fresh] = await db.select().from(forgeConnections).where(eq(forgeConnections.id, connection.id)).limit(1)
   return publicConnection(fresh || connection)
 }
@@ -560,7 +560,7 @@ export async function disconnectConnection(
     metadata: { provider: row.provider, instanceUrl: row.instanceUrl },
   })
 
-  await exportForgeCredentialsForWorker()
+  await exportForgeCredentialsAndWake('forge.disconnect')
   return publicConnection(updated)
 }
 

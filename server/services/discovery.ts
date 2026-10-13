@@ -17,9 +17,14 @@ import {
   gitlabTokenCanAccessPrivate,
   listGitLabProjects,
 } from './forge-gitlab'
-import { ensureLabelsForConnectionRepositories } from './ai-labels'
+import {
+  canManageLabels,
+  ensureLabelsForConnectionRepositories,
+  ensureLabelsOnForgeProject,
+} from './ai-labels'
 import { writeAudit } from './audit'
 import { autoRegisterDiscoveredForConnection } from './registration'
+import { applyWorkerRuntimeChange } from './worker-runtime'
 import type { ForgeRepo } from './forge-types'
 
 export function publicDiscovered(
@@ -101,6 +106,7 @@ export async function syncConnectionRepositories(
 
   const db = getDb()
   const seenIds: string[] = []
+  const newlyDiscovered: ForgeRepo[] = []
   const now = new Date()
 
   for (const repo of repos) {
@@ -143,6 +149,7 @@ export async function syncConnectionRepositories(
         isFork: repo.isFork,
         lastDiscoveredAt: now,
       })
+      newlyDiscovered.push(repo)
     }
 
     // Refresh metadata on already-registered repos matched by provider identity
@@ -213,8 +220,39 @@ export async function syncConnectionRepositories(
     ? { id: opts.actorUserId, username: opts.actorUsername || 'user' }
     : undefined)
 
+  // Fast path: ensure AI labels on newly discovered repos first so they are
+  // ready within seconds of "Fetch repos" / connect — before the full backfill.
+  let newLabelsCreated = 0
+  let newLabelsOk = 0
+  let newLabelsFailed = 0
+  if (newlyDiscovered.length) {
+    for (const repo of newlyDiscovered) {
+      if (!canManageLabels(repo.permissions, connection.provider)) continue
+      try {
+        const result = await ensureLabelsOnForgeProject({
+          provider: connection.provider,
+          instanceUrl: connection.instanceUrl,
+          token,
+          fullName: repo.fullName,
+        })
+        newLabelsOk += 1
+        newLabelsCreated += result.created
+      } catch {
+        newLabelsFailed += 1
+      }
+    }
+  }
+
   // Backfill AI work/review labels on already-registered repos for this connection
   const labels = await ensureLabelsForConnectionRepositories(connectionId)
+
+  if (registration.created > 0 || newlyDiscovered.length > 0) {
+    await applyWorkerRuntimeChange('discovery.new_repos', {
+      connectionId,
+      newlyDiscovered: newlyDiscovered.length,
+      registeredNew: registration.created,
+    })
+  }
 
   if (opts?.actorUserId) {
     await writeAudit({
@@ -230,6 +268,10 @@ export async function syncConnectionRepositories(
         accessWarning: Boolean(accessWarning),
         registeredNew: registration.created,
         registeredSkipped: registration.skipped,
+        newlyDiscovered: newlyDiscovered.length,
+        newLabelsOk,
+        newLabelsFailed,
+        newLabelsCreated,
         labelsEnsured: labels.ok,
         labelsFailed: labels.failed,
         labelsCreated: labels.created,
@@ -245,6 +287,7 @@ export async function syncConnectionRepositories(
     accessWarning,
     registeredNew: registration.created,
     registeredSkipped: registration.skipped,
+    newlyDiscovered: newlyDiscovered.length,
     labels,
   }
 }

@@ -19,6 +19,8 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'gitlab-projects.conf' \
     --exclude 'forge-credentials.env' \
     --exclude 'provider-credentials.env' \
+    --exclude 'worker-runtime.env' \
+    --exclude 'app-secrets.env' \
     --exclude '.env' \
     "$SRC/" "$DEST/"
 else
@@ -39,8 +41,17 @@ if [[ ! -f "$DEST/gitlab-projects.conf" ]]; then
 fi
 
 export AI_WORKER_BASE_DIR="$DEST"
+export CONFIG_DIR="${CONFIG_DIR:-$DEST}"
 export LOGS_DIR="${LOGS_DIR:-$DEST/logs}"
 export STATE_DIR="${STATE_DIR:-$DEST/state}"
+
+# Load persisted app secrets when present (e.g. after host .env removal).
+# Outer app-entrypoint.sh usually already did this; safe to re-fill empties.
+if [[ -f /app/scripts/lib/app-secrets.sh ]]; then
+  # shellcheck disable=SC1091
+  source /app/scripts/lib/app-secrets.sh
+  load_persisted_app_secrets || true
+fi
 
 # Load forge credentials materialized by the web control plane (0600 env file).
 # Never logs file contents. Compose env vars remain a fallback when the file is absent.
@@ -54,6 +65,14 @@ if [[ -f "$DEST/provider-credentials.env" ]]; then
   # shellcheck disable=SC1091
   source "$DEST/provider-credentials.env"
 fi
+
+# Load UI runtime settings (AI_PROVIDER / CHECK_INTERVAL / CONFIG_VERSION).
+if [[ -f "$DEST/worker-runtime.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$DEST/worker-runtime.env"
+fi
+
+# Keep runtime env on the volume across image sync (do not delete via rsync).
 
 # Make git HTTPS fetches/pushes use GH_TOKEN / GITLAB_TOKEN in non-interactive runs.
 # Without this, `git fetch` fails with "could not read Username for 'https://...'".

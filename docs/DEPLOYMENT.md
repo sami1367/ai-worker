@@ -9,21 +9,31 @@
 ## Fresh install (no git clone — Hub image only)
 
 ```bash
-mkdir ai-worker && cd ai-worker
+mkdir -p ai-worker && cd ai-worker && \
 curl -fsSL -o docker-compose.yml \
-  https://raw.githubusercontent.com/sami1367/ai-worker/main/docker-compose.yml
+  https://raw.githubusercontent.com/sami1367/ai-worker/main/docker-compose.yml && \
+curl -fsSL -o .env \
+  https://raw.githubusercontent.com/sami1367/ai-worker/main/.env.example && \
+curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh | bash && \
+docker compose up -d && \
+curl -fsS http://127.0.0.1:8080/api/v1/health && \
+echo && echo "INITIAL_ADMIN_BOOTSTRAP_SECRET=$(cat INITIAL_ADMIN_BOOTSTRAP_SECRET.txt)"
 
-docker compose up -d
-
-curl -fsS http://127.0.0.1:8080/api/v1/health
-curl -fsS http://127.0.0.1:8080/api/v1/ready
-
-# Open http://127.0.0.1:8080/setup — bootstrap secret default: changeme
+# Open http://127.0.0.1:8080/setup — paste the secret printed above
+# Show again anytime: cat INITIAL_ADMIN_BOOTSTRAP_SECRET.txt
 ```
+
+`generate-env.sh` completes the downloaded `.env.example` with cryptographically secure values. Users do not edit secrets by hand. The bootstrap secret is written to `INITIAL_ADMIN_BOOTSTRAP_SECRET.txt` and `.env`.
 
 Compose uses `image: sami1367/ai-worker` only (no `build:`). Source code is not required on the server.
 
+There are **no default secrets**. Containers refuse to start if required secrets are missing or match known insecure values.
+
 Default publish bind: `127.0.0.1:8080`. Put a reverse proxy with TLS in front for remote access. Set `APP_BASE_URL` to the public HTTPS origin.
+
+### Host `.env` optional after first start
+
+Required secrets are copied to `/data/config/app-secrets.env` on the shared `data` volume. After a healthy first boot you may remove the host `.env` and rely on the volume (optional forge/AI tokens in `.env` would need to be re-added via the UI or a new `.env`).
 
 ## Publish image (maintainer)
 
@@ -37,6 +47,7 @@ docker login
 
 ```bash
 docker build -t sami1367/ai-worker:latest .
+./scripts/generate-env.sh         # if .env does not exist yet
 docker compose up -d
 ```
 
@@ -61,6 +72,8 @@ docker compose pull
 docker compose up -d
 # migrate runs once per compose up
 ```
+
+When upgrading from versions that embedded Compose secrets, follow [SECURITY.md — Migrating from older Compose defaults](SECURITY.md#migrating-from-older-compose-defaults).
 
 ## Existing installs (volume layout)
 

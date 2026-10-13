@@ -1,7 +1,8 @@
 import { syncAllConnections } from './discovery'
 import { deferPendingClones, enableConnectionLinkedRepositoriesOnce } from './registration'
 
-const DEFAULT_INTERVAL_MS = 15 * 60 * 1000
+/** Poll forge accounts for new repos often enough that labels/conf catch up quickly. */
+const DEFAULT_INTERVAL_MS = 2 * 60 * 1000
 
 let timer: ReturnType<typeof setInterval> | null = null
 let running = false

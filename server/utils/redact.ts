@@ -2,9 +2,11 @@ const SECRET_PATTERNS: RegExp[] = [
   /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b/g,
   /\bgithub_pat_[A-Za-z0-9_]{20,}\b/g,
   /\bglpat-[A-Za-z0-9_-]{20,}\b/g,
+  /\bwk_[A-Za-z0-9_]{16,}\b/g,
   /\bBearer\s+[A-Za-z0-9._\-+/=]{8,}\b/gi,
-  /\b(access_token|refresh_token|client_secret|PRIVATE-TOKEN)\s*[:=]\s*["']?[^\s"'&]+/gi,
+  /\b(access_token|refresh_token|client_secret|PRIVATE-TOKEN|NUXT_SESSION_PASSWORD|SESSION_SECRET|SECRET_ENCRYPTION_KEY|WORKER_INTERNAL_TOKEN|INITIAL_ADMIN_BOOTSTRAP_SECRET|POSTGRES_PASSWORD)\s*[:=]\s*["']?[^\s"'&]+/gi,
   /\/\/[^/\s]+:[^@/\s]+@/g,
+  /\bpostgresql:\/\/[^:\s]+:[^@\s]+@/gi,
 ]
 
 export function redactSecrets(input: string | null | undefined, maxLen = 4000): string {

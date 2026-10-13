@@ -2,8 +2,11 @@
 .env
 .env.*
 !.env.example
+INITIAL_ADMIN_BOOTSTRAP_SECRET.txt
 **/forge-credentials.env
 **/provider-credentials.env
+**/app-secrets.env
+**/worker-runtime.env
 
 # Local project registries (host-specific absolute clone paths)
 github-projects.conf

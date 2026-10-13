@@ -1,0 +1,11 @@
+AI Worker
+Copyright 2026 Sami Rahimi
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file in the project root.
+
+This product includes third-party software. See THIRD_PARTY_NOTICES.md
+for attribution and licensing information for dependencies and bundled
+runtimes. Proprietary AI CLIs (Cursor Agent CLI, Claude Code) that may be
+installed by the Docker build are not licensed under Apache-2.0; they remain
+subject to their vendors' terms. See docs/LICENSE_AUDIT.md.

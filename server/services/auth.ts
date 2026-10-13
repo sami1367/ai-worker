@@ -3,6 +3,7 @@ import { loginAttempts, sessions, users } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { hashPassword, newSessionId, safeEqual, verifyPassword } from '#utils/crypto'
+import { isInsecureSecret, SECRET_MIN_LENGTHS } from '#utils/app-secrets'
 import { writeAudit } from './audit'
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7
@@ -22,7 +23,17 @@ export async function bootstrapAdmin(opts: {
   expectedSecret: string
   ipHash?: string
 }) {
-  if (!opts.expectedSecret || !safeEqual(opts.bootstrapSecret, opts.expectedSecret)) {
+  if (
+    !opts.expectedSecret
+    || isInsecureSecret(opts.expectedSecret, SECRET_MIN_LENGTHS.INITIAL_ADMIN_BOOTSTRAP_SECRET)
+  ) {
+    throw new AppError(
+      503,
+      'Bootstrap secret is not configured securely',
+      'bootstrap_misconfigured',
+    )
+  }
+  if (!safeEqual(opts.bootstrapSecret, opts.expectedSecret)) {
     throw new AppError(403, 'Invalid bootstrap secret', 'bootstrap_forbidden')
   }
   if ((await countUsers()) > 0) {

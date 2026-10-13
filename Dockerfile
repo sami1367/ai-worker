@@ -35,7 +35,7 @@ COPY --from=build --chown=appuser:appuser /app/scripts ./scripts
 COPY --from=build --chown=appuser:appuser /app/worker ./worker
 COPY --from=build --chown=appuser:appuser /app/node_modules ./node_modules
 
-RUN chmod +x /app/worker/*.sh /app/scripts/*.sh 2>/dev/null || true \
+RUN chmod +x /app/worker/*.sh /app/scripts/*.sh /app/scripts/lib/*.sh 2>/dev/null || true \
     && ln -sf /app/worker /data/config/worker-src
 
 # Install Cursor Agent + Claude Code CLIs into the image (required for worker + health checks).
@@ -62,4 +62,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/api/v1/health" || exit 1
 
+# Load/persist/validate secrets from env or /data/config/app-secrets.env
+ENTRYPOINT ["bash", "/app/scripts/app-entrypoint.sh"]
 CMD ["node", ".output/server/index.mjs"]

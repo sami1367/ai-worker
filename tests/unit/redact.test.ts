@@ -17,6 +17,19 @@ describe('redactSecrets', () => {
     expect(out).not.toContain('user:secret@')
   })
 
+  it('redacts app secret assignments and database URLs', () => {
+    const input = [
+      'SECRET_ENCRYPTION_KEY=a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00',
+      'WORKER_INTERNAL_TOKEN=wk_7f3a9c2e1b8d4f6a0e5c9b2d7a1f4e8c3b6d9e0a2f5c8',
+      'DATABASE_URL=postgresql://aiworker:Aw7kP9mX2qR5vN8jL3hC6tY1wE4uS0bZ@db:5432/aiworker',
+    ].join(' ')
+    const out = redactSecrets(input)
+    expect(out).not.toContain('a1b2c3d4e5f60718')
+    expect(out).not.toContain('wk_7f3a9c2e1b8d4f')
+    expect(out).not.toContain('Aw7kP9mX2qR5vN8j')
+    expect(out).toContain('[REDACTED]')
+  })
+
   it('scrubs secret-looking object keys', () => {
     const out = scrubObjectSecrets({
       access_token: 'super-secret',

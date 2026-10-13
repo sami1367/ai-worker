@@ -33,7 +33,7 @@ function resolveProjectRef(repo: typeof repositories.$inferSelect): string | nul
     || null
 }
 
-function canManageLabels(permissions: unknown, provider: 'github' | 'gitlab'): boolean {
+export function canManageLabels(permissions: unknown, provider: 'github' | 'gitlab'): boolean {
   if (!permissions || typeof permissions !== 'object') return true
   const p = permissions as Record<string, unknown>
   if (provider === 'github') {

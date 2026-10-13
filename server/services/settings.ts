@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { settings } from '#db/schema'
+import { eq } from 'drizzle-orm'
+import { providerConfigs, settings } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { writeAudit } from './audit'
@@ -67,6 +68,15 @@ export async function updateSettings(
       })
   }
 
+  // Keep provider_configs.isDefault in sync when Settings changes the default agent.
+  if (patch.defaultAiProvider && patch.defaultAiProvider !== current.defaultAiProvider) {
+    await db.update(providerConfigs).set({ isDefault: false })
+    await db.update(providerConfigs).set({
+      isDefault: true,
+      updatedAt: new Date(),
+    }).where(eq(providerConfigs.providerType, patch.defaultAiProvider))
+  }
+
   await writeAudit({
     actorUserId: actor.id,
     actorUsername: actor.username,
@@ -75,6 +85,18 @@ export async function updateSettings(
     metadata: { keys: Object.keys(patch), configVersion: merged.configVersion },
     ipHash,
   })
+
+  if (shouldBump) {
+    try {
+      const { applyWorkerRuntimeChange } = await import('./worker-runtime')
+      await applyWorkerRuntimeChange('settings.update', {
+        keys: Object.keys(patch),
+        configVersion: merged.configVersion,
+      })
+    } catch {
+      // ignore during early boot / tests
+    }
+  }
 
   return merged
 }
@@ -91,7 +113,15 @@ export async function bumpConfigVersion(_actor?: { id?: string | null, username:
     target: settings.key,
     set: { value: next, updatedAt: new Date() },
   })
-  return { ...current, configVersion: next }
+  const updated = { ...current, configVersion: next }
+  // Best-effort: keep worker-runtime.env CONFIG_VERSION current for heartbeats.
+  try {
+    const { exportWorkerRuntimeEnv } = await import('./worker-runtime')
+    await exportWorkerRuntimeEnv()
+  } catch {
+    // ignore during early boot / tests
+  }
+  return updated
 }
 
 export function assertSettingRanges(patch: unknown): Partial<AppSettings> {

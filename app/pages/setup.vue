@@ -49,7 +49,11 @@ async function submit() {
       <UFormField label="Admin username" required>
         <UInput v-model="username" autocomplete="username" class="w-full" />
       </UFormField>
-      <UFormField label="Bootstrap secret" hint="Must match INITIAL_ADMIN_BOOTSTRAP_SECRET" required>
+      <UFormField
+        label="Bootstrap secret"
+        hint="cat INITIAL_ADMIN_BOOTSTRAP_SECRET.txt  (or grep INITIAL_ADMIN_BOOTSTRAP_SECRET .env)"
+        required
+      >
         <UInput v-model="bootstrapSecret" type="password" class="w-full" />
       </UFormField>
       <UFormField label="Password (min 12)" required>

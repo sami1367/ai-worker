@@ -34,8 +34,8 @@ describeIf('auth integration', () => {
     await bootstrapAdmin({
       username: 'admin',
       password: 'integration-test-password',
-      bootstrapSecret: 'bootstrap-secret',
-      expectedSecret: 'bootstrap-secret',
+      bootstrapSecret: 'integration-bootstrap-secret',
+      expectedSecret: 'integration-bootstrap-secret',
       ipHash: 'abcd',
     })
     expect(await countUsers()).toBe(1)
