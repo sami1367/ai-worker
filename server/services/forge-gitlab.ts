@@ -325,6 +325,124 @@ async function listGitLabLabelNames(
   return names
 }
 
+export type ForgeLabeledItem = {
+  externalId: string
+  title: string
+  url: string
+  labels: string[]
+  createdAt: string
+  kind: 'issue' | 'merge_request'
+}
+
+const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr'] as const
+const MR_AI_LABELS = [
+  'ai', 'ai-working', 'ai-failed', 'ai-pr',
+  'ai-review', 'ai-reviewing', 'ai-reviewed', 'ai-review-failed',
+] as const
+
+function normalizeGitLabProjectPath(projectPath: string): string {
+  return projectPath.replace(/^\//, '').replace(/\.git$/, '')
+}
+
+function gitlabLabelNames(labels: unknown): string[] {
+  if (!Array.isArray(labels)) return []
+  return labels.map((l) => {
+    if (typeof l === 'string') return l
+    if (l && typeof l === 'object' && 'name' in l) return String((l as { name: string }).name)
+    return ''
+  }).filter(Boolean)
+}
+
+/** Open issues carrying any AI implement workflow label. */
+export async function listGitLabAiIssues(
+  instanceUrl: string,
+  token: string,
+  projectPath: string,
+): Promise<ForgeLabeledItem[]> {
+  const encoded = encodeURIComponent(normalizeGitLabProjectPath(projectPath))
+  const byId = new Map<string, ForgeLabeledItem>()
+
+  for (const label of ISSUE_AI_LABELS) {
+    let page = 1
+    while (page <= 10) {
+      const { data: batch } = await gitlabApi<Array<{
+        iid: number
+        title?: string
+        web_url?: string
+        created_at?: string
+        labels?: unknown
+      }>>(
+        instanceUrl,
+        `/projects/${encoded}/issues?state=opened&labels=${encodeURIComponent(label)}`
+        + `&per_page=100&page=${page}&order_by=created_at&sort=asc`,
+        token,
+      )
+      if (!batch.length) break
+      for (const issue of batch) {
+        const labels = gitlabLabelNames(issue.labels)
+        const id = String(issue.iid)
+        byId.set(id, {
+          externalId: id,
+          title: String(issue.title || `#${issue.iid}`),
+          url: String(issue.web_url || ''),
+          labels,
+          createdAt: String(issue.created_at || new Date(0).toISOString()),
+          kind: 'issue',
+        })
+      }
+      if (batch.length < 100) break
+      page += 1
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+/** Open MRs carrying any AI implement or review workflow label. */
+export async function listGitLabAiMergeRequests(
+  instanceUrl: string,
+  token: string,
+  projectPath: string,
+): Promise<ForgeLabeledItem[]> {
+  const encoded = encodeURIComponent(normalizeGitLabProjectPath(projectPath))
+  const byId = new Map<string, ForgeLabeledItem>()
+
+  for (const label of MR_AI_LABELS) {
+    let page = 1
+    while (page <= 10) {
+      const { data: batch } = await gitlabApi<Array<{
+        iid: number
+        title?: string
+        web_url?: string
+        created_at?: string
+        labels?: unknown
+      }>>(
+        instanceUrl,
+        `/projects/${encoded}/merge_requests?state=opened&labels=${encodeURIComponent(label)}`
+        + `&per_page=100&page=${page}&order_by=created_at&sort=asc`,
+        token,
+      )
+      if (!batch.length) break
+      for (const mr of batch) {
+        const labels = gitlabLabelNames(mr.labels)
+        const id = String(mr.iid)
+        byId.set(id, {
+          externalId: id,
+          title: String(mr.title || `!${mr.iid}`),
+          url: String(mr.web_url || ''),
+          labels,
+          createdAt: String(mr.created_at || new Date(0).toISOString()),
+          kind: 'merge_request',
+        })
+      }
+      if (batch.length < 100) break
+      page += 1
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
 /** Create missing labels on a GitLab project. Idempotent; skips labels that already exist. */
 export async function ensureGitLabProjectLabels(
   instanceUrl: string,

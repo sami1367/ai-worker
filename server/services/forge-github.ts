@@ -278,6 +278,125 @@ async function listGitHubLabelNames(token: string, repo: string): Promise<Set<st
   return names
 }
 
+export type ForgeLabeledItem = {
+  externalId: string
+  title: string
+  url: string
+  labels: string[]
+  createdAt: string
+  kind: 'issue' | 'pull_request'
+}
+
+const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr'] as const
+const PR_AI_LABELS = [
+  'ai', 'ai-working', 'ai-failed', 'ai-pr',
+  'ai-review', 'ai-reviewing', 'ai-reviewed', 'ai-review-failed',
+] as const
+
+function labelNames(labels: Array<{ name?: string } | string> | undefined): string[] {
+  if (!Array.isArray(labels)) return []
+  return labels
+    .map((l) => (typeof l === 'string' ? l : l.name || ''))
+    .filter(Boolean)
+    .map(String)
+}
+
+function hasAnyLabel(labels: string[], wanted: readonly string[]): boolean {
+  const set = new Set(labels.map((l) => l.toLowerCase()))
+  return wanted.some((w) => set.has(w.toLowerCase()))
+}
+
+/** Open issues carrying any AI implement workflow label (excludes PRs). */
+export async function listGitHubAiIssues(
+  token: string,
+  fullName: string,
+): Promise<ForgeLabeledItem[]> {
+  const repo = normalizeGitHubRepoFullName(fullName)
+  const byId = new Map<string, ForgeLabeledItem>()
+
+  for (const label of ISSUE_AI_LABELS) {
+    let page = 1
+    while (page <= 10) {
+      const batch = await githubApi<Array<{
+        number: number
+        title?: string
+        html_url?: string
+        created_at?: string
+        pull_request?: unknown
+        labels?: Array<{ name?: string } | string>
+      }>>(
+        `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100&page=${page}&sort=created&direction=asc`,
+        token,
+      )
+      if (!batch.length) break
+      for (const issue of batch) {
+        if (issue.pull_request) continue
+        const labels = labelNames(issue.labels)
+        if (!hasAnyLabel(labels, ISSUE_AI_LABELS)) continue
+        const id = String(issue.number)
+        byId.set(id, {
+          externalId: id,
+          title: String(issue.title || `#${issue.number}`),
+          url: String(issue.html_url || `https://github.com/${repo}/issues/${issue.number}`),
+          labels,
+          createdAt: String(issue.created_at || new Date(0).toISOString()),
+          kind: 'issue',
+        })
+      }
+      if (batch.length < 100) break
+      page += 1
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+/** Open PRs carrying any AI implement or review workflow label. */
+export async function listGitHubAiPullRequests(
+  token: string,
+  fullName: string,
+): Promise<ForgeLabeledItem[]> {
+  const repo = normalizeGitHubRepoFullName(fullName)
+  const byId = new Map<string, ForgeLabeledItem>()
+  const labelQuery = PR_AI_LABELS.map((l) => `label:"${l}"`).join(' OR ')
+  const q = `repo:${repo} is:pr is:open (${labelQuery})`
+
+  let page = 1
+  while (page <= 10) {
+    const result = await githubApi<{
+      items?: Array<{
+        number: number
+        title?: string
+        html_url?: string
+        created_at?: string
+        labels?: Array<{ name?: string } | string>
+      }>
+    }>(
+      `/search/issues?q=${encodeURIComponent(q)}&per_page=100&page=${page}&sort=created&order=asc`,
+      token,
+    )
+    const batch = result.items || []
+    if (!batch.length) break
+    for (const pr of batch) {
+      const labels = labelNames(pr.labels)
+      if (!hasAnyLabel(labels, PR_AI_LABELS)) continue
+      const id = String(pr.number)
+      byId.set(id, {
+        externalId: id,
+        title: String(pr.title || `#${pr.number}`),
+        url: String(pr.html_url || `https://github.com/${repo}/pull/${pr.number}`),
+        labels,
+        createdAt: String(pr.created_at || new Date(0).toISOString()),
+        kind: 'pull_request',
+      })
+    }
+    if (batch.length < 100) break
+    page += 1
+  }
+
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
 /** Create missing labels on a GitHub repo (owner/name). Idempotent; skips labels that already exist. */
 export async function ensureGitHubRepoLabels(
   token: string,

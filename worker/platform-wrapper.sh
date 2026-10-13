@@ -48,22 +48,34 @@ api() {
   fi
 }
 
+read_active_tasks() {
+  local file="$BASE_DIR/state/active-agents.json"
+  if [[ -f "$file" ]]; then
+    jq -c 'if type == "array" then . else [] end' "$file" 2>/dev/null || echo '[]'
+  else
+    echo '[]'
+  fi
+}
+
 heartbeat() {
   local status="$1"
-  local active="${2:-0}"
-  local payload
+  local active_tasks active_count payload
+  active_tasks="$(read_active_tasks)"
+  active_count="$(jq 'length' <<<"$active_tasks" 2>/dev/null || echo 0)"
   payload="$(jq -n \
     --arg status "$status" \
     --arg host "$(hostname 2>/dev/null || echo unknown)" \
     --arg ver "$APP_VERSION" \
     --argjson pid "$$" \
-    --argjson active "$active" \
+    --argjson active "$active_count" \
+    --argjson tasks "$active_tasks" \
     '{
       status: $status,
       hostname: $host,
       pid: $pid,
       version: $ver,
       activeTaskCount: $active,
+      activeTasks: $tasks,
       pollSucceeded: true,
       providerAvailability: {}
     }')"
@@ -87,7 +99,7 @@ start_worker() {
   ) &
   WORKER_PID=$!
   SHOULD_RUN=1
-  heartbeat running 0
+  heartbeat running
 }
 
 stop_worker_graceful() {
@@ -108,7 +120,10 @@ stop_worker_graceful() {
     wait "$WORKER_PID" 2>/dev/null || true
   fi
   WORKER_PID=""
-  heartbeat stopped 0
+  # Clear agent inventory after stop so the Tasks UI does not show stale slots.
+  mkdir -p "$BASE_DIR/state"
+  echo '[]' >"$BASE_DIR/state/active-agents.json"
+  heartbeat stopped
 }
 
 handle_control() {
@@ -162,7 +177,9 @@ trap cleanup TERM INT
 
 require_token
 log "Platform worker wrapper starting"
-heartbeat starting 0
+mkdir -p "$BASE_DIR/state"
+[[ -f "$BASE_DIR/state/active-agents.json" ]] || echo '[]' >"$BASE_DIR/state/active-agents.json"
+heartbeat starting
 start_worker
 
 last_hb=0
@@ -181,9 +198,9 @@ while true; do
 
   if (( now - last_hb >= HEARTBEAT_INTERVAL )); then
     if [[ -n "$WORKER_PID" ]] && kill -0 "$WORKER_PID" 2>/dev/null; then
-      heartbeat running 0
+      heartbeat running
     else
-      heartbeat stopped 0
+      heartbeat stopped
     fi
     last_hb=$now
   fi

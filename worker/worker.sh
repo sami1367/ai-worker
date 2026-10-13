@@ -99,8 +99,10 @@ echo "============================================================"
 
 declare -A REPO_AGENT_PIDS=()
 declare -A REPO_AGENT_NAMES=()
+declare -A REPO_AGENT_META=()
 declare -A REPO_BUSY_LOGGED=()
 WORKERS_LIMIT_LOGGED=0
+ACTIVE_AGENTS_FILE="$STATE_DIR/active-agents.json"
 
 repo_slot_key() {
     local project_dir="$1"
@@ -108,6 +110,61 @@ repo_slot_key() {
 
     canon="$(readlink -f "$project_dir" 2>/dev/null || printf '%s' "$project_dir")"
     printf '%s' "$canon" | tr -c 'A-Za-z0-9._-' '_'
+}
+
+# Persist currently running agents for the platform heartbeat / Tasks UI.
+write_active_agents_file() {
+    local key pid meta tmp
+    local items='[]'
+
+    mkdir -p "$STATE_DIR"
+    for key in "${!REPO_AGENT_PIDS[@]}"; do
+        pid="${REPO_AGENT_PIDS[$key]}"
+        [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null || continue
+        meta="${REPO_AGENT_META[$key]:-}"
+        if [[ -z "$meta" ]]; then
+            meta="$(jq -nc \
+                --arg name "${REPO_AGENT_NAMES[$key]:-$key}" \
+                --argjson pid "$pid" \
+                '{repositoryName:$name,pid:$pid}')"
+        else
+            meta="$(jq -c --argjson pid "$pid" '. + {pid:$pid}' <<<"$meta" 2>/dev/null || printf '%s' "$meta")"
+        fi
+        items="$(jq -c --argjson item "$meta" '. + [$item]' <<<"$items" 2>/dev/null || printf '%s' "$items")"
+    done
+
+    tmp="${ACTIVE_AGENTS_FILE}.${$}.tmp"
+    printf '%s\n' "$items" >"$tmp"
+    mv -f "$tmp" "$ACTIVE_AGENTS_FILE"
+}
+
+agent_meta_from_job() {
+    local project_name="$1"
+    local job_fn="$2"
+    local external_id="${3:-}"
+    local task_type=""
+
+    case "$job_fn" in
+        github_issue_job) task_type="github_issue" ;;
+        gitlab_issue_job) task_type="gitlab_issue" ;;
+        github_pr_implement_job) task_type="github_pr_implement" ;;
+        gitlab_mr_implement_job) task_type="gitlab_mr_implement" ;;
+        github_pr_review_job) task_type="github_pr_review" ;;
+        gitlab_mr_review_job) task_type="gitlab_mr_review" ;;
+        *) task_type="$job_fn" ;;
+    esac
+
+    jq -nc \
+        --arg name "$project_name" \
+        --arg taskType "$task_type" \
+        --arg externalId "$external_id" \
+        --arg startedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        '{
+            repositoryName: $name,
+            taskType: $taskType,
+            externalId: $externalId,
+            startedAt: $startedAt
+        }'
 }
 
 reset_repo_busy_log() {
@@ -140,6 +197,8 @@ repo_agent_running() {
         wait "$pid" 2>/dev/null || true
         unset 'REPO_AGENT_PIDS[$key]'
         unset 'REPO_AGENT_NAMES[$key]'
+        unset 'REPO_AGENT_META[$key]'
+        write_active_agents_file
     fi
 
     lock="$STATE_DIR/slots/${key}.lock"
@@ -158,7 +217,7 @@ repo_agent_running() {
 }
 
 reap_repo_agents() {
-    local key pid name
+    local key pid name changed=0
 
     for key in "${!REPO_AGENT_PIDS[@]}"; do
         pid="${REPO_AGENT_PIDS[$key]}"
@@ -167,9 +226,14 @@ reap_repo_agents() {
             name="${REPO_AGENT_NAMES[$key]:-$key}"
             unset 'REPO_AGENT_PIDS[$key]'
             unset 'REPO_AGENT_NAMES[$key]'
+            unset 'REPO_AGENT_META[$key]'
+            changed=1
             echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Agent finished for ${name}."
         fi
     done
+    if [[ "$changed" -eq 1 ]]; then
+        write_active_agents_file
+    fi
 }
 
 workers_at_capacity() {
@@ -182,7 +246,8 @@ workers_at_capacity() {
 launch_repo_job() {
     local project_dir="$1"
     local project_name="$2"
-    local key pid
+    local job_fn="$3"
+    local key pid external_id=""
     shift 2
 
     if workers_at_capacity; then
@@ -200,6 +265,9 @@ launch_repo_job() {
     key="$(repo_slot_key "$project_dir")"
     mkdir -p "$STATE_DIR/slots"
 
+    # Job args: <fn> <project> <repo> <external_id>
+    external_id="${4:-}"
+
     (
         exec 8>"$STATE_DIR/slots/${key}.lock"
         # Do not keep the supervisor lock. A restarted worker must be able
@@ -215,6 +283,8 @@ launch_repo_job() {
     pid=$!
     REPO_AGENT_PIDS[$key]="$pid"
     REPO_AGENT_NAMES[$key]="$project_name"
+    REPO_AGENT_META[$key]="$(agent_meta_from_job "$project_name" "$job_fn" "$external_id")"
+    write_active_agents_file
     echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Started agent for ${project_name} (pid ${pid})."
     return 0
 }

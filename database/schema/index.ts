@@ -298,6 +298,14 @@ export const workerState = pgTable('worker_state', {
   version: varchar('version', { length: 64 }),
   providerAvailability: jsonb('provider_availability').$type<Record<string, unknown>>().notNull().default({}),
   activeTaskCount: integer('active_task_count').notNull().default(0),
+  activeTasks: jsonb('active_tasks').$type<Array<{
+    repositoryName?: string
+    taskType?: string
+    externalId?: string
+    title?: string
+    pid?: number
+    startedAt?: string
+  }>>().notNull().default([]),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

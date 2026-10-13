@@ -5,6 +5,15 @@ import { workerHeartbeat } from '#services/worker'
 import { AppError } from '#utils/errors'
 import { safeEqual } from '#utils/crypto'
 
+const activeTaskSchema = z.object({
+  repositoryName: z.string().optional(),
+  taskType: z.string().optional(),
+  externalId: z.string().optional(),
+  title: z.string().optional(),
+  pid: z.number().int().optional(),
+  startedAt: z.string().optional(),
+})
+
 const schema = z.object({
   status: z.enum(['starting', 'running', 'stopping', 'stopped', 'error']),
   configVersionLoaded: z.number().int().optional(),
@@ -13,6 +22,7 @@ const schema = z.object({
   version: z.string().optional(),
   providerAvailability: z.record(z.unknown()).optional(),
   activeTaskCount: z.number().int().optional(),
+  activeTasks: z.array(activeTaskSchema).optional(),
   pollSucceeded: z.boolean().optional(),
 })
 

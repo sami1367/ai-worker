@@ -8,6 +8,15 @@ import { getSettings } from './settings'
 
 const HEARTBEAT_STALE_MS = 1000 * 90
 
+export type ActiveTask = {
+  repositoryName?: string
+  taskType?: string
+  externalId?: string
+  title?: string
+  pid?: number
+  startedAt?: string
+}
+
 export async function ensureWorkerStateRow() {
   const db = getDb()
   await db.insert(workerState).values({ id: 1 }).onConflictDoNothing()
@@ -33,6 +42,7 @@ export async function getWorkerStatus() {
     version: row?.version ?? null,
     providerAvailability: row?.providerAvailability ?? {},
     activeTaskCount: row?.activeTaskCount ?? 0,
+    activeTasks: (row?.activeTasks ?? []) as ActiveTask[],
     heartbeatStale: stale,
     updatedAt: row?.updatedAt ?? null,
   }
@@ -104,11 +114,13 @@ export async function workerHeartbeat(input: {
   version?: string
   providerAvailability?: Record<string, unknown>
   activeTaskCount?: number
+  activeTasks?: ActiveTask[]
   pollSucceeded?: boolean
 }) {
   await ensureWorkerStateRow()
   const db = getDb()
   const now = new Date()
+  const activeTasks = Array.isArray(input.activeTasks) ? input.activeTasks : []
   const patch: Partial<typeof workerState.$inferInsert> = {
     status: input.status,
     lastHeartbeatAt: now,
@@ -116,7 +128,8 @@ export async function workerHeartbeat(input: {
     pid: input.pid,
     version: input.version,
     providerAvailability: input.providerAvailability ?? {},
-    activeTaskCount: input.activeTaskCount ?? 0,
+    activeTaskCount: input.activeTaskCount ?? activeTasks.length,
+    activeTasks,
     updatedAt: now,
   }
   if (input.configVersionLoaded !== undefined) {
