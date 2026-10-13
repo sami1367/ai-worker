@@ -75,6 +75,23 @@ Optional forge / AI tokens (`GITHUB_TOKEN`, `CURSOR_API_KEY`, …) can be added 
 docker compose up -d
 ```
 
+### Access the Web UI from your local computer
+
+If AI Worker runs on a remote server, the UI listens on that machine’s `127.0.0.1:8080` and is not exposed to the public internet. Use an **SSH tunnel** so your laptop’s browser can reach it securely:
+
+```bash
+ssh -N -L 8080:127.0.0.1:8080 user@SERVER_IP
+```
+
+Replace `user` with your SSH username and `SERVER_IP` with the server’s hostname or IP.
+
+What this does:
+
+- `-L 8080:127.0.0.1:8080` — forwards your local port `8080` to the server’s `127.0.0.1:8080` (where AI Worker listens)
+- `-N` — opens the tunnel only (no remote shell)
+
+Keep that terminal open. On your computer, open http://127.0.0.1:8080 (or http://127.0.0.1:8080/setup for first-time admin setup).
+
 ### Removing `.env` after setup
 
 On first successful start, required secrets are saved on the Docker `data` volume at `/data/config/app-secrets.env`. You may delete the host `.env` afterward if you do not need optional env overrides. Keep an offline backup of encryption/session secrets — see [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md).
