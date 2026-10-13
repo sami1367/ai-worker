@@ -8,9 +8,16 @@ data
 logs
 state
 *.log
+# Local secrets — never bake into the image
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
+.env.old
+**/*.old
+*.old*
 coverage
 test-results
 playwright-report
