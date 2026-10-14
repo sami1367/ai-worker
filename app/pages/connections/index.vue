@@ -6,7 +6,7 @@ const { data, pending, refresh, error } = await useAsyncData('connections', () =
   api<any>('/api/v1/connections'),
 )
 
-const { data: sshKey, refresh: refreshSshKey } = await useAsyncData('platform-ssh-key', () =>
+const { data: sshKey } = await useAsyncData('platform-ssh-key', () =>
   api<{
     publicKey: string
     fingerprint: string
@@ -229,9 +229,6 @@ function formatTime(v: string | null | undefined) {
         <div class="flex flex-wrap gap-2">
           <UButton size="sm" variant="soft" icon="i-lucide-copy" :disabled="!sshKey?.publicKey" @click="copySshPublicKey">
             {{ sshCopied ? 'Copied' : 'Copy public key' }}
-          </UButton>
-          <UButton size="sm" variant="ghost" :loading="false" @click="refreshSshKey()">
-            Refresh
           </UButton>
         </div>
       </div>
