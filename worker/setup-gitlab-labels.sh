@@ -15,6 +15,8 @@ PROJECTS_FILE="$BASE_DIR/gitlab-projects.conf"
 source "$WORKER_CODE_DIR/lib/common.sh"
 # shellcheck source=lib/gitlab.sh
 source "$WORKER_CODE_DIR/lib/gitlab.sh"
+# shellcheck source=lib/labels.sh
+source "$WORKER_CODE_DIR/lib/labels.sh"
 
 ai_load_env "$BASE_DIR/.env"
 
@@ -52,29 +54,7 @@ setup_one() {
     echo "Host:       $GITLAB_HOST"
     echo "============================================================"
 
-    gitlab_create_label "$REPO_PATH" "ai" "0E8A16" \
-        "Queue this issue for the AI worker"
-
-    gitlab_create_label "$REPO_PATH" "ai-working" "FBCA04" \
-        "AI worker is currently processing this issue"
-
-    gitlab_create_label "$REPO_PATH" "ai-pr" "1D76DB" \
-        "AI worker opened a merge request (applied to issue and MR)"
-
-    gitlab_create_label "$REPO_PATH" "ai-failed" "D73A4A" \
-        "AI worker failed; review logs before retrying"
-
-    gitlab_create_label "$REPO_PATH" "ai-review" "7057FF" \
-        "Queue this merge request for an AI code review"
-
-    gitlab_create_label "$REPO_PATH" "ai-reviewing" "FBCA04" \
-        "AI worker is currently reviewing this merge request"
-
-    gitlab_create_label "$REPO_PATH" "ai-reviewed" "0E8A16" \
-        "AI worker posted a review comment on this merge request"
-
-    gitlab_create_label "$REPO_PATH" "ai-review-failed" "D73A4A" \
-        "AI MR review failed; check logs before retrying"
+    ai_ensure_gitlab_labels_local "$REPO_PATH"
 
     return 0
 }

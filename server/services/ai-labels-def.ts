@@ -1,4 +1,4 @@
-/** Required labels for AI implement + AI review workflows (GitHub and GitLab). */
+/** Required labels for AI implement + AI review + no-change Q&A workflows (GitHub and GitLab). */
 export const AI_WORKER_LABELS = [
   {
     name: 'ai',
@@ -19,6 +19,16 @@ export const AI_WORKER_LABELS = [
     name: 'ai-failed',
     color: 'D73A4A',
     description: 'AI worker failed; review logs before retrying',
+  },
+  {
+    name: 'no-change',
+    color: 'BFDADC',
+    description: 'With ai: answer in issue comments only (no code changes or PR/MR)',
+  },
+  {
+    name: 'ai-answered',
+    color: '0E8A16',
+    description: 'AI answered a no-change question in issue comments',
   },
   {
     name: 'ai-review',

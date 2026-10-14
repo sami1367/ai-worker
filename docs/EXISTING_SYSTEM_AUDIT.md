@@ -31,29 +31,30 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 
 1. **GitHub issue implement** — label `ai` → `ai-working` → branch + PR → `ai-pr` / `ai-failed`
 2. **GitLab issue implement** — same label flow via GitLab API
-3. **GitHub PR implement** — open PR with `ai` label
-4. **GitLab MR implement** — open MR with `ai` label
-5. **GitHub PR AI review** — `ai-review` → `ai-reviewing` → comment → `ai-reviewed` / `ai-review-failed`
-6. **GitLab MR AI review** — same pattern
-7. **Cursor CLI provider** — `agent` / `cursor-agent` (`lib/ai/cursor.sh`)
-8. **Claude Code CLI provider** — `claude` (`lib/ai/claude.sh`)
-9. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`
-10. **One task per repository** — in-memory PID map + `state/slots/<key>.lock` via `flock`
-11. **Cross-repository concurrency** — multiple repo agents in parallel
-12. **Global worker lock** — `state/worker.lock` (single supervisor)
-13. **Open AI-labeled PR/MR blocking** — default on (`ai` / `ai-working` / `ai-failed` / `ai-pr`); per-project `block_on_open_pr: false`
-14. **Related-service follow-ups** — parse agent JSON → open `ai` issues in other registered repos + `tasks/*.md`
-15. **Release/tag shortcut** — issue title `new release` / `new tag` → bump semver, push tag, draft/upcoming release
-16. **Implement merge notes** — post `.ai-pr-notes.md` content as PR/MR comment
-17. **Decline unrelated tasks** — empty PR/MR with explanation when task is unusable
-18. **Secret staging protection** — `ai_has_secret_files` / unstage AI artifacts
-19. **Clean working tree / cleanup** — runners restore default branch on EXIT/INT/TERM
-20. **Prompt templates** — `prompts/` + `prompts/snippets/` with include expansion
-21. **Per-task logs** — `.log`, `.agent.ndjson`, `.agent.stderr.log`, `.result.txt`, notes, related-tasks JSON
-22. **Label setup** — eight labels for GitHub and GitLab
-23. **GitLab API client** — `lib/gitlab.sh` (issues, MRs, notes, labels, releases)
-24. **GitHub via `gh` CLI** — issues, PRs, comments, releases, labels
-25. **systemd host deployment** — restart on failure, 60s stop timeout, umask 0077
+3. **GitHub/GitLab issue answer (no-change)** — labels `ai` + `no-change` → `ai-working` → issue comment only → `ai-answered` + `no-change` / `ai-failed`
+4. **GitHub PR implement** — open PR with `ai` label
+5. **GitLab MR implement** — open MR with `ai` label
+6. **GitHub PR AI review** — `ai-review` → `ai-reviewing` → comment → `ai-reviewed` / `ai-review-failed`
+7. **GitLab MR AI review** — same pattern
+8. **Cursor CLI provider** — `agent` / `cursor-agent` (`lib/ai/cursor.sh`)
+9. **Claude Code CLI provider** — `claude` (`lib/ai/claude.sh`)
+10. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`
+11. **One task per repository** — in-memory PID map + `state/slots/<key>.lock` via `flock`
+12. **Cross-repository concurrency** — multiple repo agents in parallel
+13. **Global worker lock** — `state/worker.lock` (single supervisor)
+14. **Open AI-labeled PR/MR blocking** — default on (`ai` / `ai-working` / `ai-failed` / `ai-pr`); per-project `block_on_open_pr: false`
+15. **Related-service follow-ups** — parse agent JSON → open `ai` issues in other registered repos + `tasks/*.md`
+16. **Release/tag shortcut** — issue title `new release` / `new tag` → bump semver, push tag, draft/upcoming release
+17. **Implement merge notes** — post `.ai-pr-notes.md` content as PR/MR comment
+18. **Decline unrelated tasks** — empty PR/MR with explanation when task is unusable
+19. **Secret staging protection** — `ai_has_secret_files` / unstage AI artifacts
+20. **Clean working tree / cleanup** — runners restore default branch on EXIT/INT/TERM
+21. **Prompt templates** — `prompts/` + `prompts/snippets/` with include expansion
+22. **Per-task logs** — `.log`, `.agent.ndjson`, `.agent.stderr.log`, `.result.txt`, notes, related-tasks JSON
+23. **Label setup** — ten labels for GitHub and GitLab (implement, no-change Q&A, review)
+24. **GitLab API client** — `lib/gitlab.sh` (issues, MRs, notes, labels, releases)
+25. **GitHub via `gh` CLI** — issues, PRs, comments, releases, labels
+26. **systemd host deployment** — restart on failure, 60s stop timeout, umask 0077
 
 ---
 

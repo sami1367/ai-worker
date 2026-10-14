@@ -274,6 +274,11 @@ gitlab_edit_issue_labels() {
         return 0
     fi
 
+    # Create any missing AI labels before mutating (runtime, not build-time only).
+    if declare -F ai_ensure_project_labels >/dev/null 2>&1; then
+        ai_ensure_project_labels gitlab "$project_path" || true
+    fi
+
     payload="$(
         jq -n \
             --arg add "$add_labels" \
@@ -348,6 +353,10 @@ gitlab_create_mr() {
     local description="$5"
     local labels="${6:-}"
     local encoded payload
+
+    if [[ -n "$labels" ]] && declare -F ai_ensure_project_labels >/dev/null 2>&1; then
+        ai_ensure_project_labels gitlab "$project_path" || true
+    fi
 
     encoded="$(gitlab_encode_path "$project_path")"
     payload="$(
@@ -540,6 +549,10 @@ gitlab_create_issue() {
     local label="${4:-ai}"
     local encoded payload
 
+    if declare -F ai_ensure_project_labels >/dev/null 2>&1; then
+        ai_ensure_project_labels gitlab "$project_path" || true
+    fi
+
     encoded="$(gitlab_encode_path "$project_path")"
     payload="$(
         jq -n \
@@ -712,6 +725,11 @@ gitlab_edit_mr_labels() {
 
     if [[ -z "$add_labels" && -z "$remove_labels" ]]; then
         return 0
+    fi
+
+    # Create any missing AI labels before mutating (runtime, not build-time only).
+    if declare -F ai_ensure_project_labels >/dev/null 2>&1; then
+        ai_ensure_project_labels gitlab "$project_path" || true
     fi
 
     payload="$(

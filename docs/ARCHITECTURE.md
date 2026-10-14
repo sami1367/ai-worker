@@ -128,7 +128,19 @@ UI Connections → OAuth (PKCE) → forge_connections (encrypted tokens)
                  → exportWorkerConfig + forge-credentials.env
                  → Bash worker polls labels using path + GH_TOKEN/GITLAB_TOKEN
                  → Optional forge webhooks (label ai / ai-review) wake the poll loop early
+                 → Before label mutations: POST /api/v1/worker/internal/ensure-labels
+                   (creates any missing AI_* labels on the forge project at runtime)
 ```
+
+### Runtime forge labels
+
+`AI_WORKER_LABELS` (server) is the source of truth. Labels are ensured:
+
+1. When a repository is registered or enabled
+2. During connection discovery / refresh (backfill all projects)
+3. Before the worker changes issue/PR labels (`ensure-labels` internal API, with local `gh` / GitLab fallback)
+
+So existing projects automatically receive new labels (for example `no-change`, `ai-answered`) the next time the worker touches that repo — no rebuild or manual setup required.
 
 ### Forge webhooks (optional, faster pickup)
 

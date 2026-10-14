@@ -1446,6 +1446,7 @@ ai_implement_notes_basenames() {
         '.ai-mr-notes.md' \
         '.ai-pr-review.md' \
         '.ai-mr-review.md' \
+        '.ai-issue-answer.md' \
         '.ai-related-tasks.json'
 }
 

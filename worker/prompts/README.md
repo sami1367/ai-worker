@@ -20,6 +20,8 @@ To restore a prompt to the seeded file content, use **Reset to seed** in the UI.
 |------|-----------|
 | `github-issue-implement.txt` | GitHub issue labeled `ai` |
 | `gitlab-issue-implement.txt` | GitLab issue labeled `ai` |
+| `github-issue-answer.txt` | GitHub issue labeled `ai` + `no-change` (comment only) |
+| `gitlab-issue-answer.txt` | GitLab issue labeled `ai` + `no-change` (comment only) |
 | `github-pr-implement.txt` | GitHub PR labeled `ai` (update branch) |
 | `gitlab-mr-implement.txt` | GitLab MR labeled `ai` (update branch) |
 | `github-pr-review.txt` | GitHub PR labeled `ai-review` |
@@ -32,6 +34,7 @@ Reusable blocks included via `{{INCLUDE:snippets/name.txt}}`:
 | Snippet | Purpose |
 |---------|---------|
 | `comments-priority.txt` | Comments override title/description |
+| `issue-answer-guidelines.txt` | How to write no-change Q&A answers |
 | `followup-review.txt` | Re-review after human replies; role handling |
 | `decline-unrelated-task.txt` | Skip implementation; empty PR/MR with explanation |
 | `implement-process.txt` | Issue implementation steps |
@@ -51,6 +54,7 @@ Templates use `{{NAME}}` placeholders filled at runtime, for example:
 - `{{ISSUE_TITLE}}`, `{{ISSUE_BODY}}`, `{{ISSUE_COMMENTS_TEXT}}`
 - `{{PR_TITLE}}`, `{{LINKED_ISSUES}}`, `{{DIFF}}`
 - `{{REVIEW_FILE}}` — path where the agent must write the review
+- `{{ANSWER_FILE}}` — path where the agent must write a no-change issue answer
 - `{{NOTES_FILE}}` — path where the agent must write merge/PR notes (posted as a comment)
 - `{{RELATED_TASKS_FILE}}` — JSON list of follow-up tasks for other registered repos
 - `{{REGISTERED_PROJECTS}}` — names from `github-projects.conf` and `gitlab-projects.conf`
