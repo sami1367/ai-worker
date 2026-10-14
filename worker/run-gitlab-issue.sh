@@ -27,6 +27,8 @@ source "$WORKER_CODE_DIR/lib/related-tasks.sh"
 source "$WORKER_CODE_DIR/lib/ai.sh"
 # shellcheck source=lib/gitlab.sh
 source "$WORKER_CODE_DIR/lib/gitlab.sh"
+# shellcheck source=lib/labels.sh
+source "$WORKER_CODE_DIR/lib/labels.sh"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR"
 ai_load_env "$BASE_DIR/.env"
@@ -213,6 +215,7 @@ fi
 
 echo
 echo "GitLab project: $REPO_PATH"
+ai_ensure_project_labels gitlab "$REPO_PATH" "$PROJECT"
 ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 

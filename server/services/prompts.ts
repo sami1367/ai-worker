@@ -42,6 +42,20 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     description: 'Used when a GitLab issue is labeled ai',
   },
   {
+    path: 'github-issue-answer.txt',
+    kind: 'template',
+    taskType: 'github_issue',
+    displayName: 'GitHub issue answer (no-change)',
+    description: 'Used when a GitHub issue is labeled ai + no-change (comment only)',
+  },
+  {
+    path: 'gitlab-issue-answer.txt',
+    kind: 'template',
+    taskType: 'gitlab_issue',
+    displayName: 'GitLab issue answer (no-change)',
+    description: 'Used when a GitLab issue is labeled ai + no-change (comment only)',
+  },
+  {
     path: 'github-pr-implement.txt',
     kind: 'template',
     taskType: 'github_pr_implement',
@@ -75,6 +89,13 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     taskType: null,
     displayName: 'Comments priority',
     description: 'Comments override title/description; newest wins',
+  },
+  {
+    path: 'snippets/issue-answer-guidelines.txt',
+    kind: 'snippet',
+    taskType: null,
+    displayName: 'Issue answer guidelines',
+    description: 'How to write no-change Q&A answers in issue comments',
   },
   {
     path: 'snippets/decline-unrelated-task.txt',

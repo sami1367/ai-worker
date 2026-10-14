@@ -19,6 +19,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$WORKER_CODE_DIR/lib/common.sh"
+# shellcheck source=lib/labels.sh
+source "$WORKER_CODE_DIR/lib/labels.sh"
 # shellcheck source=lib/prompts.sh
 source "$WORKER_CODE_DIR/lib/prompts.sh"
 # shellcheck source=lib/related-tasks.sh
@@ -256,6 +258,7 @@ fi
 
 echo
 echo "Repository: $REPO"
+ai_ensure_project_labels github "$REPO" "$PROJECT"
 ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 

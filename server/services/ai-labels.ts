@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { discoveredRepositories, repositories } from '#db/schema'
+import { discoveredRepositories, forgeConnections, repositories } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { redactSecrets } from '#utils/redact'
@@ -114,6 +114,96 @@ export async function ensureRepositoryLabels(
     }
     return { ok: false, ensured: 0, skipped: false, reason: 'error', message }
   }
+}
+
+/**
+ * Worker-facing ensure: create any missing AI labels on a forge project.
+ * Prefer resolving a registered repository (uses its connection token); fall back to
+ * any active connection for the same forge that can see the project.
+ */
+export async function ensureLabelsForWorker(opts: {
+  forgeType: 'github' | 'gitlab'
+  fullName: string
+  name?: string
+}): Promise<{
+  ok: boolean
+  created: number
+  existing: number
+  repositoryId: string | null
+  fullName: string
+  skipped?: boolean
+  reason?: string
+  message?: string
+}> {
+  const fullName = opts.fullName.trim()
+  if (!fullName) {
+    throw new AppError(400, 'fullName is required', 'validation_error')
+  }
+
+  const db = getDb()
+  const [byFull] = await db.select().from(repositories).where(and(
+    eq(repositories.isArchived, false),
+    eq(repositories.forgeType, opts.forgeType),
+    eq(repositories.canonicalProjectIdentifier, fullName),
+  )).limit(1)
+
+  let repo = byFull
+  if (!repo && opts.name) {
+    const [byName] = await db.select().from(repositories).where(and(
+      eq(repositories.isArchived, false),
+      eq(repositories.forgeType, opts.forgeType),
+      eq(repositories.name, opts.name),
+    )).limit(1)
+    repo = byName
+  }
+
+  if (repo) {
+    const result = await ensureRepositoryLabels(repo.id, { strict: true })
+    return {
+      ok: true,
+      created: result.created ?? 0,
+      existing: result.existing ?? 0,
+      repositoryId: repo.id,
+      fullName: resolveProjectRef(repo) || fullName,
+    }
+  }
+
+  // Unregistered / related-task target: try active connections for this forge.
+  const connections = await db.select().from(forgeConnections).where(and(
+    eq(forgeConnections.provider, opts.forgeType),
+    eq(forgeConnections.status, 'active'),
+  ))
+
+  let lastError: string | null = null
+  for (const connection of connections) {
+    try {
+      const { token } = await getConnectionAccessToken(connection.id)
+      const result = await ensureLabelsOnForgeProject({
+        provider: connection.provider,
+        instanceUrl: connection.instanceUrl,
+        token,
+        fullName,
+      })
+      return {
+        ok: true,
+        created: result.created,
+        existing: result.existing,
+        repositoryId: null,
+        fullName,
+      }
+    } catch (err) {
+      lastError = redactSecrets(err instanceof Error ? err.message : 'Label setup failed')
+    }
+  }
+
+  if (lastError) {
+    throw new AppError(502, lastError, 'setup_labels_failed')
+  }
+  throw new AppError(
+    404,
+    `No active ${opts.forgeType} connection available to ensure labels for ${fullName}`,
+    'not_found',
+  )
 }
 
 /**

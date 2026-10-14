@@ -14,6 +14,8 @@ GITLAB_SETUP="$WORKER_CODE_DIR/setup-gitlab-labels.sh"
 
 # shellcheck source=lib/common.sh
 source "$WORKER_CODE_DIR/lib/common.sh"
+# shellcheck source=lib/labels.sh
+source "$WORKER_CODE_DIR/lib/labels.sh"
 
 if [[ ! -f "$PROJECTS_FILE" ]]; then
     echo "NOTE: GitHub projects file not found:"
@@ -49,53 +51,7 @@ else
         echo "Repository: $REPO"
         echo "============================================================"
 
-        gh label create "ai" \
-            --repo "$REPO" \
-            --color "0E8A16" \
-            --description "Queue this issue for the AI worker" \
-            --force
-
-        gh label create "ai-working" \
-            --repo "$REPO" \
-            --color "FBCA04" \
-            --description "AI worker is currently processing this issue" \
-            --force
-
-        gh label create "ai-pr" \
-            --repo "$REPO" \
-            --color "1D76DB" \
-            --description "AI worker opened a pull request (applied to issue and PR)" \
-            --force
-
-        gh label create "ai-failed" \
-            --repo "$REPO" \
-            --color "D73A4A" \
-            --description "AI worker failed; review logs before retrying" \
-            --force
-
-        gh label create "ai-review" \
-            --repo "$REPO" \
-            --color "7057FF" \
-            --description "Queue this open pull request for an AI review comment" \
-            --force
-
-        gh label create "ai-reviewing" \
-            --repo "$REPO" \
-            --color "FBCA04" \
-            --description "AI worker is currently reviewing this pull request" \
-            --force
-
-        gh label create "ai-reviewed" \
-            --repo "$REPO" \
-            --color "0E8A16" \
-            --description "AI review comment was posted on this pull request" \
-            --force
-
-        gh label create "ai-review-failed" \
-            --repo "$REPO" \
-            --color "D73A4A" \
-            --description "AI PR review failed; review logs before retrying" \
-            --force
+        ai_ensure_github_labels_local "$REPO"
 
         return 0
     }

@@ -19,6 +19,8 @@ LOG_DIR="$BASE_DIR/logs"
 
 # shellcheck source=lib/common.sh
 source "$WORKER_CODE_DIR/lib/common.sh"
+# shellcheck source=lib/labels.sh
+source "$WORKER_CODE_DIR/lib/labels.sh"
 # shellcheck source=lib/prompts.sh
 source "$WORKER_CODE_DIR/lib/prompts.sh"
 # shellcheck source=lib/ai.sh

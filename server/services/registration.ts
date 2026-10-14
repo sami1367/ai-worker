@@ -264,7 +264,8 @@ export async function autoRegisterDiscoveredForConnection(
       clone: false,
       actor: systemActor,
       settings,
-      // Labels are ensured once per connection after sync — keeps bulk register fast/even.
+      // Labels: discovery sync runs ensureLabelsForConnectionRepositories after bulk
+      // register. Manual register keeps ensureLabels default (true) for immediate setup.
       ensureLabels: false,
     })
     if (result.kind === 'created') created.push(result.repo)

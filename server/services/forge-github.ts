@@ -289,7 +289,7 @@ export type ForgeLabeledItem = {
   sourceBranch?: string | null
 }
 
-const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr'] as const
+const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr', 'ai-answered'] as const
 const PR_AI_LABELS = [
   'ai', 'ai-working', 'ai-failed', 'ai-pr',
   'ai-review', 'ai-reviewing', 'ai-reviewed', 'ai-review-failed',

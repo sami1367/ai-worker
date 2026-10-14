@@ -128,11 +128,17 @@ export function classifyPhase(labels: string[], kind: QueueKind): { phase: Queue
   if (set.has('ai-failed')) {
     return { phase: 'failed', phaseLabel: 'AI failed', taskTypeHint: 'implement' }
   }
+  if (set.has('ai-answered')) {
+    return { phase: 'completed', phaseLabel: 'AI answered', taskTypeHint: 'implement' }
+  }
   if (set.has('ai-pr')) {
     return { phase: 'completed', phaseLabel: 'AI PR created', taskTypeHint: 'implement' }
   }
   if (set.has('ai')) {
-    return { phase: 'queued', phaseLabel: 'Queued for AI', taskTypeHint: 'implement' }
+    const queuedLabel = set.has('no-change')
+      ? 'Queued for AI answer'
+      : 'Queued for AI'
+    return { phase: 'queued', phaseLabel: queuedLabel, taskTypeHint: 'implement' }
   }
 
   return { phase: 'queued', phaseLabel: 'Queued', taskTypeHint: kind === 'issue' ? 'implement' : 'review' }
@@ -386,9 +392,12 @@ function computeStatusReason(
   }
 
   if (item.phase === 'completed') {
-    return item.kind === 'issue'
-      ? 'Done — AI PR/MR already created (ai-pr)'
-      : 'Done — AI review finished (ai-reviewed)'
+    if (item.kind === 'issue') {
+      return lowerLabels(item.labels).includes('ai-answered')
+        ? 'Done — AI answered in comments (ai-answered)'
+        : 'Done — AI PR/MR already created (ai-pr)'
+    }
+    return 'Done — AI review finished (ai-reviewed)'
   }
 
   if (workerStatus === 'stopped') {

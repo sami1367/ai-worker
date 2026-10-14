@@ -39,6 +39,8 @@ fi
 source "$WORKER_CODE_DIR/lib/common.sh"
 # shellcheck source=lib/gitlab.sh
 source "$WORKER_CODE_DIR/lib/gitlab.sh"
+# shellcheck source=lib/labels.sh
+source "$WORKER_CODE_DIR/lib/labels.sh"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 ai_load_env "$BASE_DIR/.env"
@@ -750,6 +752,8 @@ github_issue_job() {
     local PROJECT="$1"
     local REPO="$2"
     local ISSUE_NUMBER="$3"
+    local NO_CHANGE=0
+    local RUNNER=""
 
     ai_log_banner "FOUND AI ISSUE"
     echo "Forge:      github"
@@ -761,6 +765,22 @@ github_issue_job() {
 
     if ! ai_try_claim_repo_lock "github" "$REPO" "github_issue" "$ISSUE_NUMBER"; then
         return 0
+    fi
+
+    ai_ensure_project_labels github "$REPO" "$PROJECT"
+
+    if gh issue view "$ISSUE_NUMBER" \
+        --repo "$REPO" \
+        --json labels \
+        --jq '[.labels[].name | ascii_downcase] | any(. == "no-change")' \
+        2>/dev/null | grep -qx true; then
+        NO_CHANGE=1
+    fi
+
+    if [[ "$NO_CHANGE" -eq 1 ]]; then
+        echo "Mode:       no-change (answer in comments, no PR)"
+    else
+        echo "Mode:       implement (branch + PR)"
     fi
 
     echo
@@ -781,8 +801,19 @@ github_issue_job() {
         --remove-label "ai-failed" \
         >/dev/null 2>&1 || true
 
+    gh issue edit "$ISSUE_NUMBER" \
+        --repo "$REPO" \
+        --remove-label "ai-answered" \
+        >/dev/null 2>&1 || true
+
+    if [[ "$NO_CHANGE" -eq 1 ]]; then
+        RUNNER="$WORKER_CODE_DIR/run-github-issue-answer.sh"
+    else
+        RUNNER="$WORKER_CODE_DIR/run-issue.sh"
+    fi
+
     set +e
-    "$WORKER_CODE_DIR/run-issue.sh" "$PROJECT" "$ISSUE_NUMBER"
+    "$RUNNER" "$PROJECT" "$ISSUE_NUMBER"
     EXIT_CODE=$?
     set -e
 
@@ -795,20 +826,35 @@ github_issue_job() {
         echo "Time:    $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "============================================================"
 
-        echo "Changing labels: ai-working -> ai-pr (issue + open PR)"
+        if [[ "$NO_CHANGE" -eq 1 ]]; then
+            echo "Changing labels: ai-working -> ai-answered (keep no-change)"
 
-        gh issue edit "$ISSUE_NUMBER" \
-            --repo "$REPO" \
-            --add-label "ai-pr" \
-            --remove-label "ai-working" \
-            >/dev/null 2>&1 || true
+            gh issue edit "$ISSUE_NUMBER" \
+                --repo "$REPO" \
+                --add-label "ai-answered" \
+                --remove-label "ai-working" \
+                >/dev/null 2>&1 || true
 
-        gh issue edit "$ISSUE_NUMBER" \
-            --repo "$REPO" \
-            --remove-label "ai-failed" \
-            >/dev/null 2>&1 || true
+            gh issue edit "$ISSUE_NUMBER" \
+                --repo "$REPO" \
+                --remove-label "ai-failed" \
+                >/dev/null 2>&1 || true
+        else
+            echo "Changing labels: ai-working -> ai-pr (issue + open PR)"
 
-        github_label_open_issue_prs_ai_pr "$REPO" "$ISSUE_NUMBER"
+            gh issue edit "$ISSUE_NUMBER" \
+                --repo "$REPO" \
+                --add-label "ai-pr" \
+                --remove-label "ai-working" \
+                >/dev/null 2>&1 || true
+
+            gh issue edit "$ISSUE_NUMBER" \
+                --repo "$REPO" \
+                --remove-label "ai-failed" \
+                >/dev/null 2>&1 || true
+
+            github_label_open_issue_prs_ai_pr "$REPO" "$ISSUE_NUMBER"
+        fi
 
     else
 
@@ -836,6 +882,9 @@ gitlab_issue_job() {
     local PROJECT="$1"
     local REPO_PATH="$2"
     local ISSUE_NUMBER="$3"
+    local NO_CHANGE=0
+    local RUNNER=""
+    local ISSUE_JSON=""
 
     ai_log_banner "FOUND AI ISSUE"
     echo "Forge:      gitlab"
@@ -847,6 +896,24 @@ gitlab_issue_job() {
 
     if ! ai_try_claim_repo_lock "gitlab" "$REPO_PATH" "gitlab_issue" "$ISSUE_NUMBER"; then
         return 0
+    fi
+
+    ai_ensure_project_labels gitlab "$REPO_PATH" "$PROJECT"
+
+    ISSUE_JSON="$(gitlab_get_issue "$REPO_PATH" "$ISSUE_NUMBER" 2>/dev/null || true)"
+    if [[ -n "$ISSUE_JSON" ]] && jq -e '
+        (.labels // [])
+        | map(if type == "string" then . else (.name // "") end)
+        | map(ascii_downcase)
+        | any(. == "no-change")
+    ' >/dev/null 2>&1 <<<"$ISSUE_JSON"; then
+        NO_CHANGE=1
+    fi
+
+    if [[ "$NO_CHANGE" -eq 1 ]]; then
+        echo "Mode:       no-change (answer in comments, no MR)"
+    else
+        echo "Mode:       implement (branch + MR)"
     fi
 
     echo
@@ -865,8 +932,18 @@ gitlab_issue_job() {
         --remove "ai-failed" \
         >/dev/null 2>&1 || true
 
+    gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
+        --remove "ai-answered" \
+        >/dev/null 2>&1 || true
+
+    if [[ "$NO_CHANGE" -eq 1 ]]; then
+        RUNNER="$WORKER_CODE_DIR/run-gitlab-issue-answer.sh"
+    else
+        RUNNER="$WORKER_CODE_DIR/run-gitlab-issue.sh"
+    fi
+
     set +e
-    "$WORKER_CODE_DIR/run-gitlab-issue.sh" "$PROJECT" "$ISSUE_NUMBER"
+    "$RUNNER" "$PROJECT" "$ISSUE_NUMBER"
     EXIT_CODE=$?
     set -e
 
@@ -879,18 +956,31 @@ gitlab_issue_job() {
         echo "Time:    $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "============================================================"
 
-        echo "Changing labels: ai-working -> ai-pr (issue + open MR)"
+        if [[ "$NO_CHANGE" -eq 1 ]]; then
+            echo "Changing labels: ai-working -> ai-answered (keep no-change)"
 
-        gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
-            --add "ai-pr" \
-            --remove "ai-working" \
-            >/dev/null 2>&1 || true
+            gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
+                --add "ai-answered" \
+                --remove "ai-working" \
+                >/dev/null 2>&1 || true
 
-        gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
-            --remove "ai-failed" \
-            >/dev/null 2>&1 || true
+            gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
+                --remove "ai-failed" \
+                >/dev/null 2>&1 || true
+        else
+            echo "Changing labels: ai-working -> ai-pr (issue + open MR)"
 
-        gitlab_label_open_issue_mrs_ai_pr "$REPO_PATH" "$ISSUE_NUMBER"
+            gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
+                --add "ai-pr" \
+                --remove "ai-working" \
+                >/dev/null 2>&1 || true
+
+            gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
+                --remove "ai-failed" \
+                >/dev/null 2>&1 || true
+
+            gitlab_label_open_issue_mrs_ai_pr "$REPO_PATH" "$ISSUE_NUMBER"
+        fi
 
     else
 
@@ -929,6 +1019,8 @@ github_pr_implement_job() {
     if ! ai_try_claim_repo_lock "github" "$REPO" "github_pr_implement" "$PR_NUMBER"; then
         return 0
     fi
+
+    ai_ensure_project_labels github "$REPO" "$PROJECT"
 
     echo
     echo "Changing labels: ai -> ai-working"
@@ -1012,6 +1104,8 @@ github_pr_review_job() {
         return 0
     fi
 
+    ai_ensure_project_labels github "$REPO" "$PROJECT"
+
     echo
     echo "Changing labels: ai-review -> ai-reviewing"
 
@@ -1094,6 +1188,8 @@ gitlab_mr_implement_job() {
         return 0
     fi
 
+    ai_ensure_project_labels gitlab "$REPO_PATH" "$PROJECT"
+
     echo
     echo "Changing labels: ai -> ai-working"
 
@@ -1170,6 +1266,8 @@ gitlab_mr_review_job() {
     if ! ai_try_claim_repo_lock "gitlab" "$REPO_PATH" "gitlab_mr_review" "$MR_IID"; then
         return 0
     fi
+
+    ai_ensure_project_labels gitlab "$REPO_PATH" "$PROJECT"
 
     echo
     echo "Changing labels: ai-review -> ai-reviewing"

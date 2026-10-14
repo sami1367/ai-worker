@@ -89,10 +89,25 @@ describe('AI_WORKER_LABELS', () => {
       'ai-working',
       'ai-pr',
       'ai-failed',
+      'no-change',
+      'ai-answered',
       'ai-review',
       'ai-reviewing',
       'ai-reviewed',
       'ai-review-failed',
     ])
+  })
+
+  it('stays in sync with worker/lib/labels.sh specs', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const { join } = await import('node:path')
+    const src = await readFile(join(process.cwd(), 'worker/lib/labels.sh'), 'utf8')
+    const block = src.match(/ai_worker_label_specs\(\) \{\n\s*cat <<'EOF'\n([\s\S]*?)\nEOF/)
+    expect(block).toBeTruthy()
+    const bashNames = (block?.[1] || '')
+      .split('\n')
+      .map((line) => line.split('\t')[0]?.trim())
+      .filter(Boolean)
+    expect(bashNames).toEqual(AI_WORKER_LABELS.map((l) => l.name))
   })
 })

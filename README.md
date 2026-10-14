@@ -169,12 +169,149 @@ If HTTPS git is enabled, you can ignore the SSH key and use the token alone for 
 
 ---
 
-## Everyday use
+## How to use AI Worker in GitHub / GitLab
 
-| Goal | Action |
-|------|--------|
-| Implement an issue | Add label `ai` |
-| Review a PR/MR | Add label `ai-review` |
+After you connect a forge and repositories appear under **Repositories**, work is driven entirely by **issue and PR/MR labels** in GitHub or GitLab. You do not need to open a terminal on the AI Worker host for day-to-day tasks.
+
+### One-time project setup
+
+1. Connect GitHub or GitLab under **Connections** (token steps above).
+2. Wait for discovery (or click **Fetch repos**) so projects appear.
+3. Enable the repositories you want automated.
+4. Optional: **Setup labels** / **Setup webhooks** on the connection or repository page.
+5. Labels are also created automatically when a project is registered and again whenever the worker is about to change labels on that project — so older repos pick up new labels (for example `no-change`) without a manual setup run.
+
+### What you do in the forge
+
+| Goal | Where | Labels to add | What happens |
+|------|--------|---------------|--------------|
+| Implement a change | Open **issue** | `ai` | Agent implements on a branch and opens a PR/MR |
+| Ask a question about the code | Open **issue** | `ai` + `no-change` | Agent answers in an **issue comment** only (no branch, no PR/MR) |
+| Review a change | Open **PR** (GitHub) or **MR** (GitLab) | `ai-review` | Agent posts a review comment on the PR/MR |
+
+Tips:
+
+- Write a clear title and description (and comments). Newer comments override older ones when they conflict.
+- Keep the issue/PR **open** while the worker runs.
+- To **retry** after failure: fix the problem if needed, then add `ai` or `ai-review` again (keep `no-change` if you are in Q&A mode).
+- To **ask again** after `ai-answered`: keep `no-change`, remove `ai-answered`, add `ai` again.
+
+---
+
+## Label reference
+
+These labels are managed by AI Worker on each connected repository:
+
+| Label | Color idea | Meaning | Who adds it |
+|-------|------------|---------|-------------|
+| `ai` | Green | Queue implement or (with `no-change`) Q&A | **You** |
+| `no-change` | Teal | With `ai`: answer only, no code / no PR | **You** (keep it on the issue) |
+| `ai-working` | Yellow | Worker is processing the issue/PR | Worker |
+| `ai-pr` | Blue | Implement finished; PR/MR created (or updated) | Worker |
+| `ai-answered` | Green | Q&A finished; answer posted as a comment | Worker |
+| `ai-failed` | Red | Implement / Q&A failed — check worker logs | Worker |
+| `ai-review` | Purple | Queue an AI review on an open PR/MR | **You** |
+| `ai-reviewing` | Yellow | Worker is writing the review | Worker |
+| `ai-reviewed` | Green | Review comment posted | Worker |
+| `ai-review-failed` | Red | Review failed — check logs | Worker |
+
+You normally only add **`ai`**, **`ai` + `no-change`**, or **`ai-review`**. The worker moves the status labels through the lifecycle below.
+
+---
+
+## Label lifecycles
+
+### 1. Implement an issue (`ai` → PR/MR)
+
+Use this when you want code changes and a pull/merge request.
+
+```mermaid
+flowchart LR
+  A["You: add label ai<br/>on an open issue"] --> B["ai-working"]
+  B --> C{Success?}
+  C -->|yes| D["ai-pr<br/>+ branch / PR or MR"]
+  C -->|no| E["ai-failed"]
+  E -.->|re-add ai| A
+```
+
+**Steps**
+
+1. Open an issue describing the work.
+2. Add label `ai`.
+3. Watch labels: `ai` → `ai-working` → `ai-pr` (or `ai-failed`).
+4. Review the PR/MR the worker opened, then merge as usual in Git.
+
+### 2. Ask a question — no code changes (`ai` + `no-change`)
+
+Use this when you only need an answer about the repository (design, “where is X?”, how something works). No branch and no PR/MR.
+
+```mermaid
+flowchart LR
+  A["You: add ai + no-change<br/>on an open issue"] --> B["ai-working<br/>+ no-change"]
+  B --> C{Success?}
+  C -->|yes| D["ai-answered + no-change<br/>answer in issue comments"]
+  C -->|no| E["ai-failed + no-change"]
+  E -.->|re-add ai<br/>keep no-change| A
+  D -.->|ask again:<br/>remove ai-answered,<br/>add ai, keep no-change| A
+```
+
+**Steps**
+
+1. Open an issue with your question.
+2. Add **`ai`** and **`no-change`**.
+3. Wait for the AI comment on the issue.
+4. Final labels: **`ai-answered`** + **`no-change`**.
+
+### 3. Review a pull / merge request (`ai-review`)
+
+Use this on an **already open** PR (GitHub) or MR (GitLab).
+
+```mermaid
+flowchart LR
+  A["You: add ai-review<br/>on an open PR/MR"] --> B["ai-reviewing"]
+  B --> C{Success?}
+  C -->|yes| D["ai-reviewed<br/>+ review comment"]
+  C -->|no| E["ai-review-failed"]
+  E -.->|re-add ai-review| A
+```
+
+**Steps**
+
+1. Open or push to a PR/MR.
+2. Add label `ai-review`.
+3. Wait for the review comment.
+4. Final label: `ai-reviewed` (or `ai-review-failed`).
+
+### 4. Overview of all workflows
+
+```mermaid
+flowchart TB
+  subgraph human [You in GitHub / GitLab]
+    I1[Issue: implement]
+    I2[Issue: question only]
+    P1[PR / MR: review]
+  end
+
+  subgraph labels [Labels you add]
+    L1[ai]
+    L2[ai + no-change]
+    L3[ai-review]
+  end
+
+  subgraph outcomes [Results]
+    O1[Branch + PR/MR<br/>label ai-pr]
+    O2[Issue comment<br/>labels ai-answered + no-change]
+    O3[PR/MR review comment<br/>label ai-reviewed]
+  end
+
+  I1 --> L1 --> O1
+  I2 --> L2 --> O2
+  P1 --> L3 --> O3
+```
+
+---
+
+## Everyday commands (host)
 
 Update later:
 

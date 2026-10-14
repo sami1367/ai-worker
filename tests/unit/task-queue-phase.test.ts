@@ -16,6 +16,7 @@ function classifyPhase(
 
   if (set.has('ai-working')) return { phase: 'working', taskTypeHint: 'implement' }
   if (set.has('ai-failed')) return { phase: 'failed', taskTypeHint: 'implement' }
+  if (set.has('ai-answered')) return { phase: 'completed', taskTypeHint: 'implement' }
   if (set.has('ai-pr')) return { phase: 'completed', taskTypeHint: 'implement' }
   if (set.has('ai')) return { phase: 'queued', taskTypeHint: 'implement' }
 
@@ -28,6 +29,13 @@ describe('task queue phase classification', () => {
     expect(classifyPhase(['ai-working'], 'issue').phase).toBe('working')
     expect(classifyPhase(['ai-pr'], 'issue').phase).toBe('completed')
     expect(classifyPhase(['ai-failed'], 'issue').phase).toBe('failed')
+  })
+
+  it('classifies no-change answer labels', () => {
+    expect(classifyPhase(['ai', 'no-change'], 'issue').phase).toBe('queued')
+    expect(classifyPhase(['ai-working', 'no-change'], 'issue').phase).toBe('working')
+    expect(classifyPhase(['ai-answered', 'no-change'], 'issue').phase).toBe('completed')
+    expect(classifyPhase(['ai-failed', 'no-change'], 'issue').phase).toBe('failed')
   })
 
   it('classifies PR review labels ahead of implement labels', () => {

@@ -293,6 +293,9 @@ ai_related_create_issue() {
         repo="$(
             cd "$repo_dir" && gh repo view --json nameWithOwner --jq '.nameWithOwner'
         )" || return 1
+        if declare -F ai_ensure_project_labels >/dev/null 2>&1; then
+            ai_ensure_project_labels github "$repo" "$project_name"
+        fi
         body_file="$(mktemp)"
         printf '%s\n' "$body" > "$body_file"
         url="$(
@@ -314,6 +317,10 @@ ai_related_create_issue() {
 
     ai_related_ensure_gitlab || return 1
     path="$(gitlab_resolve_project_path "$repo_dir")" || return 1
+    # gitlab_create_issue also ensures labels when ai_ensure_project_labels is loaded.
+    if declare -F ai_ensure_project_labels >/dev/null 2>&1; then
+        ai_ensure_project_labels gitlab "$path" "$project_name"
+    fi
     json="$(gitlab_create_issue "$path" "$title" "$body" "ai")" || return 1
     url="$(jq -r '.web_url // empty' <<<"$json")"
     [[ -n "$url" ]] || return 1
