@@ -19,11 +19,15 @@ structure instead of the usual sections. The runner puts this
 explanation on the pull/merge request (new empty-commit PR/MR for
 issues; a comment on an existing PR/MR).
 
-## Summary
+## Why this was not implemented
 
 State which case applies: unrelated to this repository, not
 acceptable, or not useful. One or two sentences with specifics.
 No code changes; empty pull/merge request for the record.
+
+## Summary
+
+Same one-line restatement of why this was declined.
 
 ## Deployment
 

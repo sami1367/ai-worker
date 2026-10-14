@@ -1494,7 +1494,254 @@ ai_notes_explain_no_implementation() {
     local notes_file="$1"
 
     [[ -n "$notes_file" && -f "$notes_file" ]] || return 1
-    grep -qiE '^##[[:space:]]+Why this was not implemented' "$notes_file"
+    if grep -qiE '^##[[:space:]]+Why this was not implemented' "$notes_file"; then
+        return 0
+    fi
+    # Prompt decline template uses ## Summary + explicit no-code / wrong-repo language.
+    if grep -qiE '^##[[:space:]]+Summary' "$notes_file" \
+        && grep -qiE \
+            '(unrelated to this repository|not acceptable|not useful|no code changes|empty pull/?merge request|declined)' \
+            "$notes_file"
+    then
+        return 0
+    fi
+    return 1
+}
+
+# Human-readable explanation for known runner exit codes.
+# Usage: ai_describe_runner_exit_code <exit_code>
+ai_describe_runner_exit_code() {
+    local code="${1:-}"
+
+    case "$code" in
+        10) printf '%s\n' 'Could not resolve the forge project or repository reference.' ;;
+        11) printf '%s\n' 'Could not determine the forge repository for this workspace.' ;;
+        12) printf '%s\n' 'Workspace prepare failed (main branch was not clean or checkout failed).' ;;
+        13) printf '%s\n' 'Required source branch or issue context was missing.' ;;
+        20) printf '%s\n' 'The AI agent finished successfully but made no product-file changes.' ;;
+        130) printf '%s\n' 'The run was interrupted (SIGINT).' ;;
+        143) printf '%s\n' 'The run was terminated (SIGTERM).' ;;
+        '') printf '%s\n' 'The AI worker run failed for an unknown reason.' ;;
+        *)
+            if [[ "$code" =~ ^[0-9]+$ ]] && [[ "$code" -ne 0 ]]; then
+                printf '%s\n' "The AI agent or runner failed (exit code ${code})."
+            else
+                printf '%s\n' 'The AI worker run failed.'
+            fi
+            ;;
+    esac
+}
+
+# Newest file matching a glob (by mtime). Prints path or nothing.
+# Usage: ai_latest_glob_match <glob>
+ai_latest_glob_match() {
+    local pattern="$1"
+    local newest="" f
+
+    shopt -s nullglob
+    for f in $pattern; do
+        if [[ -z "$newest" || "$f" -nt "$newest" ]]; then
+            newest="$f"
+        fi
+    done
+    shopt -u nullglob
+
+    [[ -n "$newest" ]] || return 1
+    printf '%s\n' "$newest"
+}
+
+# Extract the last ERROR block from a runner log (best-effort).
+# Usage: ai_extract_log_error_excerpt <log_file> [max_chars]
+ai_extract_log_error_excerpt() {
+    local log_file="$1"
+    local max_chars="${2:-1200}"
+    local excerpt
+
+    [[ -n "$log_file" && -f "$log_file" ]] || return 1
+
+    excerpt="$(
+        awk '
+            BEGIN { collecting = 0; block = ""; last = "" }
+            /^ERROR([:]|[[:space:]]|$)/ {
+                if (block != "") last = block
+                block = $0
+                collecting = 1
+                next
+            }
+            collecting {
+                if ($0 ~ /^====/ || $0 ~ /^Finished:/ || $0 ~ /^Changing labels:/) {
+                    last = block
+                    block = ""
+                    collecting = 0
+                    next
+                }
+                if (length(block) < 2000) block = block "\n" $0
+                next
+            }
+            END {
+                if (block != "") last = block
+                if (last != "") print last
+            }
+        ' "$log_file"
+    )"
+
+    [[ -n "$excerpt" ]] || return 1
+    ai_trim_text "$excerpt" "$max_chars"
+}
+
+# Build markdown body for an ai-failed / ai-review-failed comment.
+# Usage: ai_format_failure_comment <exit_code> <retry_label> [log_file] [notes_file]
+ai_format_failure_comment() {
+    local exit_code="$1"
+    local retry_label="$2"
+    local log_file="${3:-}"
+    local notes_file="${4:-}"
+    local reason excerpt notes_body
+
+    reason="$(ai_describe_runner_exit_code "$exit_code")"
+    excerpt=""
+    notes_body=""
+
+    if [[ -n "$log_file" && -f "$log_file" ]]; then
+        excerpt="$(ai_extract_log_error_excerpt "$log_file" 1200 2>/dev/null || true)"
+    fi
+    if [[ -n "$notes_file" && -f "$notes_file" && -s "$notes_file" ]]; then
+        notes_body="$(ai_trim_text "$(cat "$notes_file")" 2000)"
+    fi
+
+    cat <<EOF
+<!-- ai-worker-failure -->
+## AI Worker failed
+
+**Reason:** ${reason}
+
+EOF
+
+    if [[ -n "$excerpt" && "$excerpt" != "$reason" ]]; then
+        cat <<EOF
+### Details from the run log
+
+\`\`\`
+${excerpt}
+\`\`\`
+
+EOF
+    fi
+
+    if [[ -n "$notes_body" ]]; then
+        cat <<EOF
+### Notes from the agent
+
+${notes_body}
+
+EOF
+    fi
+
+    cat <<EOF
+The issue/PR was labeled \`ai-failed\` (or \`ai-review-failed\`) and was **not** retried automatically.
+
+When ready, add the \`${retry_label}\` label to try again.
+EOF
+}
+
+# Post a failure-reason comment on a GitHub issue or pull request.
+# Usage: ai_post_github_failure_comment <issue|pr> <repo> <number> <exit_code> <retry_label> [log_glob] [notes_glob]
+ai_post_github_failure_comment() {
+    local kind="$1"
+    local repo="$2"
+    local number="$3"
+    local exit_code="$4"
+    local retry_label="$5"
+    local log_glob="${6:-}"
+    local notes_glob="${7:-}"
+    local log_file="" notes_file="" comment_file comment_url
+
+    if [[ -n "$log_glob" ]]; then
+        log_file="$(ai_latest_glob_match "$log_glob" 2>/dev/null || true)"
+    fi
+    if [[ -n "$notes_glob" ]]; then
+        notes_file="$(ai_latest_glob_match "$notes_glob" 2>/dev/null || true)"
+    fi
+
+    comment_file="$(mktemp)"
+    ai_format_failure_comment "$exit_code" "$retry_label" "$log_file" "$notes_file" > "$comment_file"
+
+    echo "Posting failure reason comment to GitHub ${kind} #${number}..." >&2
+    if [[ "$kind" == "pr" ]]; then
+        comment_url="$(
+            gh pr comment "$number" \
+                --repo "$repo" \
+                --body-file "$comment_file" 2>/dev/null || true
+        )"
+    else
+        comment_url="$(
+            gh issue comment "$number" \
+                --repo "$repo" \
+                --body-file "$comment_file" 2>/dev/null || true
+        )"
+    fi
+    rm -f "$comment_file"
+
+    if [[ -z "$comment_url" ]]; then
+        echo "WARNING: Could not post GitHub failure comment." >&2
+        return 1
+    fi
+
+    echo "Failure comment posted: $comment_url" >&2
+    printf '%s\n' "$comment_url"
+    return 0
+}
+
+# Post a failure-reason note on a GitLab issue or merge request.
+# Usage: ai_post_gitlab_failure_comment <issue|mr> <project_path> <iid> <exit_code> <retry_label> [log_glob] [notes_glob]
+ai_post_gitlab_failure_comment() {
+    local kind="$1"
+    local project_path="$2"
+    local iid="$3"
+    local exit_code="$4"
+    local retry_label="$5"
+    local log_glob="${6:-}"
+    local notes_glob="${7:-}"
+    local log_file="" notes_file="" body note_json note_id note_url
+
+    if [[ -n "$log_glob" ]]; then
+        log_file="$(ai_latest_glob_match "$log_glob" 2>/dev/null || true)"
+    fi
+    if [[ -n "$notes_glob" ]]; then
+        notes_file="$(ai_latest_glob_match "$notes_glob" 2>/dev/null || true)"
+    fi
+
+    body="$(ai_format_failure_comment "$exit_code" "$retry_label" "$log_file" "$notes_file")"
+
+    echo "Posting failure reason comment to GitLab ${kind} !/${iid}..." >&2
+    if [[ "$kind" == "mr" ]]; then
+        if ! declare -F gitlab_create_mr_note >/dev/null 2>&1; then
+            echo "WARNING: gitlab_create_mr_note unavailable; cannot post failure comment." >&2
+            return 1
+        fi
+        note_json="$(gitlab_create_mr_note "$project_path" "$iid" "$body" 2>/dev/null || true)"
+    else
+        if ! declare -F gitlab_create_issue_note >/dev/null 2>&1; then
+            echo "WARNING: gitlab_create_issue_note unavailable; cannot post failure comment." >&2
+            return 1
+        fi
+        note_json="$(gitlab_create_issue_note "$project_path" "$iid" "$body" 2>/dev/null || true)"
+    fi
+
+    note_id="$(jq -r '.id // empty' <<<"${note_json:-}" 2>/dev/null || true)"
+    if [[ -z "$note_id" ]]; then
+        echo "WARNING: Could not post GitLab failure comment." >&2
+        return 1
+    fi
+
+    note_url="$(jq -r '.web_url // empty' <<<"$note_json" 2>/dev/null || true)"
+    echo "Failure comment posted (note id: $note_id)" >&2
+    if [[ -n "$note_url" ]]; then
+        printf '%s\n' "$note_url"
+    else
+        printf '%s\n' "$note_id"
+    fi
+    return 0
 }
 
 # Remove known AI artifact files from a project directory (untracked leftovers).

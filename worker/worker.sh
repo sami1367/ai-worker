@@ -872,6 +872,28 @@ github_issue_job() {
             --remove-label "ai-working" \
             >/dev/null 2>&1 || true
 
+        if [[ "$NO_CHANGE" -eq 1 ]]; then
+            ai_post_github_failure_comment \
+                issue \
+                "$REPO" \
+                "$ISSUE_NUMBER" \
+                "$EXIT_CODE" \
+                ai \
+                "${LOG_DIR}/${PROJECT}-issue-answer-${ISSUE_NUMBER}-*.log" \
+                "" \
+                >/dev/null || true
+        else
+            ai_post_github_failure_comment \
+                issue \
+                "$REPO" \
+                "$ISSUE_NUMBER" \
+                "$EXIT_CODE" \
+                ai \
+                "${LOG_DIR}/${PROJECT}-issue-${ISSUE_NUMBER}-*.log" \
+                "${LOG_DIR}/${PROJECT}-issue-${ISSUE_NUMBER}-*-notes.md" \
+                >/dev/null || true
+        fi
+
         echo
         echo "The issue was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
@@ -997,6 +1019,28 @@ gitlab_issue_job() {
             --remove "ai-working" \
             >/dev/null 2>&1 || true
 
+        if [[ "$NO_CHANGE" -eq 1 ]]; then
+            ai_post_gitlab_failure_comment \
+                issue \
+                "$REPO_PATH" \
+                "$ISSUE_NUMBER" \
+                "$EXIT_CODE" \
+                ai \
+                "${LOG_DIR}/${PROJECT}-gitlab-issue-answer-${ISSUE_NUMBER}-*.log" \
+                "" \
+                >/dev/null || true
+        else
+            ai_post_gitlab_failure_comment \
+                issue \
+                "$REPO_PATH" \
+                "$ISSUE_NUMBER" \
+                "$EXIT_CODE" \
+                ai \
+                "${LOG_DIR}/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-*.log" \
+                "${LOG_DIR}/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-*-notes.md" \
+                >/dev/null || true
+        fi
+
         echo
         echo "The issue was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
@@ -1080,6 +1124,16 @@ github_pr_implement_job() {
             --add-label "ai-failed" \
             --remove-label "ai-working" \
             >/dev/null 2>&1 || true
+
+        ai_post_github_failure_comment \
+            pr \
+            "$REPO" \
+            "$PR_NUMBER" \
+            "$EXIT_CODE" \
+            ai \
+            "${LOG_DIR}/${PROJECT}-github-pr-implement-${PR_NUMBER}-*.log" \
+            "${LOG_DIR}/${PROJECT}-github-pr-implement-${PR_NUMBER}-*-notes.md" \
+            >/dev/null || true
 
         echo
         echo "The pull request was NOT automatically retried."
@@ -1165,6 +1219,16 @@ github_pr_review_job() {
             --remove-label "ai-reviewing" \
             >/dev/null 2>&1 || true
 
+        ai_post_github_failure_comment \
+            pr \
+            "$REPO" \
+            "$PR_NUMBER" \
+            "$EXIT_CODE" \
+            ai-review \
+            "${LOG_DIR}/${PROJECT}-github-pr-${PR_NUMBER}-*.log" \
+            "" \
+            >/dev/null || true
+
         echo
         echo "The pull request was NOT automatically re-reviewed."
         echo "Review the logs first. When ready, add label: ai-review"
@@ -1244,6 +1308,16 @@ gitlab_mr_implement_job() {
             --remove "ai-working" \
             >/dev/null 2>&1 || true
 
+        ai_post_gitlab_failure_comment \
+            mr \
+            "$REPO_PATH" \
+            "$MR_IID" \
+            "$EXIT_CODE" \
+            ai \
+            "${LOG_DIR}/${PROJECT}-gitlab-mr-implement-${MR_IID}-*.log" \
+            "${LOG_DIR}/${PROJECT}-gitlab-mr-implement-${MR_IID}-*-notes.md" \
+            >/dev/null || true
+
         echo
         echo "The merge request was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
@@ -1322,6 +1396,16 @@ gitlab_mr_review_job() {
             --add "ai-review-failed" \
             --remove "ai-reviewing" \
             >/dev/null 2>&1 || true
+
+        ai_post_gitlab_failure_comment \
+            mr \
+            "$REPO_PATH" \
+            "$MR_IID" \
+            "$EXIT_CODE" \
+            ai-review \
+            "${LOG_DIR}/${PROJECT}-gitlab-mr-${MR_IID}-*.log" \
+            "" \
+            >/dev/null || true
 
         echo
         echo "The merge request was NOT automatically re-reviewed."
