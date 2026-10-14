@@ -2,11 +2,17 @@
 const { api } = useApi()
 const q = ref('')
 const forgeType = ref<string>('')
+const enabledFilter = ref<string>('')
 const workspaceStatus = ref<string>('')
 const page = ref(1)
 const busy = ref('')
+const togglingIds = ref(new Set<string>())
 const message = ref('')
 const messageError = ref(false)
+
+function isToggling(id: string) {
+  return togglingIds.value.has(id)
+}
 
 const query = computed(() => {
   const p = new URLSearchParams()
@@ -14,6 +20,9 @@ const query = computed(() => {
   p.set('pageSize', '50')
   if (q.value) p.set('q', q.value)
   if (forgeType.value) p.set('forgeType', forgeType.value)
+  if (enabledFilter.value === 'true' || enabledFilter.value === 'false') {
+    p.set('enabled', enabledFilter.value)
+  }
   if (workspaceStatus.value) p.set('workspaceStatus', workspaceStatus.value)
   return p.toString()
 })
@@ -24,7 +33,7 @@ const { data, pending, refresh } = await useAsyncData(
   { watch: [query] },
 )
 
-watch([q, forgeType, workspaceStatus], () => {
+watch([q, forgeType, enabledFilter, workspaceStatus], () => {
   page.value = 1
 })
 
@@ -39,6 +48,31 @@ function workspaceColor(status?: string) {
   if (status === 'failed' || status === 'inaccessible') return 'error'
   if (status === 'cloning' || status === 'syncing' || status === 'queued') return 'warning'
   return 'neutral'
+}
+
+async function setEnabled(repo: { id: string, name: string, isEnabled: boolean }, enabled: boolean) {
+  if (repo.isEnabled === enabled || isToggling(repo.id)) return
+  const next = new Set(togglingIds.value)
+  next.add(repo.id)
+  togglingIds.value = next
+  message.value = ''
+  messageError.value = false
+  // Optimistic update so the switch feels immediate
+  repo.isEnabled = enabled
+  try {
+    await api(`/api/v1/repositories/${repo.id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' })
+    message.value = enabled
+      ? `Enabled ${repo.name} (polling resumed)`
+      : `Disabled ${repo.name} (frozen until re-enabled)`
+  } catch (e: any) {
+    repo.isEnabled = !enabled
+    message.value = e?.data?.message || e?.statusMessage || `Failed to ${enabled ? 'enable' : 'disable'} ${repo.name}`
+    messageError.value = true
+  } finally {
+    const done = new Set(togglingIds.value)
+    done.delete(repo.id)
+    togglingIds.value = done
+  }
 }
 
 async function fetchAll() {
@@ -71,7 +105,7 @@ async function fetchAll() {
         <p class="mt-1 text-sm opacity-70">
           Managed automatically from your
           <NuxtLink to="/connections" class="underline">Connections</NuxtLink>.
-          Clones happen only when an AI job needs the workspace.
+          Disable a repo to stop forge polling until you turn it back on.
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -98,6 +132,15 @@ async function fetchAll() {
           { label: 'GitLab', value: 'gitlab' },
         ]"
         class="w-40"
+      />
+      <USelect
+        v-model="enabledFilter"
+        :items="[
+          { label: 'Any status', value: '' },
+          { label: 'Enabled only', value: 'true' },
+          { label: 'Disabled only', value: 'false' },
+        ]"
+        class="w-44"
       />
       <USelect
         v-model="workspaceStatus"
@@ -145,9 +188,14 @@ async function fetchAll() {
               </UBadge>
             </td>
             <td class="px-4 py-3">
-              <UBadge :color="repo.isEnabled ? 'success' : 'neutral'" variant="subtle">
-                {{ repo.isEnabled ? 'on' : 'off' }}
-              </UBadge>
+              <USwitch
+                :model-value="repo.isEnabled"
+                :loading="isToggling(repo.id)"
+                :disabled="isToggling(repo.id)"
+                size="sm"
+                :aria-label="repo.isEnabled ? `Disable ${repo.name}` : `Enable ${repo.name}`"
+                @update:model-value="(v: boolean) => setEnabled(repo, v)"
+              />
             </td>
             <td class="px-4 py-3">
               <UBadge :color="workspaceColor(repo.workspaceStatus)" variant="subtle">
