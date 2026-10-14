@@ -8,7 +8,24 @@ vi.mock('../../server/utils/safe-fetch', () => ({
 }))
 
 import { safeFetch } from '../../server/utils/safe-fetch'
-import { listGitHubRepositories } from '../../server/services/forge-github'
+import {
+  listGitHubAiPullRequests,
+  listGitHubRepositories,
+} from '../../server/services/forge-github'
+import { AppError } from '../../server/utils/errors'
+
+const mock = safeFetch as unknown as ReturnType<typeof vi.fn>
+
+function jsonResponse(status: number, body: unknown, headers?: Record<string, string>) {
+  const text = JSON.stringify(body)
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(headers),
+    json: async () => body,
+    text: async () => text,
+  }
+}
 
 describe('listGitHubRepositories pagination', () => {
   afterEach(() => {
@@ -43,17 +60,9 @@ describe('listGitHubRepositories pagination', () => {
       fork: false,
     }]
 
-    const mock = safeFetch as unknown as ReturnType<typeof vi.fn>
     mock.mockImplementation(async (url: string) => {
       const page = Number(new URL(String(url)).searchParams.get('page') || '1')
-      const body = page === 1 ? page1 : page2
-      return {
-        ok: true,
-        status: 200,
-        headers: new Headers(),
-        json: async () => body,
-        text: async () => JSON.stringify(body),
-      }
+      return jsonResponse(200, page === 1 ? page1 : page2)
     })
 
     const repos = await listGitHubRepositories('fake-token')
@@ -61,5 +70,58 @@ describe('listGitHubRepositories pagination', () => {
     expect(repos[100].fullName).toBe('org/last')
     expect(repos[100].permissions).toMatchObject({ admin: true, push: true })
     expect(mock.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('listGitHubAiPullRequests', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('filters open pulls by AI labels via pulls API (not search)', async () => {
+    mock.mockImplementation(async (url: string) => {
+      expect(String(url)).toContain('/repos/acme/app/pulls')
+      expect(String(url)).not.toContain('/search/')
+      return jsonResponse(200, [
+        {
+          number: 1,
+          title: 'AI work',
+          html_url: 'https://github.com/acme/app/pull/1',
+          created_at: '2024-01-02T00:00:00Z',
+          labels: [{ name: 'ai-review' }],
+          head: { ref: 'feat/ai' },
+        },
+        {
+          number: 2,
+          title: 'Human PR',
+          html_url: 'https://github.com/acme/app/pull/2',
+          created_at: '2024-01-01T00:00:00Z',
+          labels: [{ name: 'bug' }],
+          head: { ref: 'fix' },
+        },
+      ])
+    })
+
+    const items = await listGitHubAiPullRequests('tok', 'acme/app')
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      externalId: '1',
+      kind: 'pull_request',
+      sourceBranch: 'feat/ai',
+      labels: ['ai-review'],
+    })
+  })
+
+  it('maps rate-limit 403 to forge_rate_limited', async () => {
+    mock.mockResolvedValue(jsonResponse(
+      403,
+      { message: 'API rate limit exceeded' },
+      { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1700000000' },
+    ))
+
+    await expect(listGitHubAiPullRequests('tok', 'acme/app')).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'forge_rate_limited',
+    } satisfies Partial<AppError>)
   })
 })

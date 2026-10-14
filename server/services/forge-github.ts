@@ -108,13 +108,76 @@ async function githubApiRaw(
     throw new AppError(401, 'GitHub credentials are invalid or revoked', 'forge_unauthorized')
   }
   if (res.status === 403) {
-    throw new AppError(403, 'GitHub credentials lack required permissions', 'forge_forbidden')
+    throw await githubForbiddenError(res)
   }
   if (!res.ok) {
     const text = redactSecrets(await res.text())
     throw new AppError(502, `GitHub API error (${res.status}): ${text.slice(0, 200)}`, 'forge_api_error')
   }
   return { data: await res.json(), headers: res.headers }
+}
+
+/** Map GitHub 403 bodies to actionable errors (rate limit / SSO / scopes). */
+async function githubForbiddenError(res: Response): Promise<AppError> {
+  const remaining = res.headers.get('x-ratelimit-remaining')
+  const reset = res.headers.get('x-ratelimit-reset')
+  let bodyText = ''
+  try {
+    bodyText = await res.text()
+  } catch {
+    bodyText = ''
+  }
+  const redacted = redactSecrets(bodyText)
+  let message = ''
+  try {
+    const parsed = JSON.parse(bodyText) as { message?: string, documentation_url?: string }
+    message = String(parsed.message || '')
+  } catch {
+    message = bodyText.slice(0, 200)
+  }
+  const lower = message.toLowerCase()
+
+  if (
+    remaining === '0'
+    || lower.includes('rate limit')
+    || lower.includes('secondary rate limit')
+    || lower.includes('abuse detection')
+  ) {
+    const resetHint = reset && /^\d+$/.test(reset)
+      ? ` Try again after ${new Date(Number(reset) * 1000).toISOString()}.`
+      : ''
+    return new AppError(
+      429,
+      `GitHub API rate limit exceeded.${resetHint}`.trim(),
+      'forge_rate_limited',
+    )
+  }
+
+  if (
+    lower.includes('saml')
+    || lower.includes('sso')
+    || lower.includes('organization must enable')
+    || lower.includes('resource protected by organization')
+  ) {
+    return new AppError(
+      403,
+      'GitHub token needs SSO authorization for this organization (GitHub → Settings → Applications → Authorized → Grant)',
+      'forge_sso_required',
+    )
+  }
+
+  if (message) {
+    return new AppError(
+      403,
+      `GitHub credentials lack required permissions: ${redacted.slice(0, 180)}`,
+      'forge_forbidden',
+    )
+  }
+  return new AppError(
+    403,
+    'GitHub credentials lack required permissions (need classic PAT with "repo", or fine-grained Issues + Pull requests Read)',
+    'forge_forbidden',
+  )
 }
 
 async function githubApi<T>(path: string, token: string, init?: RequestInit): Promise<T> {
@@ -259,7 +322,7 @@ async function listGitHubLabelNames(token: string, repo: string): Promise<Set<st
       throw new AppError(401, 'GitHub credentials are invalid or revoked', 'forge_unauthorized')
     }
     if (res.status === 403) {
-      throw new AppError(403, 'GitHub credentials lack permission to manage labels', 'forge_forbidden')
+      throw await githubForbiddenError(res)
     }
     if (res.status === 404) {
       throw new AppError(404, `GitHub repository not found: ${repo}`, 'forge_not_found')
@@ -353,31 +416,31 @@ export async function listGitHubAiIssues(
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
-/** Open PRs carrying any AI implement or review workflow label. */
+/**
+ * Open PRs carrying any AI implement or review workflow label.
+ * Uses the pulls list API (core rate limit) instead of Search (30 req/min),
+ * so polling many repositories does not look like a permissions failure.
+ */
 export async function listGitHubAiPullRequests(
   token: string,
   fullName: string,
 ): Promise<ForgeLabeledItem[]> {
   const repo = normalizeGitHubRepoFullName(fullName)
   const byId = new Map<string, ForgeLabeledItem>()
-  const labelQuery = PR_AI_LABELS.map((l) => `label:"${l}"`).join(' OR ')
-  const q = `repo:${repo} is:pr is:open (${labelQuery})`
 
   let page = 1
-  while (page <= 10) {
-    const result = await githubApi<{
-      items?: Array<{
-        number: number
-        title?: string
-        html_url?: string
-        created_at?: string
-        labels?: Array<{ name?: string } | string>
-      }>
-    }>(
-      `/search/issues?q=${encodeURIComponent(q)}&per_page=100&page=${page}&sort=created&order=asc`,
+  while (page <= 20) {
+    const batch = await githubApi<Array<{
+      number: number
+      title?: string
+      html_url?: string
+      created_at?: string
+      labels?: Array<{ name?: string } | string>
+      head?: { ref?: string }
+    }>>(
+      `/repos/${repo}/pulls?state=open&per_page=100&page=${page}&sort=created&direction=asc`,
       token,
     )
-    const batch = result.items || []
     if (!batch.length) break
     for (const pr of batch) {
       const labels = labelNames(pr.labels)
@@ -390,27 +453,12 @@ export async function listGitHubAiPullRequests(
         labels,
         createdAt: String(pr.created_at || new Date(0).toISOString()),
         kind: 'pull_request',
-        sourceBranch: null,
+        sourceBranch: pr.head?.ref || null,
       })
     }
     if (batch.length < 100) break
     page += 1
   }
-
-  // Search results omit head ref; fill sourceBranch from the pulls API (bounded).
-  const ids = [...byId.keys()].slice(0, 30)
-  await Promise.all(ids.map(async (id) => {
-    try {
-      const pr = await githubApi<{ head?: { ref?: string } }>(
-        `/repos/${repo}/pulls/${id}`,
-        token,
-      )
-      const item = byId.get(id)
-      if (item && pr.head?.ref) item.sourceBranch = pr.head.ref
-    } catch {
-      // Best-effort; branch column can stay empty for this PR.
-    }
-  }))
 
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
@@ -456,7 +504,7 @@ export async function ensureGitHubRepoLabels(
       throw new AppError(401, 'GitHub credentials are invalid or revoked', 'forge_unauthorized')
     }
     if (createRes.status === 403) {
-      throw new AppError(403, 'GitHub credentials lack permission to manage labels', 'forge_forbidden')
+      throw await githubForbiddenError(createRes)
     }
     const text = redactSecrets(await createRes.text())
     throw new AppError(
