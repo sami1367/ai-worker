@@ -2,17 +2,20 @@
 const route = useRoute()
 const colorMode = useColorMode()
 const { api } = useApi()
+const { $i18n } = useNuxtApp()
+const t = (key: string) => $i18n?.t?.(key) ?? key
 
 const links = [
-  { to: '/', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' },
-  { to: '/connections', label: 'Connections', icon: 'i-lucide-link' },
-  { to: '/repositories', label: 'Repositories', icon: 'i-lucide-git-branch' },
-  { to: '/tasks', label: 'Tasks', icon: 'i-lucide-list-checks' },
-  { to: '/providers', label: 'Providers', icon: 'i-lucide-bot' },
-  { to: '/prompts', label: 'Prompts', icon: 'i-lucide-scroll-text' },
-  { to: '/settings', label: 'Settings', icon: 'i-lucide-settings' },
-  { to: '/system', label: 'System', icon: 'i-lucide-activity' },
-  { to: '/audit', label: 'Audit', icon: 'i-lucide-shield' },
+  { to: '/', labelKey: 'nav.dashboard', icon: 'i-lucide-layout-dashboard' },
+  { to: '/connections', labelKey: 'nav.connections', icon: 'i-lucide-link' },
+  { to: '/repositories', labelKey: 'nav.repositories', icon: 'i-lucide-git-branch' },
+  { to: '/tasks', labelKey: 'nav.tasks', icon: 'i-lucide-list-checks' },
+  { to: '/providers', labelKey: 'nav.providers', icon: 'i-lucide-bot' },
+  { to: '/prompts', labelKey: 'nav.prompts', icon: 'i-lucide-scroll-text' },
+  { to: '/settings', labelKey: 'nav.settings', icon: 'i-lucide-settings' },
+  { to: '/system', labelKey: 'nav.system', icon: 'i-lucide-activity' },
+  { to: '/audit', labelKey: 'nav.audit', icon: 'i-lucide-shield' },
+  { to: '/about', labelKey: 'nav.about', icon: 'i-lucide-info' },
 ]
 
 async function logout() {
@@ -31,7 +34,7 @@ const mobileOpen = ref(false)
           <p class="font-display text-2xl tracking-tight">AI Worker</p>
           <p class="text-sm opacity-70">Platform</p>
         </div>
-        <nav class="flex flex-1 flex-col gap-1">
+        <nav class="flex flex-1 flex-col gap-1" aria-label="Main">
           <NuxtLink
             v-for="link in links"
             :key="link.to"
@@ -39,8 +42,8 @@ const mobileOpen = ref(false)
             class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
             :class="route.path === link.to || (link.to !== '/' && route.path.startsWith(link.to)) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
           >
-            <UIcon :name="link.icon" class="size-4" />
-            {{ link.label }}
+            <UIcon :name="link.icon" class="size-4" aria-hidden="true" />
+            {{ t(link.labelKey) }}
           </NuxtLink>
         </nav>
         <div class="mt-4 flex items-center gap-2">
@@ -49,18 +52,19 @@ const mobileOpen = ref(false)
             color="neutral"
             variant="ghost"
             :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
           />
           <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-log-out" @click="logout">
-            Logout
+            {{ t('nav.logout') }}
           </UButton>
         </div>
       </aside>
 
       <div class="flex min-w-0 flex-1 flex-col">
         <header class="aw-panel sticky top-0 z-20 flex items-center justify-between border-x-0 border-t-0 px-4 py-3 md:hidden">
-          <button class="flex items-center gap-2" @click="mobileOpen = !mobileOpen">
-            <UIcon name="i-lucide-menu" class="size-5" />
+          <button class="flex items-center gap-2" type="button" :aria-expanded="mobileOpen" aria-controls="mobile-nav" @click="mobileOpen = !mobileOpen">
+            <UIcon name="i-lucide-menu" class="size-5" aria-hidden="true" />
             <span class="font-display text-lg">AI Worker</span>
           </button>
           <UButton
@@ -68,10 +72,11 @@ const mobileOpen = ref(false)
             color="neutral"
             variant="ghost"
             :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
           />
         </header>
-        <nav v-if="mobileOpen" class="aw-panel mx-3 mt-2 flex flex-col gap-1 p-2 md:hidden">
+        <nav v-if="mobileOpen" id="mobile-nav" class="aw-panel mx-3 mt-2 flex flex-col gap-1 p-2 md:hidden" aria-label="Main">
           <NuxtLink
             v-for="link in links"
             :key="link.to"
@@ -79,12 +84,13 @@ const mobileOpen = ref(false)
             class="rounded-lg px-3 py-2 text-sm"
             @click="mobileOpen = false"
           >
-            {{ link.label }}
+            {{ t(link.labelKey) }}
           </NuxtLink>
         </nav>
         <main class="flex-1 p-4 md:p-8">
           <slot />
         </main>
+        <AppFooter />
       </div>
     </div>
   </div>
