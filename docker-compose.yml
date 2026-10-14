@@ -1,7 +1,7 @@
 # End users: see README.md (generate-env.sh → docker compose up -d).
 # Maintainer build+push: ./scripts/publish-image.sh
 # Image: https://hub.docker.com/r/sami1367/ai-worker
-# Override: AI_WORKER_IMAGE=sami1367/ai-worker:1.0.0 docker compose up -d
+# Override: AI_WORKER_IMAGE=sami1367/ai-worker:latest docker compose up -d
 #
 # No default secrets are shipped. Run ./scripts/generate-env.sh before the first up.
 # After the first successful start, secrets are persisted on the data volume
@@ -29,7 +29,7 @@ x-env: &env
   REPO_CLAIM_TTL_SECONDS: ${REPO_CLAIM_TTL_SECONDS:-10}
 
 x-app: &app
-  image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}
+  image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:1.0.0}
   environment: *env
   volumes:
     - data:/data
