@@ -166,6 +166,13 @@ gitlab_find_ai_issue() {
     gitlab_find_open_issue_with_label "$project_path" "ai"
 }
 
+# Print oldest open issue iid with both "ai" and "no-change" (Q&A), or empty.
+# GitLab labels= is AND when comma-separated.
+gitlab_find_ai_no_change_issue() {
+    local project_path="$1"
+    gitlab_find_open_issue_with_label "$project_path" "ai,no-change"
+}
+
 # Label open MRs whose source_branch is ai/issue-N or ai/issue-N-* with ai-pr.
 # Usage: gitlab_label_open_issue_mrs_ai_pr <project_path> <issue_iid>
 gitlab_label_open_issue_mrs_ai_pr() {
@@ -199,6 +206,7 @@ gitlab_label_open_issue_mrs_ai_pr() {
 
 # AI implement-workflow labels on an open MR that should block starting a new
 # `ai` issue (human MRs without these labels / ai/issue-* sources do not block).
+# Exception: issues labeled ai + no-change (Q&A) may still start.
 GITLAB_AI_IN_FLIGHT_MR_LABELS=(ai ai-working ai-failed ai-pr)
 
 # Print a short description of the oldest open MR that should block a new issue,

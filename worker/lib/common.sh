@@ -1466,8 +1466,43 @@ github_find_ai_issue() {
         2>/dev/null || true
 }
 
+# Print oldest open issue with both "ai" and "no-change" (Q&A), or empty.
+github_find_ai_no_change_issue() {
+    local repo="$1"
+
+    gh issue list \
+        --repo "$repo" \
+        --label "ai" \
+        --label "no-change" \
+        --state open \
+        --limit 1 \
+        --json number \
+        --jq '.[0].number // empty' \
+        2>/dev/null || true
+}
+
+# Pick which issue to start given an in-flight reason from *_in_flight_issue_reason.
+# Empty in_flight → use candidate. ai-working → skip. Open AI PR/MR → no-change Q&A only.
+# Remaining args after in_flight are the find-no-change command (e.g. github_find_ai_no_change_issue repo).
+ai_pick_issue_despite_in_flight() {
+    local candidate="$1"
+    local in_flight="$2"
+    shift 2
+
+    if [[ -z "$in_flight" ]]; then
+        printf '%s' "$candidate"
+        return 0
+    fi
+    if [[ "$in_flight" == *"labeled ai-working"* ]]; then
+        printf ''
+        return 0
+    fi
+    "$@"
+}
+
 # AI implement-workflow labels on an open PR that should block starting a new
 # `ai` issue (human PRs without these labels / ai/issue-* heads do not block).
+# Exception: issues labeled ai + no-change (Q&A) may still start.
 GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
 
 # List open PRs via repository GraphQL (NOT Search).
