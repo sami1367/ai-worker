@@ -47,7 +47,7 @@ export const fa: Messages = {
   'howItWorks.intro.p1':
     'AI Worker یک دستیار کدنویسی خودمیزبان برای GitHub و GitLab است. کار روزمره با برچسب‌های issue و pull/merge request هدایت می‌شود. این پنل برای راه‌اندازی، پایش و پیکربندی است.',
   'howItWorks.intro.p2':
-    'ابتدا فورج و ارائه‌دهندگان هوش مصنوعی را اینجا متصل کنید، مخازن را فعال کنید، سپس در GitHub یا GitLab با برچسب‌ها کارهای پیاده‌سازی، پرسش‌وپاسخ یا بازبینی را صف کنید.',
+    'ابتدا فورج و ارائه‌دهندگان هوش مصنوعی را اینجا متصل کنید، مخازن را فعال کنید، سپس در GitHub یا GitLab با برچسب‌ها کارهای پیاده‌سازی، پرسش‌وپاسخ یا بازبینی را صف کنید. عامل هوش مصنوعی فقط فضای کاری اختصاص‌یافته را ویرایش می‌کند؛ commit، push، PR/MR و نظرات فورج را لایه مورد اعتماد orchestration در AI Worker انجام می‌دهد — عامل نمی‌تواند توکن‌های فورج را به‌تنهایی استفاده کند.',
   'howItWorks.forge.heading': 'کار در GitHub و GitLab',
   'howItWorks.forge.intro':
     'کار روزمره در GitHub یا GitLab انجام می‌شود — نه در ترمینال روی میزبان AI Worker. پس از اتصال و فعال‌سازی مخزن، یک issue یا PR/MR باز کنید، یک هدف روشن بنویسید، برچسب(های) درست را بزنید و تا پایان کار آیتم را باز نگه دارید. برچسب‌های وضعیت پیشرفت را نشان می‌دهند؛ سپس PR/MR، کامنت issue، یا (اگر force-push روشن است) commitهای شاخه هدف را بررسی کنید.',
@@ -66,7 +66,7 @@ export const fa: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com یا self-managed): یک personal access token با scope مربوط به api بسازید، سپس در Connections → Connect GitLab آدرس سرور را بگذارید و توکن را بچسبانید. فقط read_api برای عملیات کامل worker کافی نیست.',
   'howItWorks.forge.tokens.git':
-    'کلون و push به‌طور پیش‌فرض با HTTPS و توکن شما انجام می‌شود. اگر GitLab گیت HTTP(S) را مسدود کند، در تنظیمات ادمین GitLab دسترسی Both یا HTTP را فعال کنید، یا کلید عمومی SSH پلتفرم را از صفحه Connections اضافه کنید.',
+    'کلون و push به‌طور پیش‌فرض با HTTPS و توکن شما انجام می‌شود. اگر GitLab گیت HTTP(S) را مسدود کند، در تنظیمات ادمین GitLab دسترسی Both یا HTTP را فعال کنید، یا کلید عمومی SSH پلتفرم را از صفحه Connections اضافه کنید. توکن‌های فورج و کلیدهای SSH نزد فرایند orchestration مورد اعتماد worker می‌مانند و به فرایند عامل هوش مصنوعی داده نمی‌شوند.',
   'howItWorks.workflows.heading': 'گردش‌کارهای رایج در فورج',
   'howItWorks.workflows.implement.heading': 'پیاده‌سازی یک تغییر',
   'howItWorks.workflows.implement.step1': 'در صفحه مخزن، شاخه هدف (و در صورت نیاز force-push) را تأیید کنید.',

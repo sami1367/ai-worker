@@ -505,8 +505,10 @@ if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
 fi
 
 # ============================================================
-# Verify Cursor changed something
+# Verify agent changed something (trusted validation — no agent shell)
 # ============================================================
+
+ai_log_phase "VALIDATE" "Inspect workspace diffs; secret-file gate before publish"
 
 echo
 echo "Git status after Cursor:"
@@ -575,8 +577,10 @@ if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
 fi
 
 # ============================================================
-# Commit / publish (MR or force-push to default branch)
+# Commit / publish (MR or force-push) — trusted orchestration only
 # ============================================================
+
+ai_log_phase "PUBLISH" "Commit/push/MR via orchestration with forge credentials"
 
 MR_URL=""
 MR_IID=""
@@ -714,6 +718,8 @@ EOF
 
     echo
     echo "Creating merge request..."
+
+    ai_validate_forge_text_file "$MR_BODY_FILE" 200000 0 || exit 40
 
     MR_JSON="$(
         gitlab_create_mr \

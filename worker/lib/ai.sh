@@ -22,6 +22,10 @@ AGENT_EXIT_CODE=0
 
 AI_KNOWN_PROVIDERS=(cursor claude)
 
+# Technical agent↔forge isolation (env scrub + optional bubblewrap).
+# shellcheck source=lib/ai-isolation.sh
+source "$WORKER_CODE_DIR/lib/ai-isolation.sh"
+
 ai_list_providers() {
     printf '%s\n' "${AI_KNOWN_PROVIDERS[@]}"
 }
@@ -97,7 +101,7 @@ ai_run_agent() {
 
 ai_log_agent_start() {
     local title="${1:-STARTING AI AGENT}"
-    ai_log_banner "$title"
+    ai_log_phase "AGENT" "$title"
     echo "Provider:      ${AI_PROVIDER_NAME} (${AI_PROVIDER})"
     echo "Binary:        $AI_PROVIDER_BIN"
 }

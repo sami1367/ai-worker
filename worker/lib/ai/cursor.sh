@@ -19,6 +19,8 @@ ai_cursor_detect() {
 # Non-interactive Cursor flags live here so runners stay provider-agnostic.
 # --force  : run without interactive confirmations
 # --trust  : trust the workspace without prompting
+# --sandbox: OS-level sandbox for agent shell tools (defense in depth;
+#            forge credentials are still stripped by ai_isolation_exec)
 ai_cursor_run() {
     local workspace="$1"
     local prompt_file="$2"
@@ -32,6 +34,21 @@ ai_cursor_run() {
     cmd+=(--force --trust --print)
     cmd+=(--output-format stream-json --stream-partial-output)
 
+    # Default: enable Cursor's command sandbox. Operators may override with
+    # AI_CURSOR_SANDBOX=disabled (not a substitute for ai_isolation_exec).
+    local sandbox_mode="${AI_CURSOR_SANDBOX:-enabled}"
+    case "$sandbox_mode" in
+        enabled | disabled)
+            cmd+=(--sandbox "$sandbox_mode")
+            ;;
+        "")
+            ;;
+        *)
+            echo "WARNING: Ignoring invalid AI_CURSOR_SANDBOX='$sandbox_mode' (use enabled|disabled)." >&2
+            cmd+=(--sandbox enabled)
+            ;;
+    esac
+
     if [[ -n "${AI_CURSOR_MODEL:-}" ]]; then
         cmd+=(--model "$AI_CURSOR_MODEL")
     fi
@@ -44,7 +61,8 @@ ai_cursor_run() {
 
     cmd+=("$(cat "$prompt_file")")
 
-    "${cmd[@]}" \
+    # Isolation wraps only the agent binary; tee stays in the trusted parent.
+    ai_isolation_exec "$workspace" -- "${cmd[@]}" \
         2> >(tee -a "$stderr_log" >&2) \
         | tee -a "$stdout_log"
 

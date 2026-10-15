@@ -314,31 +314,29 @@ cp "$ANSWER_FILE" "$ANSWER_SAVED"
 echo
 echo "Answer file bytes: $(wc -c < "$ANSWER_FILE" | tr -d ' ')"
 
-DIRTY_FILES="$(
-    git -C "$PROJECT_DIR" status --porcelain \
-        | awk '{print $2}' \
-        | grep -v '^\.ai-issue-answer\.md$' \
-        || true
-)"
-if [[ -n "$DIRTY_FILES" ]]; then
-    echo
-    echo "ERROR: Agent modified files other than the answer output:"
-    printf '%s\n' "$DIRTY_FILES"
-    exit 22
-fi
+ai_log_phase "VALIDATE" "no-change answer: allow only .ai-issue-answer.md"
+ai_assert_only_allowed_changes "$PROJECT_DIR" ".ai-issue-answer.md" \
+    || exit $?
 
 # ============================================================
-# Post issue comment
+# Post issue comment (trusted orchestration — forge credentials available here)
 # ============================================================
 
-COMMENT_BODY="$(
+ai_log_phase "PUBLISH" "Posting issue answer comment via GitLab API (orchestration)"
+
+COMMENT_FILE="$(mktemp)"
+{
     cat "$ANSWER_FILE"
     cat <<EOF
 
 ---
 _Label \`ai\` + \`no-change\` was processed automatically. Re-add \`ai\` (keep \`no-change\`) to ask again._
 EOF
-)"
+} >"$COMMENT_FILE"
+
+ai_validate_forge_text_file "$COMMENT_FILE" 200000 0 || exit 40
+COMMENT_BODY="$(cat "$COMMENT_FILE")"
+rm -f "$COMMENT_FILE"
 
 echo
 echo "Posting answer comment to issue #$ISSUE_NUMBER..."

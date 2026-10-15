@@ -47,7 +47,7 @@ export const ja: Messages = {
   'howItWorks.intro.p1':
     'AI Worker は、GitHub と GitLab 向けの self-hosted コーディングアシスタントです。日常の作業は issues と pull/merge requests の labels で駆動されます。このパネルは setup、監視、設定用です。',
   'howItWorks.intro.p2':
-    'まずここで forge と AI providers を接続し、repositories を有効にしてから、GitHub または GitLab の labels で implement、Q&A、review のジョブをキューに入れます。',
+    'まずここで forge と AI providers を接続し、repositories を有効にしてから、GitHub または GitLab の labels で implement、Q&A、review のジョブをキューに入れます。 AI エージェントは割り当てられたワークスペースのみ編集し、commit・push・PR/MR・コメントは信頼された AI Worker オーケストレーション層が行います。エージェントは forge トークンを独自に使えません。',
   'howItWorks.forge.heading': 'GitHub と GitLab での作業',
   'howItWorks.forge.intro':
     '日常の作業は GitHub または GitLab で行います — AI Worker ホストのターミナルではありません。リポジトリを接続して有効にしたら、issue または PR/MR を開き、明確な目標を書き、適切な label(s) を付け、worker の実行中はそのまま開いたままにします。status labels で進捗を確認し、その後 PR/MR、issue のコメント、または（force-push がオンの場合）ターゲット branch のコミットを確認します。',
@@ -66,7 +66,7 @@ export const ja: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab（gitlab.com または self-managed）: api scope の personal access token を作成し、Connections → Connect GitLab でサーバー URL を設定して token を貼り付けます。read_api だけでは worker の全操作には足りません。',
   'howItWorks.forge.tokens.git':
-    'Git clone と push は既定で token 付きの HTTPS を使います。GitLab が HTTP(S) git をブロックする場合は、GitLab admin の Git access protocols で Both または HTTP を有効にするか、Connections に表示される platform SSH public key を追加してください。',
+    'Git clone と push は既定で token 付きの HTTPS を使います。GitLab が HTTP(S) git をブロックする場合は、GitLab admin の Git access protocols で Both または HTTP を有効にするか、Connections に表示される platform SSH public key を追加してください。 Forge トークンと SSH 鍵は信頼された worker オーケストレーションプロセスに留まり、AI エージェントプロセスには渡されません。',
   'howItWorks.workflows.heading': 'よく使う forge workflows',
   'howItWorks.workflows.implement.heading': '変更を実装する',
   'howItWorks.workflows.implement.step1': 'repository ページでターゲット branch（と任意の force-push 設定）を確認します。',

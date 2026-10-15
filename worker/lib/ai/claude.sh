@@ -20,6 +20,7 @@ ai_claude_detect() {
 # Headless automation settings live here:
 # --bare              : skip local hooks/skills/MCP for reproducible CI runs
 # --permission-mode   : auto-approve edits without interactive prompts
+# Tool allowlists are defense in depth; ai_isolation_exec is the security boundary.
 ai_claude_run() {
     local workspace="$1"
     local prompt_file="$2"
@@ -47,8 +48,14 @@ ai_claude_run() {
         cmd+=(--max-turns "$AI_CLAUDE_MAX_TURNS")
     fi
 
-    if [[ -n "${AI_CLAUDE_ALLOWED_TOOLS:-}" ]]; then
-        cmd+=(--allowedTools "$AI_CLAUDE_ALLOWED_TOOLS")
+    # Tool restrictions: explicit env wins; otherwise tighten review/answer tasks.
+    local allowed_tools="${AI_CLAUDE_ALLOWED_TOOLS:-}"
+    if [[ -z "$allowed_tools" && "$task_type" == "review" ]]; then
+        # Read/search + write for the review/answer artifact. No Bash → no git/gh.
+        allowed_tools="${AI_CLAUDE_REVIEW_ALLOWED_TOOLS:-Read,Glob,Grep,Write,Edit}"
+    fi
+    if [[ -n "$allowed_tools" ]]; then
+        cmd+=(--allowedTools "$allowed_tools")
     fi
 
     if [[ -n "${AI_CLAUDE_EXTRA_ARGS:-}" ]]; then
@@ -59,9 +66,10 @@ ai_claude_run() {
 
     cmd+=("$(cat "$prompt_file")")
 
+    # Isolation wraps only the agent binary; tee stays in the trusted parent.
     (
         cd "$workspace" || exit 1
-        "${cmd[@]}"
+        ai_isolation_exec "$workspace" -- "${cmd[@]}"
     ) \
         2> >(tee -a "$stderr_log" >&2) \
         | tee -a "$stdout_log"

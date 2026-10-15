@@ -47,7 +47,7 @@ export const pt: Messages = {
   'howItWorks.intro.p1':
     'AI Worker é um assistente de código auto-hospedado para GitHub e GitLab. O trabalho do dia a dia é impulsionado por labels em issues e pull/merge requests. Este painel serve para configuração, monitoramento e ajustes.',
   'howItWorks.intro.p2':
-    'Comece conectando seu forge e os provedores de IA aqui, habilite repositórios e use labels no GitHub ou GitLab para enfileirar jobs de implementação, Q&A ou revisão.',
+    'Comece conectando seu forge e os provedores de IA aqui, habilite repositórios e use labels no GitHub ou GitLab para enfileirar jobs de implementação, Q&A ou revisão. O agente de IA só edita o workspace atribuído; commit, push, PRs/MRs e comentários no forge são feitos pela camada confiável de orquestração do AI Worker — o agente não pode usar seus tokens do forge por conta própria.',
   'howItWorks.forge.heading': 'Trabalhando no GitHub e no GitLab',
   'howItWorks.forge.intro':
     'O trabalho do dia a dia acontece no GitHub ou GitLab — não em um terminal no host do AI Worker. Depois que um repositório está conectado e habilitado, abra um issue ou PR/MR, descreva um objetivo claro, adicione o(s) label(s) certo(s) e deixe o item aberto enquanto o worker roda. Acompanhe os labels de status e depois revise o PR/MR, o comentário no issue ou (se force-push estiver ligado) os commits na branch de destino.',
@@ -66,7 +66,7 @@ export const pt: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com ou self-managed): crie um personal access token com o escopo api e, em Connections → Connect GitLab, defina a URL do servidor e cole o token. Somente read_api não basta para as operações completas do worker.',
   'howItWorks.forge.tokens.git':
-    'Git clone e push usam HTTPS com seu token por padrão. Se o GitLab bloquear git via HTTP(S), habilite Both ou HTTP em Git access protocols no admin do GitLab, ou adicione a chave pública SSH da plataforma mostrada em Connections.',
+    'Git clone e push usam HTTPS com seu token por padrão. Se o GitLab bloquear git via HTTP(S), habilite Both ou HTTP em Git access protocols no admin do GitLab, ou adicione a chave pública SSH da plataforma mostrada em Connections. Tokens do forge e chaves SSH ficam com o processo confiável de orquestração do worker; não são dados ao processo do agente de IA.',
   'howItWorks.workflows.heading': 'Fluxos comuns no forge',
   'howItWorks.workflows.implement.heading': 'Implementar uma mudança',
   'howItWorks.workflows.implement.step1':

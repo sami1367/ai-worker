@@ -47,7 +47,7 @@ export const tr: Messages = {
   'howItWorks.intro.p1':
     'AI Worker, GitHub ve GitLab için self-hosted bir kodlama asistanıdır. Günlük iş, issues ve pull/merge requests üzerindeki labels ile yürütülür. Bu panel setup, izleme ve yapılandırma içindir.',
   'howItWorks.intro.p2':
-    'Önce burada forge ve AI providers bağlantısını kurun, repositories öğelerini etkinleştirin, ardından implement, Q&A veya review işlerini kuyruğa almak için GitHub veya GitLab\'da labels kullanın.',
+    'Önce burada forge ve AI providers bağlantısını kurun, repositories öğelerini etkinleştirin, ardından implement, Q&A veya review işlerini kuyruğa almak için GitHub veya GitLab\'da labels kullanın. AI agent yalnızca atanan workspace üzerinde düzenleme yapar; commit, push, PR/MR ve forge yorumları güvenilir AI Worker orchestration katmanı tarafından yapılır — agent forge token\'larınızı kendi başına kullanamaz.',
   'howItWorks.forge.heading': 'GitHub ve GitLab\'da çalışma',
   'howItWorks.forge.intro':
     'Günlük iş GitHub veya GitLab’da yapılır — AI Worker host’undaki bir terminalde değil. Depo bağlanıp etkinleştirildikten sonra bir issue veya PR/MR açın, tek net bir hedef yazın, doğru label(s) ekleyin ve worker çalışırken öğeyi açık tutun. İlerleme için status labels’ı izleyin; ardından PR/MR’yi, issue yorumunu veya (force-push açıksa) hedef daldaki commit’leri gözden geçirin.',
@@ -66,7 +66,7 @@ export const tr: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com veya self-managed): api scope\'lu bir personal access token oluşturun, ardından Connections → Connect GitLab altında sunucu URL\'sini ayarlayıp token\'ı yapıştırın. Tam worker işlemleri için yalnızca read_api yeterli değildir.',
   'howItWorks.forge.tokens.git':
-    'Git clone ve push varsayılan olarak token\'ınızla HTTPS kullanır. GitLab HTTP(S) git\'i engellerse, GitLab admin Git access protocols bölümünde Both veya HTTP\'yi etkinleştirin ya da Connections\'ta gösterilen platform SSH public key\'i ekleyin.',
+    'Git clone ve push varsayılan olarak token\'ınızla HTTPS kullanır. GitLab HTTP(S) git\'i engellerse, GitLab admin Git access protocols bölümünde Both veya HTTP\'yi etkinleştirin ya da Connections\'ta gösterilen platform SSH public key\'i ekleyin. Forge token\'ları ve SSH anahtarları güvenilir worker orchestration sürecinde kalır; AI agent sürecine verilmez.',
   'howItWorks.workflows.heading': 'Yaygın forge workflows',
   'howItWorks.workflows.implement.heading': 'Bir değişiklik uygula',
   'howItWorks.workflows.implement.step1': 'Depo sayfasında hedef dalı (ve isteğe bağlı force-push ayarını) doğrulayın.',

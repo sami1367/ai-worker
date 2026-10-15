@@ -47,7 +47,7 @@ export const hi: Messages = {
   'howItWorks.intro.p1':
     'AI Worker, GitHub और GitLab के लिए एक self-hosted कोडिंग सहायक है। रोज़मर्रा का काम issues और pull/merge requests पर labels से चलता है। यह पैनल setup, निगरानी और कॉन्फ़िगरेशन के लिए है।',
   'howItWorks.intro.p2':
-    'पहले यहाँ अपना forge और AI providers कनेक्ट करें, repositories सक्षम करें, फिर implement, Q&A या review जॉब्स कतार में लगाने के लिए GitHub या GitLab में labels का उपयोग करें।',
+    'पहले यहाँ अपना forge और AI providers कनेक्ट करें, repositories सक्षम करें, फिर implement, Q&A या review जॉब्स कतार में लगाने के लिए GitHub या GitLab में labels का उपयोग करें। AI एजेंट केवल असाइन किए गए workspace को संपादित करता है; commit, push, PR/MR और forge टिप्पणियाँ विश्वसनीय AI Worker orchestration परत करती है — एजेंट आपके forge टोकन स्वयं उपयोग नहीं कर सकता।',
   'howItWorks.forge.heading': 'GitHub और GitLab में काम करना',
   'howItWorks.forge.intro':
     'रोजमर्रा का काम GitHub या GitLab में होता है — AI Worker होस्ट के टर्मिनल में नहीं। रिपॉजिटरी कनेक्ट और सक्षम होने के बाद, issue या PR/MR खोलें, एक स्पष्ट लक्ष्य लिखें, सही label(s) जोड़ें, और worker चलते समय आइटम खुला रखें। प्रगति के लिए status labels देखें, फिर PR/MR, issue comment, या (force-push ऑन हो तो) target branch पर commits की समीक्षा करें।',
@@ -66,7 +66,7 @@ export const hi: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com या self-managed): api scope वाला personal access token बनाएँ, फिर Connections → Connect GitLab के अंतर्गत server URL सेट करें और token पेस्ट करें। पूर्ण worker संचालन के लिए अकेले read_api पर्याप्त नहीं है।',
   'howItWorks.forge.tokens.git':
-    'Git clone और push डिफ़ॉल्ट रूप से आपके token के साथ HTTPS उपयोग करते हैं। यदि GitLab HTTP(S) git को ब्लॉक करता है, तो GitLab admin में Git access protocols पर Both या HTTP सक्षम करें, या Connections पर दिखाया गया platform SSH public key जोड़ें।',
+    'Git clone और push डिफ़ॉल्ट रूप से आपके token के साथ HTTPS उपयोग करते हैं। यदि GitLab HTTP(S) git को ब्लॉक करता है, तो GitLab admin में Git access protocols पर Both या HTTP सक्षम करें, या Connections पर दिखाया गया platform SSH public key जोड़ें। Forge टोकन और SSH कुंजियाँ विश्वसनीय worker orchestration प्रक्रिया में रहती हैं; AI एजेंट प्रक्रिया को नहीं दी जातीं।',
   'howItWorks.workflows.heading': 'सामान्य forge workflows',
   'howItWorks.workflows.implement.heading': 'कोई बदलाव लागू करें',
   'howItWorks.workflows.implement.step1': 'repository पृष्ठ पर target branch (और वैकल्पिक force-push सेटिंग) की पुष्टि करें।',
