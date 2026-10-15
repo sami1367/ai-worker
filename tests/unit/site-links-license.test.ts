@@ -23,7 +23,7 @@ describe('site links and license', () => {
 
   it('exposes required contact channels with configured or placeholder values', () => {
     const ids = CONTACT_LINKS.map((l) => l.id)
-    expect(ids).toEqual(expect.arrayContaining(['github', 'email', 'website', 'linkedin']))
+    expect(ids).toEqual(expect.arrayContaining(['github', 'docs', 'email', 'website', 'linkedin']))
     for (const link of CONTACT_LINKS) {
       if (linkIsConfigured(link)) {
         expect(link.href.length).toBeGreaterThan(0)
@@ -37,6 +37,12 @@ describe('site links and license', () => {
     expect(SITE.repositoryUrl).toBe('https://github.com/sami1367/ai-worker')
     const github = CONTACT_LINKS.find((l) => l.id === 'github')
     expect(github?.href).toBe(SITE.repositoryUrl)
+  })
+
+  it('keeps documentation URL consistent', () => {
+    expect(SITE.docsUrl).toBe('http://vibeplus1.com/ai-worker')
+    const docs = CONTACT_LINKS.find((l) => l.id === 'docs')
+    expect(docs?.href).toBe(SITE.docsUrl)
   })
 
   it('includes optional collaboration links', () => {

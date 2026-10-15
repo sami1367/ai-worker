@@ -37,6 +37,7 @@ export const zh: Messages = {
 
   'footer.howItWorks': '工作原理',
   'footer.about': '关于',
+  'footer.docs': '文档',
   'footer.repository': '仓库',
   'footer.license': '许可证',
   'footer.contact': '联系',

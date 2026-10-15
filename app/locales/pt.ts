@@ -37,6 +37,7 @@ export const pt: Messages = {
 
   'footer.howItWorks': 'Como funciona',
   'footer.about': 'Sobre',
+  'footer.docs': 'Documentação',
   'footer.repository': 'Repositório',
   'footer.license': 'Licença',
   'footer.contact': 'Contato',
