@@ -107,7 +107,8 @@ echo "============================================================"
 #   - an open issue labeled ai-working, or
 #   - an open PR/MR labeled ai / ai-working / ai-failed / ai-pr
 #     (or head/source branch ai/issue-*), unless the project sets
-#     "block_on_open_pr": false
+#     "block_on_open_pr": false — except ai + no-change (Q&A) issues,
+#     which may still start while an AI PR/MR is open.
 # Human open PRs/MRs without those labels / AI branches do not block.
 # Updating or reviewing an existing PR/MR is still allowed when
 # that repository's agent is idle.
@@ -1449,8 +1450,15 @@ process_github_project() {
     fi
 
     in_flight="$(github_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR" "$REPO")"
-    if [[ -n "$in_flight" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+    ISSUE_NUMBER="$(ai_pick_issue_despite_in_flight \
+        "$ISSUE_NUMBER" \
+        "$in_flight" \
+        github_find_ai_no_change_issue \
+        "$REPO")"
+    if [[ -z "$ISSUE_NUMBER" ]]; then
+        if [[ -n "$in_flight" ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+        fi
         return 0
     fi
 
@@ -1501,8 +1509,15 @@ process_gitlab_project() {
     fi
 
     in_flight="$(gitlab_in_flight_issue_reason "$PROJECT" "$PROJECT_DIR" "$BLOCK_ON_OPEN_PR" "$REPO_PATH")"
-    if [[ -n "$in_flight" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+    ISSUE_NUMBER="$(ai_pick_issue_despite_in_flight \
+        "$ISSUE_NUMBER" \
+        "$in_flight" \
+        gitlab_find_ai_no_change_issue \
+        "$REPO_PATH")"
+    if [[ -z "$ISSUE_NUMBER" ]]; then
+        if [[ -n "$in_flight" ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
+        fi
         return 0
     fi
 

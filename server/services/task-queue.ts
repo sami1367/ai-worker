@@ -246,7 +246,12 @@ function pickAssignedWorker(
   return null
 }
 
-function computeNextTask(
+/** Q&A issues (ai + no-change) may run while an AI PR/MR is open. */
+export function isNoChangeIssue(labels: string[]): boolean {
+  return lowerLabels(labels).includes('no-change')
+}
+
+export function computeNextTask(
   items: QueueItem[],
   blockOnOpenPrByRepo: Map<string, boolean>,
 ): QueueItem | null {
@@ -256,15 +261,17 @@ function computeNextTask(
       .map((i) => i.repositoryId),
   )
 
-  const issueBlockedRepos = new Set<string>()
+  const aiWorkingBlockedRepos = new Set<string>()
   for (const item of items) {
     if (item.kind === 'issue' && lowerLabels(item.labels).includes('ai-working')) {
-      issueBlockedRepos.add(item.repositoryId)
+      aiWorkingBlockedRepos.add(item.repositoryId)
     }
   }
+
+  const openPrBlockedRepos = new Set<string>()
   for (const [repoId, blockOn] of blockOnOpenPrByRepo) {
     if (blockOn === false) continue
-    if (findBlockingOpenPrMr(items, repoId)) issueBlockedRepos.add(repoId)
+    if (findBlockingOpenPrMr(items, repoId)) openPrBlockedRepos.add(repoId)
   }
 
   const eligible = items
@@ -272,7 +279,10 @@ function computeNextTask(
       if (i.assignedWorker) return false
       if (!(i.phase === 'queued' || i.phase === 'review_queued')) return false
       if (busyRepos.has(i.repositoryId)) return false
-      if (i.kind === 'issue' && issueBlockedRepos.has(i.repositoryId)) return false
+      if (i.kind === 'issue' && aiWorkingBlockedRepos.has(i.repositoryId)) return false
+      if (i.kind === 'issue' && openPrBlockedRepos.has(i.repositoryId) && !isNoChangeIssue(i.labels)) {
+        return false
+      }
       return true
     })
     .sort((a, b) => {
@@ -344,25 +354,40 @@ function resolveItemBranch(item: QueueItem, allItems: QueueItem[]): string | nul
   return item.branch
 }
 
-function computeRepoBlockReason(
+export type RepoBlockInfo = {
+  reason: string | null
+  /** ai-working always blocks; open-pr blocks implement issues but not no-change Q&A. */
+  kind: 'ai-working' | 'open-pr' | null
+}
+
+export function computeRepoBlockReason(
   repo: { name: string, forgeType: 'github' | 'gitlab', blockOnOpenPr: boolean, id: string },
   items: QueueItem[],
-): string | null {
+): RepoBlockInfo {
   const repoItems = items.filter((i) => i.repositoryId === repo.id)
   const workingIssue = findAiWorkingIssue(repoItems, repo.id)
   if (workingIssue) {
-    return `Not starting a new issue in this repo (${repo.forgeType} ${repo.name}: open issue #${workingIssue.externalId} is labeled ai-working).`
+    return {
+      reason: `Not starting a new issue in this repo (${repo.forgeType} ${repo.name}: open issue #${workingIssue.externalId} is labeled ai-working).`,
+      kind: 'ai-working',
+    }
   }
 
-  if (!repo.blockOnOpenPr) return null
+  if (!repo.blockOnOpenPr) return { reason: null, kind: null }
 
   const blocker = findBlockingOpenPrMr(repoItems, repo.id)
-  if (!blocker) return null
+  if (!blocker) return { reason: null, kind: null }
 
   if (repo.forgeType === 'github') {
-    return `Not starting a new issue in this repo (github ${repo.name}: open AI-labeled pull request ${formatPrMrRef(blocker)}).`
+    return {
+      reason: `Not starting a new issue in this repo (github ${repo.name}: open AI-labeled pull request ${formatPrMrRef(blocker)}).`,
+      kind: 'open-pr',
+    }
   }
-  return `Not starting a new issue in this repo (gitlab ${repo.name}: open AI-labeled merge request ${formatPrMrRef(blocker)}).`
+  return {
+    reason: `Not starting a new issue in this repo (gitlab ${repo.name}: open AI-labeled merge request ${formatPrMrRef(blocker)}).`,
+    kind: 'open-pr',
+  }
 }
 
 function repoBusyItem(items: QueueItem[], repositoryId: string, excludeId?: string): QueueItem | null {
@@ -373,27 +398,28 @@ function repoBusyItem(items: QueueItem[], repositoryId: string, excludeId?: stri
   ) ?? null
 }
 
-function computeStatusReason(
+export function computeStatusReason(
   item: QueueItem,
   allItems: QueueItem[],
   workerStatus: string,
-  repoBlockReasonById: Map<string, string | null>,
+  repoBlockById: Map<string, RepoBlockInfo>,
 ): string | null {
   if (item.assignedWorker || item.phase === 'working' || item.phase === 'reviewing') {
     return null
   }
 
-  const repoBlock = repoBlockReasonById.get(item.repositoryId) || null
+  const repoBlock = repoBlockById.get(item.repositoryId) || { reason: null, kind: null }
+  const repoBlockReason = repoBlock.reason
 
   if (isBlockingOpenPrMr(item)) {
     const oldest = findBlockingOpenPrMr(allItems, item.repositoryId)
-    if (oldest?.id === item.id && repoBlock) {
-      return repoBlock
+    if (oldest?.id === item.id && repoBlockReason) {
+      return repoBlockReason
     }
   }
 
-  if (item.kind === 'issue' && lowerLabels(item.labels).includes('ai-working') && repoBlock) {
-    return repoBlock
+  if (item.kind === 'issue' && lowerLabels(item.labels).includes('ai-working') && repoBlockReason) {
+    return repoBlockReason
   }
 
   if (item.phase === 'failed') {
@@ -419,8 +445,11 @@ function computeStatusReason(
     return 'Not working — worker heartbeat stale / unknown'
   }
 
-  if (item.kind === 'issue' && item.phase === 'queued' && repoBlock) {
-    return repoBlock
+  if (item.kind === 'issue' && item.phase === 'queued' && repoBlockReason) {
+    // no-change Q&A is not blocked by an open AI PR/MR
+    if (!(repoBlock.kind === 'open-pr' && isNoChangeIssue(item.labels))) {
+      return repoBlockReason
+    }
   }
 
   const busy = repoBusyItem(allItems, item.repositoryId, item.id)
@@ -790,7 +819,7 @@ function buildQueuePayload(
     if (match) match.isNext = true
   }
 
-  const repoBlockReasonById = new Map(
+  const repoBlockById = new Map(
     repos.map((r) => [r.id, computeRepoBlockReason(r, items)]),
   )
   for (const item of items) {
@@ -798,7 +827,7 @@ function buildQueuePayload(
       item,
       items,
       worker.status,
-      repoBlockReasonById,
+      repoBlockById,
     )
   }
 
@@ -838,7 +867,7 @@ function buildQueuePayload(
         blockOnOpenPr: repo.blockOnOpenPr,
         itemCount: repoItems.length,
         busy: repoItems.some((i) => i.phase === 'working' || i.phase === 'reviewing' || i.assignedWorker),
-        blockReason: repoBlockReasonById.get(repo.id) || null,
+        blockReason: repoBlockById.get(repo.id)?.reason || null,
         error: sync?.lastError || null,
         lastSyncedAt: sync?.lastSyncedAt?.toISOString() ?? null,
         items: repoItems,

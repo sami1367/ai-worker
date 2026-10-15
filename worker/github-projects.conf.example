@@ -10,6 +10,7 @@
 #                      ai-working, ai-failed, or ai-pr. Human PRs without
 #                      those labels do not block. Set false to allow new
 #                      issues even with AI-labeled open PRs.
+#                      Exception: ai + no-change (Q&A) may still start.
 #                      (ai-working issues and a running agent still block.)
 #   default_branch — PR/MR target branch (default main).
 #   force_push_to_default — if true, force-push to default_branch instead of
