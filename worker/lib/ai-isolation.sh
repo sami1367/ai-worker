@@ -45,6 +45,30 @@ AI_ISOLATION_STRIP_VARS=(
     INITIAL_ADMIN_PASSWORD
 )
 
+# Probe whether bubblewrap can create the namespaces it needs.
+# Docker AppArmor/seccomp (and some host kernels) install `bwrap` but block
+# CLONE_NEWUSER — selecting bwrap then aborts every agent at start.
+# Cached per process so we only pay the cost once per worker shell.
+AI_ISOLATION_BWRAP_USABLE=""
+
+ai_isolation_bwrap_usable() {
+    if [[ -n "${AI_ISOLATION_BWRAP_USABLE:-}" ]]; then
+        [[ "$AI_ISOLATION_BWRAP_USABLE" == "1" ]]
+        return $?
+    fi
+    if ! command -v bwrap >/dev/null 2>&1; then
+        AI_ISOLATION_BWRAP_USABLE=0
+        return 1
+    fi
+    # Minimal probe: same namespace path as a real agent sandbox.
+    if bwrap --ro-bind / / --dev /dev --proc /proc --die-with-parent -- true >/dev/null 2>&1; then
+        AI_ISOLATION_BWRAP_USABLE=1
+        return 0
+    fi
+    AI_ISOLATION_BWRAP_USABLE=0
+    return 1
+}
+
 # Resolve whether bubblewrap should be used for this run.
 # Prints: bwrap | env | off
 ai_isolation_resolved_mode() {
@@ -58,12 +82,21 @@ ai_isolation_resolved_mode() {
                 echo "ERROR: AI_ISOLATION_MODE=bwrap but bubblewrap (bwrap) is not installed." >&2
                 return 1
             fi
+            if ! ai_isolation_bwrap_usable; then
+                echo "ERROR: AI_ISOLATION_MODE=bwrap but bubblewrap cannot create user namespaces." >&2
+                echo "HINT: On Ubuntu Docker, recreate the worker with security_opt apparmor/seccomp unconfined" >&2
+                echo "      (see docker-compose.yml worker service), or set AI_ISOLATION_MODE=env." >&2
+                return 1
+            fi
             printf '%s\n' "bwrap"
             ;;
         auto | *)
-            if command -v bwrap >/dev/null 2>&1; then
+            if ai_isolation_bwrap_usable; then
                 printf '%s\n' "bwrap"
             else
+                if command -v bwrap >/dev/null 2>&1; then
+                    echo "WARNING: bubblewrap is installed but cannot create namespaces; falling back to AI isolation mode=env." >&2
+                fi
                 printf '%s\n' "env"
             fi
             ;;
