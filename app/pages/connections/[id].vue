@@ -4,7 +4,7 @@ const { api } = useApi()
 const id = computed(() => String(route.params.id))
 
 const q = ref('')
-const visibility = ref('')
+const visibility = ref<string | null>(null)
 const page = ref(1)
 const busy = ref('')
 const message = ref('')
@@ -143,11 +143,12 @@ async function setupWebhooks() {
       <USelect
         v-model="visibility"
         :items="[
-          { label: 'Any visibility', value: '' },
+          { label: 'Any visibility', value: null },
           { label: 'Public', value: 'public' },
           { label: 'Private', value: 'private' },
           { label: 'Internal', value: 'internal' },
         ]"
+        placeholder="Any visibility"
         class="w-44"
       />
     </div>
