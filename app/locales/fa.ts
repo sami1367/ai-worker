@@ -50,7 +50,16 @@ export const fa: Messages = {
     'ابتدا فورج و ارائه‌دهندگان هوش مصنوعی را اینجا متصل کنید، مخازن را فعال کنید، سپس در GitHub یا GitLab با برچسب‌ها کارهای پیاده‌سازی، پرسش‌وپاسخ یا بازبینی را صف کنید.',
   'howItWorks.forge.heading': 'کار در GitHub و GitLab',
   'howItWorks.forge.intro':
-    'پس از اتصال و فعال‌سازی مخزن، برای کارهای عادی به ترمینال روی میزبان AI Worker نیاز ندارید. یک issue یا PR/MR باز کنید، برچسب درست را بزنید و وضعیت برچسب‌ها را هنگام اجرای worker دنبال کنید.',
+    'کار روزمره در GitHub یا GitLab انجام می‌شود — نه در ترمینال روی میزبان AI Worker. پس از اتصال و فعال‌سازی مخزن، یک issue یا PR/MR باز کنید، یک هدف روشن بنویسید، برچسب(های) درست را بزنید و تا پایان کار آیتم را باز نگه دارید. برچسب‌های وضعیت پیشرفت را نشان می‌دهند؛ سپس PR/MR، کامنت issue، یا (اگر force-push روشن است) commitهای شاخه هدف را بررسی کنید.',
+  'howItWorks.forge.practice.heading': 'نحوه کار در فورج',
+  'howItWorks.forge.practice.item1':
+    'هر issue یا PR/MR را یک درخواست در نظر بگیرید: عنوان و متن مشخص به عامل یک هدف روشن می‌دهد.',
+  'howItWorks.forge.practice.item2':
+    'فقط برچسب‌های شروع را اضافه کنید — ai (پیاده‌سازی)، ai + no-change (پرسش‌وپاسخ)، یا ai-review (بازبینی). برچسب‌های وضعیت را خودتان نزنید؛ آن‌ها را worker مدیریت می‌کند.',
+  'howItWorks.forge.practice.item3':
+    'قبل از کارهای پیاده‌سازی، شاخه هدف مخزن را در این پنل تنظیم کنید. جریان پیش‌فرض PR/MR را ترجیح دهید؛ force-push را فقط وقتی روشن کنید که عمداً commit مستقیم روی آن شاخه می‌خواهید.',
+  'howItWorks.forge.practice.item4':
+    'تا پایان کار، issue یا PR/MR را باز نگه دارید. برای تلاش مجدد پس از خطا، در صورت نیاز درخواست را اصلاح کنید و دوباره ai یا ai-review را اضافه کنید. برای نوبت دیگر پرسش‌وپاسخ: no-change را نگه دارید، ai-answered را بردارید و ai را اضافه کنید.',
   'howItWorks.forge.tokens.heading': 'توکن و دسترسی',
   'howItWorks.forge.tokens.github':
     'GitHub: از PAT کلاسیک با scope مربوط به repo استفاده کنید (workflow اختیاری)، یا توکن fine-grained با Metadata خواندنی و Contents، Issues و Pull requests خواندنی/نوشتنی. آن را در Connections → Connect GitHub بچسبانید.',
@@ -77,6 +86,18 @@ export const fa: Messages = {
   'howItWorks.workflows.review.step2': 'برچسب ai-review را اضافه کنید.',
   'howItWorks.workflows.review.step3': 'برچسب‌ها را دنبال کنید: ai-review → ai-reviewing → ai-reviewed (یا ai-review-failed).',
   'howItWorks.workflows.review.step4': 'کامنت بازبینی را روی PR/MR بخوانید.',
+  'howItWorks.lifecycle.heading': 'چرخه عمر برچسب‌ها',
+  'howItWorks.lifecycle.intro':
+    'برچسب‌ها برای هر گردش‌کار چرخه کوتاهی دارند. شما برچسب(های) شروع را می‌زنید؛ worker هنگام اجرا و پایان، برچسب‌های وضعیت را جایگزین می‌کند. وسط اجرا برچسب‌های وضعیت را حذف نکنید.',
+  'howItWorks.lifecycle.implement.heading': 'پیاده‌سازی (تغییر کد)',
+  'howItWorks.lifecycle.implement.body':
+    'شروع: ai را روی issue باز (یا PR/MR باز) اضافه می‌کنید. اجرا: worker checkout تازه از شاخه هدف می‌گیرد و ai-working می‌گذارد. موفقیت: ai-pr، و یا PR/MR جدید/به‌روز نسبت به شاخه هدف یا force-push به همان شاخه به‌همراه کامنت روی issue. شکست: ai-failed. برای تلاش مجدد در صورت نیاز درخواست را اصلاح کنید و دوباره ai را اضافه کنید.',
+  'howItWorks.lifecycle.qa.heading': 'پرسش‌وپاسخ (بدون تغییر کد)',
+  'howItWorks.lifecycle.qa.body':
+    'شروع: ai و no-change را روی issue باز اضافه می‌کنید. اجرا: ai-working همراه no-change می‌ماند. موفقیت: ai-answered + no-change، با پاسخ در کامنت issue (بدون شاخه و بدون PR/MR). شکست: ai-failed + no-change. برای سؤال دوباره ai-answered را بردارید، no-change را نگه دارید و ai را اضافه کنید.',
+  'howItWorks.lifecycle.review.heading': 'بازبینی (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'شروع: ai-review را روی PR باز (GitHub) یا MR باز (GitLab) اضافه می‌کنید. اجرا: ai-reviewing. موفقیت: ai-reviewed به‌همراه کامنت بازبینی روی PR/MR. شکست: ai-review-failed. برای تلاش مجدد دوباره ai-review را اضافه کنید.',
   'howItWorks.repoOptions.heading': 'گزینه‌های مخزن',
   'howItWorks.repoOptions.intro': 'در صفحه هر مخزن مشخص می‌کنید کارها از کدام شاخه شروع شوند و نتیجه پیاده‌سازی چگونه منتشر شود.',
   'howItWorks.repoOptions.targetBranch':
@@ -87,7 +108,7 @@ export const fa: Messages = {
     'Force-push به شاخه هدف (رد شدن از PR/MR) — پیش‌فرض خاموش. اگر روشن باشد، پیاده‌سازی به‌جای باز کردن PR/MR روی شاخه هدف force-push می‌کند و روی issue نظر می‌گذارد. شاخه remote را بازنویسی می‌کند؛ با احتیاط استفاده کنید.',
   'howItWorks.labels.heading': 'مرجع برچسب‌ها',
   'howItWorks.labels.intro':
-    'معمولاً فقط ai، ai + no-change یا ai-review را اضافه می‌کنید. worker برچسب‌های وضعیت را مدیریت می‌کند.',
+    'معمولاً فقط ai، ai + no-change یا ai-review را اضافه می‌کنید. worker برچسب‌های وضعیت را طبق چرخه بالا مدیریت می‌کند (ai-working، ai-pr، ai-answered، ai-failed، ai-reviewing، ai-reviewed، ai-review-failed).',
   'howItWorks.labels.youAdd': 'شما اضافه می‌کنید',
   'howItWorks.labels.workerAdds': 'worker اضافه می‌کند',
   'howItWorks.labels.ai': 'صف پیاده‌سازی، یا پرسش‌وپاسخ وقتی با no-change همراه باشد',

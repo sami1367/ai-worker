@@ -50,7 +50,16 @@ export const ja: Messages = {
     'まずここで forge と AI providers を接続し、repositories を有効にしてから、GitHub または GitLab の labels で implement、Q&A、review のジョブをキューに入れます。',
   'howItWorks.forge.heading': 'GitHub と GitLab での作業',
   'howItWorks.forge.intro':
-    'repository を接続して有効にした後は、通常のタスクに AI Worker ホスト上の terminal は不要です。issue または PR/MR を開き、適切な labels を付け、worker の実行に合わせて status labels が更新されるのを確認します。',
+    '日常の作業は GitHub または GitLab で行います — AI Worker ホストのターミナルではありません。リポジトリを接続して有効にしたら、issue または PR/MR を開き、明確な目標を書き、適切な label(s) を付け、worker の実行中はそのまま開いたままにします。status labels で進捗を確認し、その後 PR/MR、issue のコメント、または（force-push がオンの場合）ターゲット branch のコミットを確認します。',
+  'howItWorks.forge.practice.heading': 'Forge での働き方',
+  'howItWorks.forge.practice.item1':
+    '各 issue または PR/MR を 1 つのリクエストとして扱います。具体的な title と本文がエージェントに明確な目標を与えます。',
+  'howItWorks.forge.practice.item2':
+    '追加するのは trigger labels だけです — ai（implement）、ai + no-change（Q&A）、または ai-review（review）。status labels は自分で付けず、worker が管理します。',
+  'howItWorks.forge.practice.item3':
+    'implement ジョブの前に、このパネルでリポジトリのターゲット branch を設定します。既定の PR/MR フローを優先し、その branch へ直接コミットしたい場合だけ force-push をオンにします。',
+  'howItWorks.forge.practice.item4':
+    'ジョブが終わるまで issue または PR/MR を開いたままにします。失敗後の再試行は、必要ならリクエストを直し、ai または ai-review を再度追加します。別の Q&A ラウンドでは no-change を残し、ai-answered を外して ai を追加します。',
   'howItWorks.forge.tokens.heading': 'Tokens とアクセス',
   'howItWorks.forge.tokens.github':
     'GitHub: repo scope の classic PAT（workflow は任意）、または Metadata read に加え Contents、Issues、Pull requests の read/write がある fine-grained token を使います。Connections → Connect GitHub に貼り付けてください。',
@@ -75,6 +84,18 @@ export const ja: Messages = {
   'howItWorks.workflows.review.step2': 'ai-review label を追加します。',
   'howItWorks.workflows.review.step3': 'labels を確認します: ai-review → ai-reviewing → ai-reviewed（または ai-review-failed）。',
   'howItWorks.workflows.review.step4': 'PR/MR 上の review comment を読みます。',
+  'howItWorks.lifecycle.heading': 'Label のライフサイクル',
+  'howItWorks.lifecycle.intro':
+    '各ワークフローで labels は短いライフサイクルをたどります。開始 label(s) はあなたが追加し、実行中および完了時に worker が status labels に置き換えます。実行の途中で status labels を外さないでください。',
+  'howItWorks.lifecycle.implement.heading': 'Implement（コード変更）',
+  'howItWorks.lifecycle.implement.body':
+    '開始: 開いている issue（または開いている PR/MR）に ai を追加します。実行中: worker がターゲット branch を fresh checkout し、ai-working を付けます。成功: ai-pr。ターゲット branch 向けの新規/更新 PR/MR、またはその branch への force-push と issue コメント。失敗: ai-failed。必要ならリクエストを直して ai を再度追加し再試行します。',
+  'howItWorks.lifecycle.qa.heading': 'Q&A（コード変更なし）',
+  'howItWorks.lifecycle.qa.body':
+    '開始: 開いている issue に ai と no-change を追加します。実行中: ai-working が no-change と一緒に残ります。成功: ai-answered + no-change。回答は issue コメント（branch も PR/MR もなし）。失敗: ai-failed + no-change。再度質問するときは ai-answered を外し、no-change を残して ai を追加します。',
+  'howItWorks.lifecycle.review.heading': 'Review（PR/MR）',
+  'howItWorks.lifecycle.review.body':
+    '開始: すでに開いている PR（GitHub）または MR（GitLab）に ai-review を追加します。実行中: ai-reviewing。成功: ai-reviewed と PR/MR 上の review コメント。失敗: ai-review-failed。ai-review を再度追加して再試行します。',
   'howItWorks.repoOptions.heading': 'リポジトリオプション',
   'howItWorks.repoOptions.intro': '各 repository ページで、ジョブの開始 branch と implement 結果の公開方法を制御できます。',
   'howItWorks.repoOptions.targetBranch':
@@ -84,7 +105,8 @@ export const ja: Messages = {
   'howItWorks.repoOptions.forcePush':
     'ターゲット branch への force-push（PR/MR をスキップ）— デフォルトはオフ。有効にすると issue implement は PR/MR を開かずターゲット branch に force-push し、issue に結果コメントを投稿します。リモート branch を上書きするので慎重に使ってください。',
   'howItWorks.labels.heading': 'Label リファレンス',
-  'howItWorks.labels.intro': '通常追加するのは ai、ai + no-change、または ai-review だけです。status labels は worker が管理します。',
+  'howItWorks.labels.intro':
+    '通常追加するのは ai、ai + no-change、または ai-review だけです。worker は上記のライフサイクルに沿って status labels を管理します（ai-working、ai-pr、ai-answered、ai-failed、ai-reviewing、ai-reviewed、ai-review-failed）。',
   'howItWorks.labels.youAdd': 'あなたが追加',
   'howItWorks.labels.workerAdds': 'Worker が追加',
   'howItWorks.labels.ai': 'implement をキューに入れる。no-change と組み合わせると Q&A',

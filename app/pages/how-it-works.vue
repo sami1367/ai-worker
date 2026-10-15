@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { forgePracticeKeys, labelLifecycleSections } from '../utils/how-it-works-doc'
+
 const { t } = useI18n()
 
 const implementSteps = [
@@ -106,6 +108,17 @@ const workerLabels = [
 
       <div class="space-y-2 border-t border-[var(--aw-line)] pt-4">
         <h3 class="text-sm font-medium">
+          {{ t('howItWorks.forge.practice.heading') }}
+        </h3>
+        <ul class="list-disc space-y-2 ps-5 text-sm leading-relaxed opacity-90">
+          <li v-for="key in forgePracticeKeys" :key="key">
+            {{ t(key) }}
+          </li>
+        </ul>
+      </div>
+
+      <div class="space-y-2 border-t border-[var(--aw-line)] pt-4">
+        <h3 class="text-sm font-medium">
           {{ t('howItWorks.forge.tokens.heading') }}
         </h3>
         <ul class="list-disc space-y-2 ps-5 text-sm leading-relaxed opacity-90">
@@ -152,6 +165,27 @@ const workerLabels = [
             {{ t(key) }}
           </li>
         </ol>
+      </div>
+    </section>
+
+    <section class="aw-panel space-y-4 rounded-xl p-5" aria-labelledby="how-lifecycle">
+      <h2 id="how-lifecycle" class="font-display text-xl">
+        {{ t('howItWorks.lifecycle.heading') }}
+      </h2>
+      <p class="text-sm leading-relaxed opacity-90">
+        {{ t('howItWorks.lifecycle.intro') }}
+      </p>
+      <div
+        v-for="section in labelLifecycleSections"
+        :key="section.heading"
+        class="space-y-2 border-t border-[var(--aw-line)] pt-4"
+      >
+        <h3 class="text-sm font-medium">
+          {{ t(section.heading) }}
+        </h3>
+        <p class="text-sm leading-relaxed opacity-90">
+          {{ t(section.body) }}
+        </p>
       </div>
     </section>
 

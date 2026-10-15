@@ -50,7 +50,16 @@ export const ru: Messages = {
     'Сначала подключите forge и AI providers здесь, включите repositories, затем используйте labels в GitHub или GitLab, чтобы ставить в очередь задания implement, Q&A или review.',
   'howItWorks.forge.heading': 'Работа в GitHub и GitLab',
   'howItWorks.forge.intro':
-    'После подключения и включения repository для обычных задач terminal на хосте AI Worker не нужен. Откройте issue или PR/MR, добавьте нужные labels и следите, как status labels обновляются, пока работает worker.',
+    'Повседневная работа идёт в GitHub или GitLab — не в терминале на хосте AI Worker. После подключения и включения репозитория откройте issue или PR/MR, опишите одну ясную цель, добавьте нужные label(s) и оставьте элемент открытым, пока работает worker. Следите за status labels, затем проверьте PR/MR, комментарий к issue или (если включён force-push) коммиты на целевой ветке.',
+  'howItWorks.forge.practice.heading': 'Как работать в forge',
+  'howItWorks.forge.practice.item1':
+    'Считайте каждый issue или PR/MR одним запросом: конкретные title и body дают агенту одну ясную цель.',
+  'howItWorks.forge.practice.item2':
+    'Вы добавляете только trigger labels — ai (implement), ai + no-change (Q&A) или ai-review (review). Status labels не добавляйте сами; ими управляет worker.',
+  'howItWorks.forge.practice.item3':
+    'Перед implement-задачами задайте целевую ветку репозитория в этой панели. Предпочитайте стандартный поток PR/MR; включайте force-push только если намеренно нужны прямые коммиты в эту ветку.',
+  'howItWorks.forge.practice.item4':
+    'Держите issue или PR/MR открытым до конца задачи. Для повтора после сбоя исправьте запрос при необходимости и снова добавьте ai или ai-review. Для ещё одного Q&A: оставьте no-change, снимите ai-answered и добавьте ai.',
   'howItWorks.forge.tokens.heading': 'Tokens и доступ',
   'howItWorks.forge.tokens.github':
     'GitHub: используйте classic PAT с scope repo (workflow по желанию) или fine-grained token с Metadata read плюс Contents, Issues и Pull requests read/write. Вставьте его в Connections → Connect GitHub.',
@@ -76,6 +85,18 @@ export const ru: Messages = {
   'howItWorks.workflows.review.step2': 'Добавьте label ai-review.',
   'howItWorks.workflows.review.step3': 'Следите за labels: ai-review → ai-reviewing → ai-reviewed (или ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Прочитайте review comment в PR/MR.',
+  'howItWorks.lifecycle.heading': 'Жизненный цикл labels',
+  'howItWorks.lifecycle.intro':
+    'У labels короткий жизненный цикл для каждого workflow. Вы добавляете стартовые label(s); worker заменяет их status labels во время выполнения и по завершении. Не снимайте status labels во время run.',
+  'howItWorks.lifecycle.implement.heading': 'Implement (изменение кода)',
+  'howItWorks.lifecycle.implement.body':
+    'Старт: вы добавляете ai на открытый issue (или открытый PR/MR). Выполнение: worker делает свежий checkout целевой ветки и ставит ai-working. Успех: ai-pr и новый/обновлённый PR/MR к целевой ветке либо force-push в эту ветку плюс комментарий к issue. Сбой: ai-failed. Повтор: при необходимости исправьте запрос и снова добавьте ai.',
+  'howItWorks.lifecycle.qa.heading': 'Q&A (без изменений кода)',
+  'howItWorks.lifecycle.qa.body':
+    'Старт: вы добавляете ai и no-change на открытый issue. Выполнение: ai-working остаётся вместе с no-change. Успех: ai-answered + no-change, ответ в комментарии к issue (без ветки и без PR/MR). Сбой: ai-failed + no-change. Спросить снова: снимите ai-answered, оставьте no-change и добавьте ai.',
+  'howItWorks.lifecycle.review.heading': 'Review (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'Старт: вы добавляете ai-review на уже открытый PR (GitHub) или MR (GitLab). Выполнение: ai-reviewing. Успех: ai-reviewed плюс review-комментарий на PR/MR. Сбой: ai-review-failed. Повтор: снова добавьте ai-review.',
   'howItWorks.repoOptions.heading': 'Параметры репозитория',
   'howItWorks.repoOptions.intro':
     'На странице каждого репозитория можно выбрать ветку старта заданий и способ публикации результатов реализации.',
@@ -87,7 +108,7 @@ export const ru: Messages = {
     'Force-push в целевую ветку (без PR/MR) — по умолчанию выкл. Если включено, реализация делает force-push в целевую ветку вместо открытия PR/MR и пишет комментарий в issue. Перезаписывает удалённую ветку; используйте осторожно.',
   'howItWorks.labels.heading': 'Справочник labels',
   'howItWorks.labels.intro':
-    'Обычно вы добавляете только ai, ai + no-change или ai-review. Status labels управляет worker.',
+    'Обычно вы добавляете только ai, ai + no-change или ai-review. Worker управляет status labels по циклу выше (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
   'howItWorks.labels.youAdd': 'Вы добавляете',
   'howItWorks.labels.workerAdds': 'Worker добавляет',
   'howItWorks.labels.ai': 'Поставить в очередь implement или Q&A вместе с no-change',

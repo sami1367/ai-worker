@@ -50,7 +50,16 @@ export const tr: Messages = {
     'Önce burada forge ve AI providers bağlantısını kurun, repositories öğelerini etkinleştirin, ardından implement, Q&A veya review işlerini kuyruğa almak için GitHub veya GitLab\'da labels kullanın.',
   'howItWorks.forge.heading': 'GitHub ve GitLab\'da çalışma',
   'howItWorks.forge.intro':
-    'Bir repository bağlanıp etkinleştirildikten sonra, normal görevler için AI Worker host üzerinde terminal gerekmez. Bir issue veya PR/MR açın, doğru labels ekleyin ve worker çalışırken status labels güncellemelerini izleyin.',
+    'Günlük iş GitHub veya GitLab’da yapılır — AI Worker host’undaki bir terminalde değil. Depo bağlanıp etkinleştirildikten sonra bir issue veya PR/MR açın, tek net bir hedef yazın, doğru label(s) ekleyin ve worker çalışırken öğeyi açık tutun. İlerleme için status labels’ı izleyin; ardından PR/MR’yi, issue yorumunu veya (force-push açıksa) hedef daldaki commit’leri gözden geçirin.',
+  'howItWorks.forge.practice.heading': 'Forge’da nasıl çalışılır',
+  'howItWorks.forge.practice.item1':
+    'Her issue veya PR/MR’yi tek bir istek gibi ele alın: net title ve gövde ajana tek bir hedef verir.',
+  'howItWorks.forge.practice.item2':
+    'Yalnızca tetikleyici labels ekleyin — ai (implement), ai + no-change (Q&A) veya ai-review (review). Status labels’ı kendiniz eklemeyin; bunları worker yönetir.',
+  'howItWorks.forge.practice.item3':
+    'Implement işlerinden önce bu panelde deponun hedef dalını ayarlayın. Varsayılan PR/MR akışını tercih edin; force-push’u yalnızca o dala bilerek doğrudan commit istediğinizde açın.',
+  'howItWorks.forge.practice.item4':
+    'İş bitene kadar issue veya PR/MR’yi açık tutun. Başarısızlıktan sonra yeniden denemek için gerekirse isteği düzeltip ai veya ai-review’i yeniden ekleyin. Başka bir Q&A turu için: no-change’i tutun, ai-answered’ı kaldırın ve ai ekleyin.',
   'howItWorks.forge.tokens.heading': 'Tokens ve erişim',
   'howItWorks.forge.tokens.github':
     'GitHub: repo scope\'lu classic PAT kullanın (workflow isteğe bağlı) veya Metadata read ile Contents, Issues ve Pull requests read/write içeren fine-grained token kullanın. Connections → Connect GitHub altına yapıştırın.',
@@ -76,6 +85,18 @@ export const tr: Messages = {
   'howItWorks.workflows.review.step2': 'ai-review label ekleyin.',
   'howItWorks.workflows.review.step3': 'Labels: ai-review → ai-reviewing → ai-reviewed (veya ai-review-failed).',
   'howItWorks.workflows.review.step4': 'PR/MR üzerindeki review comment\'i okuyun.',
+  'howItWorks.lifecycle.heading': 'Label yaşam döngüsü',
+  'howItWorks.lifecycle.intro':
+    'Labels her iş akışında kısa bir yaşam döngüsü izler. Başlangıç label(s)’ını siz eklersiniz; worker çalışırken ve biterken bunları status labels ile değiştirir. Çalışma ortasında status labels’ı kaldırmayın.',
+  'howItWorks.lifecycle.implement.heading': 'Implement (kod değişikliği)',
+  'howItWorks.lifecycle.implement.body':
+    'Başlangıç: açık bir issue’ya (veya açık PR/MR’ye) ai eklersiniz. Çalışırken: worker hedef dalın taze checkout’unu alır ve ai-working koyar. Başarı: ai-pr; hedef dala karşı yeni/güncellenmiş PR/MR veya o dala force-push artı issue yorumu. Başarısızlık: ai-failed. Gerekirse isteği düzeltip ai’yi yeniden ekleyerek yeniden deneyin.',
+  'howItWorks.lifecycle.qa.heading': 'Q&A (kod değişikliği yok)',
+  'howItWorks.lifecycle.qa.body':
+    'Başlangıç: açık bir issue’ya ai ve no-change eklersiniz. Çalışırken: ai-working, no-change ile birlikte kalır. Başarı: ai-answered + no-change; yanıt issue yorumunda (dal yok, PR/MR yok). Başarısızlık: ai-failed + no-change. Yeniden sormak için: ai-answered’ı kaldırın, no-change’i tutun ve ai ekleyin.',
+  'howItWorks.lifecycle.review.heading': 'Review (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'Başlangıç: zaten açık bir PR’ye (GitHub) veya MR’ye (GitLab) ai-review eklersiniz. Çalışırken: ai-reviewing. Başarı: ai-reviewed artı PR/MR üzerinde review yorumu. Başarısızlık: ai-review-failed. Yeniden denemek için ai-review’i tekrar ekleyin.',
   'howItWorks.repoOptions.heading': 'Depo seçenekleri',
   'howItWorks.repoOptions.intro':
     'Her depo sayfasında işlerin hangi daldan başlayacağını ve implement sonuçlarının nasıl yayınlanacağını kontrol edersiniz.',
@@ -87,7 +108,7 @@ export const tr: Messages = {
     'Hedef dala force-push (PR/MR atla) — varsayılan kapalı. Açıkken issue implement PR/MR açmak yerine hedef dala force-push eder ve issue’ya yorum yazar. Uzak dalın üzerine yazar; dikkatli kullanın.',
   'howItWorks.labels.heading': 'Label başvurusu',
   'howItWorks.labels.intro':
-    'Normalde yalnızca ai, ai + no-change veya ai-review eklersiniz. Status labels öğelerini worker yönetir.',
+    'Normalde yalnızca ai, ai + no-change veya ai-review eklersiniz. Worker status labels’ı yukarıdaki yaşam döngüsüne göre yönetir (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
   'howItWorks.labels.youAdd': 'Siz eklersiniz',
   'howItWorks.labels.workerAdds': 'Worker ekler',
   'howItWorks.labels.ai': 'Implement kuyruğa alın; no-change ile birlikteyse Q&A',
