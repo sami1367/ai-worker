@@ -124,7 +124,8 @@ ai_detect_cursor() {
 }
 
 # Emit one JSON object per registered project (NDJSON).
-# Fields: name, path, block_on_open_pr (bool; default true), optional custom_prompt.
+# Fields: name, path, block_on_open_pr (bool; default true), default_branch (default main),
+# optional custom_prompt.
 # File must be a JSON array of objects. Leading blank/# comment lines are allowed.
 ai_list_project_entries() {
     local projects_file="$1"
@@ -188,6 +189,11 @@ ai_list_project_entries() {
             full_name: (.full_name // .repo // "" | tostring),
             remote_url: (.remote_url // "" | tostring),
             forge: (.forge // "" | tostring),
+            default_branch: (
+                (.default_branch // "main")
+                | tostring
+                | if . == "" then "main" else . end
+            ),
             custom_prompt: (.custom_prompt // "" | tostring)
           }
         | with_entries(select(.value != ""))
@@ -313,6 +319,23 @@ ai_project_entry_bool() {
 
     value="$(jq -r --arg key "$key" '.[$key] | if . == null then empty else tostring end' <<<"$entry" 2>/dev/null || true)"
     ai_project_option_bool "$value" "$default"
+}
+
+# Read the forge default branch from a project entry JSON. Falls back to main.
+# Usage: ai_project_default_branch <entry_json>
+ai_project_default_branch() {
+    local entry="${1:-}"
+    local branch=""
+
+    if [[ -n "$entry" ]] && command -v jq >/dev/null 2>&1; then
+        branch="$(jq -r '.default_branch // empty' <<<"$entry" 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$branch" || "$branch" == "null" ]]; then
+        printf 'main'
+    else
+        printf '%s' "$branch"
+    fi
 }
 
 # Validate a project directory is a usable git repo.

@@ -15,6 +15,8 @@ export interface ExportedProject {
   name: string
   path: string
   block_on_open_pr: boolean
+  /** Forge default branch (main, master, develop, …). Used as PR/MR base. */
+  default_branch: string
   /** Forge identity for polling without a local clone (lazy workspace). */
   full_name: string
   remote_url: string
@@ -76,6 +78,7 @@ export async function exportWorkerConfig(
       name: row.name,
       path: row.localPath,
       block_on_open_pr: row.blockOnOpenPr,
+      default_branch: row.defaultBranch || 'main',
       full_name: fullName,
       remote_url: row.remoteUrl,
       forge: row.forgeType,

@@ -30,7 +30,8 @@ cat > "$BASE_DIR/github-projects.conf" <<EOF
   {
     "name": "billing",
     "path": "$TMP/billing",
-    "block_on_open_pr": false
+    "block_on_open_pr": false,
+    "default_branch": "master"
   }
 ]
 EOF
@@ -40,7 +41,8 @@ cat > "$BASE_DIR/gitlab-projects.conf" <<EOF
   {
     "name": "bale-service",
     "path": "$TMP/bale",
-    "block_on_open_pr": false
+    "block_on_open_pr": false,
+    "default_branch": "develop"
   }
 ]
 EOF
@@ -68,16 +70,22 @@ billing_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "bill
     || fail "resolve billing entry"
 [[ "$(ai_project_entry_bool "$billing_entry" "block_on_open_pr" 1)" == "0" ]] \
     || fail "billing should disable block_on_open_pr"
+[[ "$(ai_project_default_branch "$billing_entry")" == "master" ]] \
+    || fail "billing default_branch should be master"
 
 api_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "api")" \
     || fail "resolve api entry"
 [[ "$(ai_project_entry_bool "$api_entry" "block_on_open_pr" 1)" == "1" ]] \
     || fail "api should keep block_on_open_pr enabled"
+[[ "$(ai_project_default_branch "$api_entry")" == "main" ]] \
+    || fail "api should default to main when default_branch omitted"
 
 bale_entry="$(ai_resolve_project_entry "$BASE_DIR/gitlab-projects.conf" "bale-service")" \
     || fail "resolve bale-service entry"
 [[ "$(ai_project_entry_bool "$bale_entry" "block_on_open_pr" 1)" == "0" ]] \
     || fail "bale-service should disable block_on_open_pr"
+[[ "$(ai_project_default_branch "$bale_entry")" == "develop" ]] \
+    || fail "bale-service default_branch should be develop"
 
 if ai_lookup_registered_project "missing-service" >/dev/null; then
     fail "unknown project should not match"

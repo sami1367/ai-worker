@@ -145,8 +145,16 @@ onBeforeUnmount(() => stopPoll.value?.())
           <UFormField label="Remote URL">
             <UInput v-model="data.remoteUrl" class="w-full" />
           </UFormField>
-          <UFormField label="Default branch">
-            <UInput v-model="data.defaultBranch" class="w-full" />
+          <UFormField
+            label="PR / MR target branch"
+            hint="Branch that new pull requests and merge requests target (for example main, master, or develop). Also used when preparing the workspace checkout."
+          >
+            <UInput
+              v-model="data.defaultBranch"
+              class="w-full"
+              placeholder="main"
+              spellcheck="false"
+            />
           </UFormField>
           <UFormField label="Default AI provider">
             <USelect

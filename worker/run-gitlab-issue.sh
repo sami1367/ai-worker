@@ -66,7 +66,9 @@ ai_require_cmds git curl jq tee || exit 1
 # Resolve project
 # ============================================================
 
-PROJECT_DIR="$(ai_resolve_project_dir "$PROJECTS_FILE" "$PROJECT")"
+PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
+PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
+DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"
@@ -124,11 +126,11 @@ cleanup() {
             git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true
         )"
 
-        if [[ "$current_branch" != "main" ]]; then
+        if [[ "$current_branch" != "$DEFAULT_BRANCH" ]]; then
 
             if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
 
-                echo "Discarding remaining task changes before returning to main..."
+                echo "Discarding remaining task changes before returning to $DEFAULT_BRANCH..."
                 echo
                 echo "Changed files before cleanup:"
                 git -C "$PROJECT_DIR" status --short || true
@@ -138,8 +140,8 @@ cleanup() {
             fi
 
             echo
-            echo "Checking out main..."
-            git -C "$PROJECT_DIR" checkout main || true
+            echo "Checking out $DEFAULT_BRANCH..."
+            git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH" || true
         fi
 
         if [[ -n "$BRANCH" ]] &&
@@ -198,6 +200,7 @@ echo "Forge:         gitlab"
 echo "Host:          $GITLAB_HOST"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
+echo "Default branch: $DEFAULT_BRANCH"
 echo "Project dir:   $PROJECT_DIR"
 echo "Main log:      $LOG_FILE"
 echo "============================================================"
@@ -220,15 +223,15 @@ ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 
 # ============================================================
-# Fresh environment: clean checkout of up-to-date main
+# Fresh environment: clean checkout of up-to-date default branch
 # ============================================================
 
 echo
-echo "Preparing fresh workspace from origin/main..."
+echo "Preparing fresh workspace from origin/$DEFAULT_BRANCH..."
 git -C "$PROJECT_DIR" fetch --prune origin
 
 # Drop leftover task branches / dirty state from prior runs so every issue
-# starts from a clean, current main.
+# starts from a clean, current default branch.
 if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
     echo "Discarding leftover local changes before starting..."
     git -C "$PROJECT_DIR" status --short || true
@@ -236,17 +239,17 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
     git -C "$PROJECT_DIR" clean -fd || true
 fi
 
-git -C "$PROJECT_DIR" checkout main
-git -C "$PROJECT_DIR" reset --hard origin/main
+git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH"
+git -C "$PROJECT_DIR" reset --hard "origin/$DEFAULT_BRANCH"
 
 if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
     echo
-    echo "ERROR: main is not clean after fresh prepare."
+    echo "ERROR: $DEFAULT_BRANCH is not clean after fresh prepare."
     git -C "$PROJECT_DIR" status --short
     exit 12
 fi
 
-echo "Fresh workspace ready on main ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
+echo "Fresh workspace ready on $DEFAULT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
 
 # ============================================================
 # Read GitLab issue
@@ -345,20 +348,20 @@ Created by the AI worker because issue title is \`${ISSUE_TITLE_NORM}\`.
 
 - Previous tag: \`${LATEST_TAG}\`
 - New tag: \`${NEW_TAG}\`
-- Source ref: \`main\`
+- Source ref: \`${DEFAULT_BRANCH}\`
 
 This is an **upcoming** release (not the current published release). Update \`released_at\` or edit the release on GitLab when you are ready. The automation never marks releases as current automatically.
 EOF
 )"
 
     echo
-    echo "Creating upcoming GitLab release: $NEW_TAG (from main)"
+    echo "Creating upcoming GitLab release: $NEW_TAG (from $DEFAULT_BRANCH)"
 
     RELEASE_URL="$(
         gitlab_create_upcoming_release \
             "$REPO_PATH" \
             "$NEW_TAG" \
-            "main" \
+            "$DEFAULT_BRANCH" \
             "$RELEASE_DESCRIPTION"
     )"
 
@@ -466,7 +469,7 @@ echo
 echo "Creating task branch:"
 echo "$BRANCH"
 
-git -C "$PROJECT_DIR" checkout -b "$BRANCH" main
+git -C "$PROJECT_DIR" checkout -b "$BRANCH" "$DEFAULT_BRANCH"
 
 # Expose branch to platform heartbeat / Tasks UI while this run is active.
 printf 'branch=%s\n' "$BRANCH" >> "$STATE_FILE"
@@ -676,7 +679,7 @@ MR_JSON="$(
     gitlab_create_mr \
         "$REPO_PATH" \
         "$BRANCH" \
-        "main" \
+        "$DEFAULT_BRANCH" \
         "$MR_TITLE" \
         "$(cat "$MR_BODY_FILE")" \
         "ai-pr"
