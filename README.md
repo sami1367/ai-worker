@@ -8,6 +8,7 @@ AI Worker is designed for teams that want automation **on their own infrastructu
 
 | | |
 |---|---|
+| Docs | [vibeplus1.com/ai-worker](http://vibeplus1.com/ai-worker) |
 | Image | [`sami1367/ai-worker`](https://hub.docker.com/r/sami1367/ai-worker) |
 | Source | [github.com/sami1367/ai-worker](https://github.com/sami1367/ai-worker) |
 | License | [Apache-2.0](LICENSE) (see [third-party notices](THIRD_PARTY_NOTICES.md) and [license audit](docs/LICENSE_AUDIT.md)) |
