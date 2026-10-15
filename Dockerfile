@@ -23,6 +23,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl git jq util-linux openssh-client rsync \
       python3 \
+      bubblewrap \
       gh \
     && rm -rf /var/lib/apt/lists/*
 

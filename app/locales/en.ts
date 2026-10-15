@@ -46,7 +46,7 @@ export const en = {
   'howItWorks.intro.p1':
     'AI Worker is a self-hosted coding assistant for GitHub and GitLab. Day-to-day work is driven by labels on issues and pull/merge requests. This panel is for setup, monitoring, and configuration.',
   'howItWorks.intro.p2':
-    'Start by connecting your forge and AI providers here, enable repositories, then use labels in GitHub or GitLab to queue implement, Q&A, or review jobs.',
+    'Start by connecting your forge and AI providers here, enable repositories, then use labels in GitHub or GitLab to queue implement, Q&A, or review jobs. The AI agent only edits the assigned workspace; commit, push, pull/merge requests, and forge comments are performed by the trusted AI Worker orchestration layer — the agent cannot use your forge tokens on its own.',
 
   'howItWorks.forge.heading': 'Working in GitHub and GitLab',
   'howItWorks.forge.intro':
@@ -66,7 +66,7 @@ export const en = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com or self-managed): create a personal access token with the api scope, then under Connections → Connect GitLab set the server URL and paste the token. read_api alone is not enough for full worker operations.',
   'howItWorks.forge.tokens.git':
-    'Git clone and push use HTTPS with your token by default. If GitLab blocks HTTP(S) git, enable Both or HTTP in GitLab admin Git access protocols, or add the platform SSH public key shown on Connections.',
+    'Git clone and push use HTTPS with your token by default. Forge tokens and SSH keys stay with the trusted worker orchestration process; they are not given to the AI agent process. If GitLab blocks HTTP(S) git, enable Both or HTTP in GitLab admin Git access protocols, or add the platform SSH public key shown on Connections.',
 
   'howItWorks.workflows.heading': 'Common forge workflows',
   'howItWorks.workflows.implement.heading': 'Implement a change',

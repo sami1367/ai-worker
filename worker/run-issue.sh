@@ -591,8 +591,10 @@ if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
 fi
 
 # ============================================================
-# Verify agent changed something
+# Verify agent changed something (trusted validation — no agent shell)
 # ============================================================
+
+ai_log_phase "VALIDATE" "Inspect workspace diffs; secret-file gate before publish"
 
 echo
 echo "Git status after AI agent:"
@@ -673,8 +675,10 @@ if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
 fi
 
 # ============================================================
-# Commit / publish (PR or force-push to default branch)
+# Commit / publish (PR or force-push) — trusted orchestration only
 # ============================================================
+
+ai_log_phase "PUBLISH" "Commit/push/PR via orchestration with forge credentials"
 
 PR_URL=""
 PR_NUMBER=""
@@ -834,6 +838,9 @@ EOF
     # (ai_ensure_project_labels ran earlier). Avoid unlabeled PRs that would not
     # block the next issue via block_on_open_pr.
     ai_ensure_project_labels github "$REPO" "$PROJECT"
+
+    # PR metadata is built by orchestration (trusted branch/base); validate body only.
+    ai_validate_forge_text_file "$PR_BODY_FILE" 200000 0 || exit 40
 
     if ! gh pr create \
         --repo "$REPO" \

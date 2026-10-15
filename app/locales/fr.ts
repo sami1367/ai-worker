@@ -47,7 +47,7 @@ export const fr: Messages = {
   'howItWorks.intro.p1':
     'AI Worker est un assistant de développement auto-hébergé pour GitHub et GitLab. Le travail au quotidien est piloté par des labels sur les issues et les pull/merge requests. Ce panneau sert à la configuration, au suivi et aux réglages.',
   'howItWorks.intro.p2':
-    'Commencez par connecter ici votre forge et vos fournisseurs d\'IA, activez des dépôts, puis utilisez des labels dans GitHub ou GitLab pour mettre en file des tâches d\'implémentation, de Q&R ou de revue.',
+    'Commencez par connecter ici votre forge et vos fournisseurs d\'IA, activez des dépôts, puis utilisez des labels dans GitHub ou GitLab pour mettre en file des tâches d\'implémentation, de Q&R ou de revue. L\'agent IA ne modifie que l\'espace de travail assigné ; commit, push, PR/MR et commentaires forge sont effectués par la couche d\'orchestration de confiance d\'AI Worker — l\'agent ne peut pas utiliser vos jetons forge seul.',
   'howItWorks.forge.heading': 'Travailler dans GitHub et GitLab',
   'howItWorks.forge.intro':
     'Le travail quotidien se fait dans GitHub ou GitLab — pas dans un terminal sur l’hôte AI Worker. Une fois un dépôt connecté et activé, ouvrez une issue ou une PR/MR, décrivez un objectif clair, ajoutez le(s) bon(s) label(s) et laissez l’élément ouvert pendant que le worker tourne. Suivez les labels de statut pour la progression, puis examinez la PR/MR, le commentaire d’issue, ou (si le force-push est activé) les commits sur la branche cible.',
@@ -66,7 +66,7 @@ export const fr: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com ou auto-hébergé) : créez un personal access token avec le scope api, puis sous Connections → Connect GitLab indiquez l\'URL du serveur et collez le jeton. read_api seul ne suffit pas pour toutes les opérations du worker.',
   'howItWorks.forge.tokens.git':
-    'Le clone et le push Git utilisent HTTPS avec votre jeton par défaut. Si GitLab bloque git en HTTP(S), activez Both ou HTTP dans les protocoles d\'accès Git de l\'admin GitLab, ou ajoutez la clé publique SSH de la plateforme affichée sur Connections.',
+    'Le clone et le push Git utilisent HTTPS avec votre jeton par défaut. Si GitLab bloque git en HTTP(S), activez Both ou HTTP dans les protocoles d\'accès Git de l\'admin GitLab, ou ajoutez la clé publique SSH de la plateforme affichée sur Connections. Les jetons forge et les clés SSH restent dans le processus d\'orchestration de confiance du worker ; ils ne sont pas fournis au processus de l\'agent IA.',
   'howItWorks.workflows.heading': 'Flux de travail courants sur la forge',
   'howItWorks.workflows.implement.heading': 'Implémenter un changement',
   'howItWorks.workflows.implement.step1': 'Confirmez la branche cible du dépôt (et l’option force-push éventuelle) sur la page du dépôt.',

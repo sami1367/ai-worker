@@ -47,7 +47,7 @@ export const ar: Messages = {
   'howItWorks.intro.p1':
     'AI Worker هو مساعد برمجة مستضاف ذاتيًا لـ GitHub و GitLab. العمل اليومي يعتمد على التسميات (labels) في الـ issues وطلبات السحب/الدمج. هذه اللوحة مخصّصة للإعداد والمراقبة والتهيئة.',
   'howItWorks.intro.p2':
-    'ابدأ بربط منصة الاستضافة ومزوّدي الذكاء الاصطناعي هنا، فعّل المستودعات، ثم استخدم التسميات في GitHub أو GitLab لوضع مهام التنفيذ أو الأسئلة والأجوبة أو المراجعة في قائمة الانتظار.',
+    'ابدأ بربط منصة الاستضافة ومزوّدي الذكاء الاصطناعي هنا، فعّل المستودعات، ثم استخدم التسميات في GitHub أو GitLab لوضع مهام التنفيذ أو الأسئلة والأجوبة أو المراجعة في قائمة الانتظار. يعدّل وكيل الذكاء الاصطناعي مساحة العمل المعيّنة فقط؛ وتنفّذ طبقة تنسيق AI Worker الموثوقة عمليات commit وpush وPR/MR وتعليقات المنصة — ولا يستطيع الوكيل استخدام رموز المنصة بمفرده.',
   'howItWorks.forge.heading': 'العمل في GitHub و GitLab',
   'howItWorks.forge.intro':
     'العمل اليومي يتم في GitHub أو GitLab — وليس في طرفية على مضيف AI Worker. بعد ربط المستودع وتفعيله، افتح issue أو PR/MR، صِف هدفًا واحدًا واضحًا، أضف التسمية/التسميات الصحيحة، واترك العنصر مفتوحًا أثناء تشغيل الـ worker. راقب تسميات الحالة للتقدم، ثم راجع الـ PR/MR أو تعليق الـ issue أو (إذا كان الدفع القسري مفعّلًا) الالتزامات على الفرع الهدف.',
@@ -66,7 +66,7 @@ export const ar: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com أو مستضاف ذاتيًا): أنشئ personal access token بنطاق api، ثم في Connections → Connect GitLab عيّن عنوان الخادم والصق الرمز. read_api وحده لا يكفي لعمليات الـ worker الكاملة.',
   'howItWorks.forge.tokens.git':
-    'عمليات Git clone و push تستخدم HTTPS مع الرمز افتراضيًا. إذا منع GitLab git عبر HTTP(S)، فعّل Both أو HTTP في Git access protocols ضمن إدارة GitLab، أو أضف مفتاح SSH العام للمنصة المعروض في Connections.',
+    'عمليات Git clone و push تستخدم HTTPS مع الرمز افتراضيًا. إذا منع GitLab git عبر HTTP(S)، فعّل Both أو HTTP في Git access protocols ضمن إدارة GitLab، أو أضف مفتاح SSH العام للمنصة المعروض في Connections. تبقى رموز المنصة ومفاتيح SSH مع عملية تنسيق الـ worker الموثوقة؛ ولا تُمنح لعملية وكيل الذكاء الاصطناعي.',
   'howItWorks.workflows.heading': 'سير عمل شائع في الـ forge',
   'howItWorks.workflows.implement.heading': 'تنفيذ تغيير',
   'howItWorks.workflows.implement.step1': 'أكد فرع الهدف في صفحة المستودع (وخيار الدفع القسري الاختياري).',

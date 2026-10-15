@@ -175,6 +175,7 @@ Verified with per-connection secrets (GitHub HMAC / GitLab token). On `ai` or `a
 3. On AI provider connect/disconnect (Providers UI) — or from compose `.env` `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` — web writes `/data/config/provider-credentials.env` (0600). DB-stored secrets override env when both are set.
 4. `scripts/worker-entrypoint.sh` sources that file before `platform-wrapper.sh`.
 5. Project conf JSON never contains tokens.
+6. **AI agent phase** runs under `lib/ai-isolation.sh`: forge tokens, app secrets, git credential helpers, and SSH keys are withheld from the agent; only the trusted runner (validate/publish) uses forge credentials afterward. See `docs/SECURITY.md`.
 
 ### SSRF policy for GitLab URLs
 
@@ -191,5 +192,6 @@ User-supplied GitLab instance URLs are normalized, require HTTPS by default, blo
 - Secrets encrypted at rest; never returned by API
 - OAuth tokens never returned to browser clients after connection
 - GitLab instance URL SSRF protections (see above)
+- AI agent process isolated from forge publishing credentials (env scrub + bubblewrap overlays); orchestration performs git/PR/MR/comment writes
 
 See `docs/SECURITY.md` for the operational checklist.

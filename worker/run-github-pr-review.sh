@@ -574,9 +574,16 @@ fi
 echo
 echo "Review file bytes: $(wc -c < "$REVIEW_FILE" | tr -d ' ')"
 
+ai_log_phase "VALIDATE" "review: allow only .ai-pr-review.md"
+# Review must not publish product-file edits; discard is left to failure cleanup.
+ai_assert_only_allowed_changes "$PROJECT_DIR" ".ai-pr-review.md" \
+    || exit $?
+
 # ============================================================
-# Post PR comment
+# Post PR comment (trusted orchestration)
 # ============================================================
+
+ai_log_phase "PUBLISH" "Posting PR review comment via gh (orchestration)"
 
 COMMENT_FILE="$(mktemp)"
 {
@@ -587,6 +594,8 @@ COMMENT_FILE="$(mktemp)"
 _Label \`ai-review\` was processed automatically. Re-add \`ai-review\` to request another review._
 EOF
 } > "$COMMENT_FILE"
+
+ai_validate_forge_text_file "$COMMENT_FILE" 200000 0 || exit 40
 
 echo
 echo "Posting review comment to pull request #$PR_NUMBER..."

@@ -243,6 +243,8 @@ if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
     exit "$AGENT_EXIT_CODE"
 fi
 
+ai_log_phase "VALIDATE" "Inspect workspace diffs; secret-file gate before publish"
+
 git -C "$PROJECT_DIR" status --short
 
 ai_capture_implement_notes "$NOTES_FILE" "$NOTES_SAVED" || true
@@ -281,6 +283,8 @@ if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
         echo "ERROR: Nothing staged after agent changes."
         exit 21
     fi
+
+    ai_log_phase "PUBLISH" "Commit/push source branch via orchestration"
 
     git -C "$PROJECT_DIR" commit -m "fix: address feedback on PR #${PR_NUMBER}"
 

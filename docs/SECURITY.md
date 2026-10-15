@@ -101,9 +101,43 @@ Rotating `SECRET_ENCRYPTION_KEY` invalidates encrypted AI provider secrets **and
 
 Update values in `.env` (or recreate with care), restart; the entrypoint rewrites `/data/config/app-secrets.env` when non-empty env values are provided.
 
+## AI agent ↔ forge isolation
+
+AI agents (Cursor CLI / Claude Code) run in a **separate execution phase** from GitHub/GitLab publishing.
+
+| Phase | Who | Capabilities |
+|-------|-----|--------------|
+| **AGENT** | Cursor / Claude under `ai_isolation_exec` | Read/modify the assigned workspace; run permitted tools; write task artifacts. **No** forge write tokens, **no** git credential helpers, **no** platform SSH keys, **no** `forge-credentials.env` / `app-secrets.env` / `.env`. |
+| **VALIDATE** | Trusted runner scripts | Inspect diffs, secret-file gates, no-change/review allowlists, forge-text validation. Does **not** execute agent-provided shell. |
+| **PUBLISH** | Trusted runner scripts | Commit, push, force-push (when configured), open PR/MR, post comments, update labels — using forge credentials held only by the orchestration process. |
+
+### Technical controls
+
+- **Environment scrub** — agent child processes unset `GH_TOKEN` / `GITHUB_TOKEN` / `GITLAB_TOKEN`, `GIT_SSH_COMMAND`, `WORKER_INTERNAL_TOKEN`, DB/session/encryption secrets, etc. AI provider keys (`CURSOR_API_KEY`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`) remain so the CLIs can call their APIs.
+- **Git auth disabled for the agent** — `GIT_CONFIG_*` overrides clear credential helpers; `GIT_TERMINAL_PROMPT=0` / `GIT_ASKPASS=/bin/false`.
+- **Bubblewrap filesystem overlays** (default when `bwrap` is installed) — mask credential files with empty binds; tmpfs over SSH / `gh` config dirs; workspaces root read-only except the assigned workspace (writable).
+- **Provider defense in depth** — Cursor `--sandbox enabled` by default; Claude review/answer tasks default to a Bash-free `--allowedTools` list. These are **not** the security boundary.
+- **Logs** — agent / validate / publish phases are logged separately; token values are never printed.
+
+### Configuration
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `AI_ISOLATION_MODE` | `auto` | `auto` (bwrap if present else env), `bwrap` (require bubblewrap), `env` (scrub only), `off` (insecure escape hatch) |
+| `AI_CURSOR_SANDBOX` | `enabled` | Passed to Cursor CLI `--sandbox` |
+| `AI_CLAUDE_ALLOWED_TOOLS` | (unset) | Optional override; review tasks default to `Read,Glob,Grep,Write,Edit` |
+| `AI_CLAUDE_REVIEW_ALLOWED_TOOLS` | see above | Override review/answer tool allowlist |
+
+Images install `bubblewrap`. Host/systemd installs without `bwrap` fall back to **env scrub only** — still strips tokens from the agent process, but cannot hide credential files on disk. Install `bubblewrap` (or run the Docker image) for full filesystem isolation.
+
+Automated checks: `bash worker/tests/agent-isolation.sh` (included in `pnpm test:worker`).
+
 ## Known limitations
 
-- Worker forge auth is process-global (`GH_TOKEN` / `GITLAB_TOKEN`). Multiple simultaneous GitHub identities are not supported; the most recently validated active connection is exported.
+- Worker forge auth is process-global for the **orchestration** process (`GH_TOKEN` / `GITLAB_TOKEN`). Multiple simultaneous GitHub identities are not supported; the most recently validated active connection is exported. These tokens are **not** exported into the AI agent phase.
+- Agent network namespace is shared (AI provider APIs must be reachable). Without forge tokens / SSH keys / credential helpers, authenticated forge writes still fail; unauthenticated public HTTP is not blocked.
+- Bubblewrap is unavailable on some host kernels or restricted container runtimes → `AI_ISOLATION_MODE=env` behavior; credential **files** may remain readable though tokens are scrubbed from the environment. Prefer the Compose image (includes `bubblewrap`).
+- Provider tool allowlists / Cursor sandbox can be widened by operator env (`AI_CLAUDE_*`, `AI_CURSOR_*`); OS isolation remains the boundary.
 - OAuth user tokens may lack org SSO authorization or fine-grained permissions required for some org repos — reconnect or grant access in the provider UI.
 - Successful OAuth does not guarantee every worker write action (labels, releases) if an admin later reduces scopes.
 - Disconnect revokes tokens when the provider API supports it; always treat disconnect as best-effort revoke + local credential wipe.

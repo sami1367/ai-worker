@@ -46,7 +46,7 @@ export const zh: Messages = {
   'howItWorks.intro.heading': '概述',
   'howItWorks.intro.p1':
     'AI Worker 是面向 GitHub 与 GitLab 的自托管编程助手。日常工作由 issue 与 pull/merge request 上的标签驱动。本面板用于设置、监控与配置。',
-  'howItWorks.intro.p2': '先在此连接代码托管平台与 AI 提供商，启用仓库，再在 GitHub 或 GitLab 中用标签排队实现、问答或评审任务。',
+  'howItWorks.intro.p2': '先在此连接代码托管平台与 AI 提供商，启用仓库，再在 GitHub 或 GitLab 中用标签排队实现、问答或评审任务。 AI 代理仅编辑分配的工作区；提交、推送、PR/MR 与评论由受信任的 AI Worker 编排层执行——代理无法自行使用你的 forge 令牌。',
   'howItWorks.forge.heading': '在 GitHub 与 GitLab 中工作',
   'howItWorks.forge.intro':
     '日常工作在 GitHub 或 GitLab 中完成——而不是在 AI Worker 主机的终端里。仓库连接并启用后，打开 issue 或 PR/MR，写清一个明确目标，添加正确的标签，并在 worker 运行期间保持该条目打开。通过状态标签查看进度，然后审查 PR/MR、issue 评论，或（若开启 force-push）目标分支上的提交。',
@@ -65,7 +65,7 @@ export const zh: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab（gitlab.com 或自建）：创建具有 api 权限的 personal access token，然后在 Connections → Connect GitLab 中设置服务器 URL 并粘贴令牌。仅有 read_api 不足以支持完整的 worker 操作。',
   'howItWorks.forge.tokens.git':
-    'Git clone 与 push 默认通过 HTTPS 与令牌进行。若 GitLab 阻止 HTTP(S) git，请在 GitLab 管理后台的 Git access protocols 中启用 Both 或 HTTP，或添加 Connections 页面显示的平台 SSH 公钥。',
+    'Git clone 与 push 默认通过 HTTPS 与令牌进行。若 GitLab 阻止 HTTP(S) git，请在 GitLab 管理后台的 Git access protocols 中启用 Both 或 HTTP，或添加 Connections 页面显示的平台 SSH 公钥。 Forge 令牌与 SSH 密钥保留在受信任的 worker 编排进程中，不会交给 AI 代理进程。',
   'howItWorks.workflows.heading': '常用 forge 工作流',
   'howItWorks.workflows.implement.heading': '实现变更',
   'howItWorks.workflows.implement.step1': '在仓库页面确认目标分支（以及可选的强制推送设置）。',

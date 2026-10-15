@@ -527,20 +527,29 @@ fi
 echo
 echo "Review file bytes: $(wc -c < "$REVIEW_FILE" | tr -d ' ')"
 
+ai_log_phase "VALIDATE" "review: allow only .ai-mr-review.md"
+ai_assert_only_allowed_changes "$PROJECT_DIR" ".ai-mr-review.md" \
+    || exit $?
+
 # ============================================================
-# Post MR comment
+# Post MR comment (trusted orchestration)
 # ============================================================
 
-COMMENT_BODY="$(
-    {
-        cat "$REVIEW_FILE"
-        cat <<EOF
+ai_log_phase "PUBLISH" "Posting MR review comment via GitLab API (orchestration)"
+
+COMMENT_FILE="$(mktemp)"
+{
+    cat "$REVIEW_FILE"
+    cat <<EOF
 
 ---
 _Label \`ai-review\` was processed automatically. Re-add \`ai-review\` to request another review._
 EOF
-    }
-)"
+} >"$COMMENT_FILE"
+
+ai_validate_forge_text_file "$COMMENT_FILE" 200000 0 || exit 40
+COMMENT_BODY="$(cat "$COMMENT_FILE")"
+rm -f "$COMMENT_FILE"
 
 echo
 echo "Posting review comment to merge request !$MR_IID..."

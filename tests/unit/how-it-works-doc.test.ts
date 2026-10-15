@@ -32,4 +32,11 @@ describe('how-it-works forge / label lifecycle docs', () => {
     expect(en['howItWorks.labels.intro']).toContain('ai-working')
     expect(en['howItWorks.labels.intro']).toContain('lifecycle')
   })
+
+  it('explains that forge publishing stays with trusted orchestration', () => {
+    expect(en['howItWorks.intro.p2']).toMatch(/orchestration/i)
+    expect(en['howItWorks.intro.p2']).toMatch(/cannot use your forge tokens/i)
+    expect(en['howItWorks.forge.tokens.git']).toMatch(/orchestration/i)
+    expect(en['howItWorks.forge.tokens.git']).toMatch(/not given to the AI agent/i)
+  })
 })

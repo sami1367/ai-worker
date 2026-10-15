@@ -315,23 +315,16 @@ cp "$ANSWER_FILE" "$ANSWER_SAVED"
 echo
 echo "Answer file bytes: $(wc -c < "$ANSWER_FILE" | tr -d ' ')"
 
+ai_log_phase "VALIDATE" "no-change answer: allow only .ai-issue-answer.md"
 # Reject accidental product-file edits (answer artifact alone is OK).
-DIRTY_FILES="$(
-    git -C "$PROJECT_DIR" status --porcelain \
-        | awk '{print $2}' \
-        | grep -v '^\.ai-issue-answer\.md$' \
-        || true
-)"
-if [[ -n "$DIRTY_FILES" ]]; then
-    echo
-    echo "ERROR: Agent modified files other than the answer output:"
-    printf '%s\n' "$DIRTY_FILES"
-    exit 22
-fi
+ai_assert_only_allowed_changes "$PROJECT_DIR" ".ai-issue-answer.md" \
+    || exit $?
 
 # ============================================================
-# Post issue comment
+# Post issue comment (trusted orchestration — forge credentials available here)
 # ============================================================
+
+ai_log_phase "PUBLISH" "Posting issue answer comment via gh (orchestration)"
 
 COMMENT_FILE="$(mktemp)"
 {
@@ -342,6 +335,8 @@ COMMENT_FILE="$(mktemp)"
 _Label \`ai\` + \`no-change\` was processed automatically. Re-add \`ai\` (keep \`no-change\`) to ask again._
 EOF
 } > "$COMMENT_FILE"
+
+ai_validate_forge_text_file "$COMMENT_FILE" 200000 0 || exit 40
 
 echo
 echo "Posting answer comment to issue #$ISSUE_NUMBER..."

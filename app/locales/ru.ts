@@ -47,7 +47,7 @@ export const ru: Messages = {
   'howItWorks.intro.p1':
     'AI Worker — это self-hosted помощник для написания кода для GitHub и GitLab. Повседневная работа управляется labels на issues и pull/merge requests. Эта панель нужна для setup, мониторинга и конфигурации.',
   'howItWorks.intro.p2':
-    'Сначала подключите forge и AI providers здесь, включите repositories, затем используйте labels в GitHub или GitLab, чтобы ставить в очередь задания implement, Q&A или review.',
+    'Сначала подключите forge и AI providers здесь, включите repositories, затем используйте labels в GitHub или GitLab, чтобы ставить в очередь задания implement, Q&A или review. AI-агент меняет только назначенный workspace; commit, push, PR/MR и комментарии выполняет доверенный слой оркестрации AI Worker — агент не может самостоятельно использовать ваши forge-токены.',
   'howItWorks.forge.heading': 'Работа в GitHub и GitLab',
   'howItWorks.forge.intro':
     'Повседневная работа идёт в GitHub или GitLab — не в терминале на хосте AI Worker. После подключения и включения репозитория откройте issue или PR/MR, опишите одну ясную цель, добавьте нужные label(s) и оставьте элемент открытым, пока работает worker. Следите за status labels, затем проверьте PR/MR, комментарий к issue или (если включён force-push) коммиты на целевой ветке.',
@@ -66,7 +66,7 @@ export const ru: Messages = {
   'howItWorks.forge.tokens.gitlab':
     'GitLab (gitlab.com или self-managed): создайте personal access token с scope api, затем в Connections → Connect GitLab укажите URL сервера и вставьте token. Одного read_api недостаточно для полной работы worker.',
   'howItWorks.forge.tokens.git':
-    'Git clone и push по умолчанию используют HTTPS с вашим token. Если GitLab блокирует HTTP(S) git, включите Both или HTTP в Git access protocols в админке GitLab или добавьте platform SSH public key, показанный на Connections.',
+    'Git clone и push по умолчанию используют HTTPS с вашим token. Если GitLab блокирует HTTP(S) git, включите Both или HTTP в Git access protocols в админке GitLab или добавьте platform SSH public key, показанный на Connections. Forge-токены и SSH-ключи остаются у доверенного процесса оркестрации worker и не передаются процессу AI-агента.',
   'howItWorks.workflows.heading': 'Типичные forge workflows',
   'howItWorks.workflows.implement.heading': 'Внести изменение',
   'howItWorks.workflows.implement.step1': 'На странице репозитория подтвердите целевую ветку (и при необходимости force-push).',

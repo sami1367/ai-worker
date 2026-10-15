@@ -31,10 +31,21 @@ Configuration templates: `github-projects.conf.example`, `gitlab-projects.conf.e
 
 In Docker Compose, `scripts/worker-entrypoint.sh` syncs this tree into `/data/config` and sets `AI_WORKER_BASE_DIR` there. PostgreSQL (via the web app) is the authoritative source for repository settings; conf files are an atomic export for the Bash parser.
 
+## AI agent isolation
+
+Agents run under `lib/ai-isolation.sh` (wired from `lib/ai.sh` / provider runners):
+
+1. **AGENT** — sanitized environment; optional bubblewrap masks credential files and confines writes to the assigned workspace.
+2. **VALIDATE** — runner inspects diffs / artifacts (no agent shell).
+3. **PUBLISH** — runner commits, pushes, opens PR/MR, posts comments with forge credentials.
+
+See `docs/SECURITY.md` for the threat model, `AI_ISOLATION_MODE`, and limitations. Prompt text alone is not the security boundary.
+
 ## Tests
 
 ```bash
 bash tests/related-tasks.sh
+bash tests/agent-isolation.sh
 # or from repo root:
 pnpm test:worker
 ```
