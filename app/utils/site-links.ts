@@ -21,6 +21,7 @@ export const SITE = {
   copyrightHolder: 'Sami Rahimi',
   copyrightYear: 2026,
   repositoryUrl: 'https://github.com/sami1367/ai-worker',
+  docsUrl: 'http://vibeplus1.com/ai-worker',
   licenseUrl: 'https://github.com/sami1367/ai-worker/blob/main/LICENSE',
   licenseSpdx: 'Apache-2.0',
   licenseName: 'Apache License 2.0',
@@ -34,6 +35,11 @@ export const CONTACT_LINKS: SiteLink[] = [
     id: 'github',
     label: 'GitHub repository',
     href: SITE.repositoryUrl,
+  },
+  {
+    id: 'docs',
+    label: 'Documentation',
+    href: SITE.docsUrl,
   },
   {
     id: 'email',

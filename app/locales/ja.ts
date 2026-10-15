@@ -37,6 +37,7 @@ export const ja: Messages = {
 
   'footer.howItWorks': '使い方',
   'footer.about': '概要',
+  'footer.docs': 'ドキュメント',
   'footer.repository': 'リポジトリ',
   'footer.license': 'ライセンス',
   'footer.contact': '連絡先',

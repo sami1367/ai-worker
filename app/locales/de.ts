@@ -37,6 +37,7 @@ export const de: Messages = {
 
   'footer.howItWorks': 'So funktioniert\'s',
   'footer.about': 'Über',
+  'footer.docs': 'Dokumentation',
   'footer.repository': 'Repository',
   'footer.license': 'Lizenz',
   'footer.contact': 'Kontakt',

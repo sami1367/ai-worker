@@ -37,6 +37,7 @@ export const tr: Messages = {
 
   'footer.howItWorks': 'Nasıl çalışır',
   'footer.about': 'Hakkında',
+  'footer.docs': 'Belgeler',
   'footer.repository': 'Depo',
   'footer.license': 'Lisans',
   'footer.contact': 'İletişim',

@@ -36,6 +36,7 @@ export const en = {
 
   'footer.howItWorks': 'How it works',
   'footer.about': 'About',
+  'footer.docs': 'Docs',
   'footer.repository': 'Repository',
   'footer.license': 'License',
   'footer.contact': 'Contact',

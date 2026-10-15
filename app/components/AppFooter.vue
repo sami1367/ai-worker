@@ -33,6 +33,14 @@ const appVersion = computed(() => String(config.public.appVersion || '').trim())
           {{ t('footer.about') }}
         </NuxtLink>
         <a
+          :href="SITE.docsUrl"
+          class="underline-offset-2 hover:underline hover:opacity-100"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {{ t('footer.docs') }}
+        </a>
+        <a
           :href="SITE.repositoryUrl"
           class="underline-offset-2 hover:underline hover:opacity-100"
           rel="noopener noreferrer"

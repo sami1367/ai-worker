@@ -37,6 +37,7 @@ export const ru: Messages = {
 
   'footer.howItWorks': 'Как это работает',
   'footer.about': 'О продукте',
+  'footer.docs': 'Документация',
   'footer.repository': 'Репозиторий',
   'footer.license': 'Лицензия',
   'footer.contact': 'Контакт',

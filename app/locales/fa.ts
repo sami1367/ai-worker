@@ -37,6 +37,7 @@ export const fa: Messages = {
 
   'footer.howItWorks': 'نحوه کار',
   'footer.about': 'درباره',
+  'footer.docs': 'مستندات',
   'footer.repository': 'مخزن',
   'footer.license': 'مجوز',
   'footer.contact': 'تماس',

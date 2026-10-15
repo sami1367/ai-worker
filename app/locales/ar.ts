@@ -37,6 +37,7 @@ export const ar: Messages = {
 
   'footer.howItWorks': 'كيف يعمل',
   'footer.about': 'حول',
+  'footer.docs': 'التوثيق',
   'footer.repository': 'المستودع',
   'footer.license': 'الترخيص',
   'footer.contact': 'تواصل',

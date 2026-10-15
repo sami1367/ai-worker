@@ -37,6 +37,7 @@ export const hi: Messages = {
 
   'footer.howItWorks': 'यह कैसे काम करता है',
   'footer.about': 'परिचय',
+  'footer.docs': 'दस्तावेज़',
   'footer.repository': 'रिपॉज़िटरी',
   'footer.license': 'लाइसेंस',
   'footer.contact': 'संपर्क',
