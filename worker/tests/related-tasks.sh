@@ -31,7 +31,8 @@ cat > "$BASE_DIR/github-projects.conf" <<EOF
     "name": "billing",
     "path": "$TMP/billing",
     "block_on_open_pr": false,
-    "default_branch": "master"
+    "default_branch": "master",
+    "force_push_to_default": true
   }
 ]
 EOF
@@ -72,6 +73,8 @@ billing_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "bill
     || fail "billing should disable block_on_open_pr"
 [[ "$(ai_project_default_branch "$billing_entry")" == "master" ]] \
     || fail "billing default_branch should be master"
+[[ "$(ai_project_entry_bool "$billing_entry" "force_push_to_default" 0)" == "1" ]] \
+    || fail "billing should enable force_push_to_default"
 
 api_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "api")" \
     || fail "resolve api entry"
@@ -79,6 +82,8 @@ api_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "api")" \
     || fail "api should keep block_on_open_pr enabled"
 [[ "$(ai_project_default_branch "$api_entry")" == "main" ]] \
     || fail "api should default to main when default_branch omitted"
+[[ "$(ai_project_entry_bool "$api_entry" "force_push_to_default" 0)" == "0" ]] \
+    || fail "api should default force_push_to_default off when omitted"
 
 bale_entry="$(ai_resolve_project_entry "$BASE_DIR/gitlab-projects.conf" "bale-service")" \
     || fail "resolve bale-service entry"

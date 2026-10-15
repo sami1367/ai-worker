@@ -55,7 +55,9 @@ fi
 
 ai_init || exit 1
 
-PROJECT_DIR="$(ai_resolve_project_dir "$PROJECTS_FILE" "$PROJECT")"
+PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
+PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
+DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
 
 if [[ -z "$PROJECT_DIR" ]] || ! ai_validate_project_dir "$PROJECT" "$PROJECT_DIR"; then
     echo "ERROR: Invalid or unregistered project: $PROJECT"
@@ -99,15 +101,15 @@ cleanup() {
             git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true
         )"
 
-        if [[ "$current_branch" != "main" ]]; then
+        if [[ "$current_branch" != "$DEFAULT_BRANCH" ]]; then
             if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
-                echo "Discarding remaining task changes before returning to main..."
+                echo "Discarding remaining task changes before returning to $DEFAULT_BRANCH..."
                 git -C "$PROJECT_DIR" reset --hard HEAD || true
                 git -C "$PROJECT_DIR" clean -fd || true
             fi
 
-            echo "Checking out main..."
-            git -C "$PROJECT_DIR" checkout main || true
+            echo "Checking out $DEFAULT_BRANCH..."
+            git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH" || true
         fi
     fi
 
@@ -149,10 +151,7 @@ echo "AI provider:   $AI_PROVIDER_NAME ($AI_PROVIDER)"
 echo "Main log:      $LOG_FILE"
 echo "============================================================"
 
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-    echo "ERROR: Repository has uncommitted changes before starting."
-    exit 10
-fi
+ai_discard_local_changes "$PROJECT_DIR"
 
 REPO="$(
     cd "$PROJECT_DIR"

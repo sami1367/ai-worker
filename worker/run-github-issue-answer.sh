@@ -62,7 +62,9 @@ ai_init || exit 1
 # Resolve project
 # ============================================================
 
-PROJECT_DIR="$(ai_resolve_project_dir "$PROJECTS_FILE" "$PROJECT")"
+PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
+PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
+DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"
@@ -119,9 +121,9 @@ cleanup() {
         current_branch="$(
             git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true
         )"
-        if [[ "$current_branch" != "main" ]]; then
-            echo "Checking out main..."
-            git -C "$PROJECT_DIR" checkout main || true
+        if [[ "$current_branch" != "$DEFAULT_BRANCH" ]]; then
+            echo "Checking out $DEFAULT_BRANCH..."
+            git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH" || true
         fi
     fi
 
@@ -184,33 +186,11 @@ ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 
 # ============================================================
-# Fresh environment: clean checkout of up-to-date main
+# Fresh environment: clean checkout of up-to-date default branch
 # ============================================================
 
-echo
-echo "Preparing fresh workspace from origin/main..."
-
-git -C "$PROJECT_DIR" fetch --prune origin
-
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
-    echo "Discarding leftover local changes before starting..."
-    git -C "$PROJECT_DIR" status --short || true
-    git -C "$PROJECT_DIR" reset --hard HEAD || true
-    git -C "$PROJECT_DIR" clean -fd || true
-fi
-
-git -C "$PROJECT_DIR" checkout main
-git -C "$PROJECT_DIR" reset --hard origin/main
-
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-    echo
-    echo "ERROR: main is not clean after fresh prepare."
-    git -C "$PROJECT_DIR" status --short
-    exit 12
-fi
-
-echo "Fresh workspace ready on main ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
-printf 'branch=main\n' >> "$STATE_FILE"
+ai_prepare_fresh_branch "$PROJECT_DIR" "$DEFAULT_BRANCH" || exit $?
+printf 'branch=%s\n' "$DEFAULT_BRANCH" >> "$STATE_FILE"
 
 # ============================================================
 # Read GitHub issue

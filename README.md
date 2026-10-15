@@ -14,11 +14,17 @@ AI Worker is designed for teams that want automation **on their own infrastructu
 
 ---
 
+## Self-hosted on your infrastructure
+
+AI Worker is **fully self-hosted**. You install and run it on hardware you control—your laptop, a workstation, or a dedicated server. Your repositories, credentials, and agent runs stay on your side of the firewall. There is no mandatory third-party hosted agent cloud.
+
+You *can* run it on a personal computer. For the **best day-to-day experience**, we recommend a small always-on server (VPS or private cloud). The worker stays online around the clock, so you can label issues or merge requests from your phone—or any device—and automation continues even when your laptop is closed, asleep, or powered off. Your computer becomes optional; your AI workflow does not.
+
+---
+
 ## Commercial Services
 
-AI Worker is **self-hosted**. You run it on your servers (or private cloud) and connect it to your GitHub or GitLab instance with your own AI provider credentials.
-
-For organizations—especially those using **GitLab Self-Managed**—paid professional services are available on request:
+For organizations that want help deploying or operating a self-hosted setup—especially those using **GitLab Self-Managed**—paid professional services are available on request:
 
 - **Installation and deployment** — production-oriented Docker Compose setup, networking, and operational handoff
 - **Security hardening** — secret handling, access controls, and alignment with your environment’s security practices

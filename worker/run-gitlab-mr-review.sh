@@ -64,7 +64,9 @@ ai_init || exit 1
 # Resolve project
 # ============================================================
 
-PROJECT_DIR="$(ai_resolve_project_dir "$PROJECTS_FILE" "$PROJECT")"
+PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
+PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
+DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"
@@ -133,7 +135,7 @@ cleanup() {
     if git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 
         if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
-            echo "Discarding local changes before returning to main..."
+            echo "Discarding local changes before returning to $DEFAULT_BRANCH..."
             git -C "$PROJECT_DIR" status --short || true
             git -C "$PROJECT_DIR" reset --hard HEAD || true
             git -C "$PROJECT_DIR" clean -fd || true
@@ -143,10 +145,10 @@ cleanup() {
             git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true
         )"
 
-        if [[ "$current_branch" != "main" ]]; then
+        if [[ "$current_branch" != "$DEFAULT_BRANCH" ]]; then
             echo
-            echo "Checking out main..."
-            git -C "$PROJECT_DIR" checkout main || true
+            echo "Checking out $DEFAULT_BRANCH..."
+            git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH" || true
         fi
     fi
 
@@ -197,15 +199,10 @@ echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "============================================================"
 
 # ============================================================
-# Repository must start clean
+# Start from a clean workspace (discard leftovers from prior runs)
 # ============================================================
 
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-    echo
-    echo "ERROR: Repository has uncommitted/untracked changes before starting."
-    git -C "$PROJECT_DIR" status --short
-    exit 10
-fi
+ai_discard_local_changes "$PROJECT_DIR"
 
 # ============================================================
 # Determine GitLab project path

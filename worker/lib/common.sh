@@ -125,7 +125,7 @@ ai_detect_cursor() {
 
 # Emit one JSON object per registered project (NDJSON).
 # Fields: name, path, block_on_open_pr (bool; default true), default_branch (default main),
-# optional custom_prompt.
+# force_push_to_default (bool; default false), optional custom_prompt.
 # File must be a JSON array of objects. Leading blank/# comment lines are allowed.
 ai_list_project_entries() {
     local projects_file="$1"
@@ -185,6 +185,15 @@ ai_list_project_entries() {
                   elif (tostring | ascii_downcase) == "no" then false
                   elif (tostring | ascii_downcase) == "off" then false
                   else true end
+            ),
+            force_push_to_default: (
+                (if has("force_push_to_default") then .force_push_to_default else false end)
+                | if type == "boolean" then .
+                  elif (tostring | ascii_downcase) == "true" then true
+                  elif tostring == "1" then true
+                  elif (tostring | ascii_downcase) == "yes" then true
+                  elif (tostring | ascii_downcase) == "on" then true
+                  else false end
             ),
             full_name: (.full_name // .repo // "" | tostring),
             remote_url: (.remote_url // "" | tostring),
@@ -364,6 +373,84 @@ ai_validate_project_dir() {
     return 0
 }
 
+# Discard uncommitted and untracked files in a workspace (best-effort).
+# Usage: ai_discard_local_changes <project_dir>
+ai_discard_local_changes() {
+    local project_dir="$1"
+
+    if [[ -z "$project_dir" ]]; then
+        return 1
+    fi
+
+    if [[ -n "$(git -C "$project_dir" status --porcelain 2>/dev/null)" ]]; then
+        echo "Discarding leftover local changes..."
+        git -C "$project_dir" status --short || true
+        git -C "$project_dir" reset --hard HEAD || true
+        git -C "$project_dir" clean -fd || true
+    fi
+}
+
+# Fetch a branch with an explicit refspec (needed for --single-branch clones),
+# check it out, and hard-reset so the workspace matches origin/<branch> exactly.
+# Removes uncommitted changes and any local commits that diverge from origin.
+#
+# Usage: ai_prepare_fresh_branch <project_dir> <branch>
+# Returns 12 if workspace is not on a clean checkout of <branch>;
+# returns 13 if the branch is missing on origin.
+ai_prepare_fresh_branch() {
+    local project_dir="$1"
+    local branch="$2"
+    local current
+
+    if [[ -z "$project_dir" || -z "$branch" ]]; then
+        echo "ERROR: ai_prepare_fresh_branch requires project_dir and branch"
+        return 12
+    fi
+
+    echo
+    echo "Preparing fresh workspace from origin/$branch..."
+
+    ai_discard_local_changes "$project_dir"
+
+    echo "Fetching origin..."
+    git -C "$project_dir" fetch --prune origin
+
+    # Explicit refspec: required when the workspace was cloned with --single-branch
+    # under a different default (e.g. main) and the configured target is now test.
+    echo "Fetching branch from origin: $branch"
+    if ! git -C "$project_dir" fetch origin \
+        "+refs/heads/${branch}:refs/remotes/origin/${branch}"; then
+        echo "ERROR: Could not fetch origin/${branch}"
+        return 13
+    fi
+
+    if ! git -C "$project_dir" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+        echo "ERROR: Branch not found on origin: $branch"
+        return 13
+    fi
+
+    # -B creates or resets the local branch tip to match origin exactly.
+    git -C "$project_dir" checkout -B "$branch" "origin/$branch"
+    git -C "$project_dir" reset --hard "origin/$branch"
+    git -C "$project_dir" clean -fd || true
+
+    current="$(git -C "$project_dir" branch --show-current 2>/dev/null || true)"
+    if [[ "$current" != "$branch" ]]; then
+        echo "ERROR: Expected current branch '$branch', got '${current:-detached}'"
+        return 12
+    fi
+
+    if [[ -n "$(git -C "$project_dir" status --porcelain)" ]]; then
+        echo
+        echo "ERROR: $branch is not clean after fresh prepare."
+        git -C "$project_dir" status --short
+        return 12
+    fi
+
+    echo "Fresh workspace ready on $branch ($(git -C "$project_dir" rev-parse --short HEAD))"
+    return 0
+}
+
 # Fetch and check out a PR/MR source branch for implement/review runners.
 #
 # Managed workspaces are cloned with --single-branch, so remote.origin.fetch only
@@ -371,6 +458,8 @@ ai_validate_project_dir() {
 # refs/remotes/origin/<branch>, and a plain `git fetch --prune origin` never
 # learns about task branches — review then fails with exit 13 even though the
 # branch exists on the forge (and the MR/PR was opened from it).
+#
+# Always discards uncommitted workspace changes first so each run starts clean.
 #
 # Usage: ai_fetch_and_checkout_source_branch <project_dir> <source_branch>
 # Returns 13 if the branch is not on origin and not present locally.
@@ -384,6 +473,9 @@ ai_fetch_and_checkout_source_branch() {
     fi
 
     echo
+    echo "Preparing clean checkout of source branch: $source_branch"
+    ai_discard_local_changes "$project_dir"
+
     echo "Fetching origin..."
     git -C "$project_dir" fetch --prune origin
 
@@ -398,12 +490,15 @@ ai_fetch_and_checkout_source_branch() {
     echo "Checking out source branch: $source_branch"
     if git -C "$project_dir" show-ref --verify --quiet "refs/remotes/origin/$source_branch"; then
         git -C "$project_dir" checkout -B "$source_branch" "origin/$source_branch"
+        git -C "$project_dir" reset --hard "origin/$source_branch"
+        git -C "$project_dir" clean -fd || true
         return 0
     fi
 
     if git -C "$project_dir" show-ref --verify --quiet "refs/heads/$source_branch"; then
         git -C "$project_dir" checkout "$source_branch"
         git -C "$project_dir" pull --ff-only origin "$source_branch" || true
+        git -C "$project_dir" clean -fd || true
         return 0
     fi
 

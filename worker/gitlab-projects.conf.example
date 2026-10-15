@@ -11,6 +11,9 @@
 #                      those labels do not block. Set false to allow new
 #                      issues even with AI-labeled open MRs.
 #                      (ai-working issues and a running agent still block.)
+#   default_branch — MR target branch (default main).
+#   force_push_to_default — if true, force-push to default_branch instead of
+#                      opening a merge request. Default false (off).
 #
 # The name is what related-service detection matches in project docs.
 # Use the same name the documentation uses for that service.
@@ -20,11 +23,14 @@
   {
     "name": "my-service",
     "path": "/home/ubuntu/dev/my-service",
-    "block_on_open_pr": true
+    "block_on_open_pr": true,
+    "default_branch": "main",
+    "force_push_to_default": false
   },
   {
     "name": "other-service",
     "path": "/home/ubuntu/dev/other-service",
-    "block_on_open_pr": false
+    "block_on_open_pr": false,
+    "force_push_to_default": true
   }
 ]

@@ -40,6 +40,7 @@ interface ConfEntry {
   name: string
   path: string
   block_on_open_pr?: boolean
+  force_push_to_default?: boolean
 }
 
 async function parseConf(path: string): Promise<ConfEntry[]> {
@@ -55,6 +56,7 @@ async function parseConf(path: string): Promise<ConfEntry[]> {
       name,
       path: localPath,
       block_on_open_pr: (row as any).block_on_open_pr !== false,
+      force_push_to_default: (row as any).force_push_to_default === true,
     }
   })
 }
@@ -129,6 +131,7 @@ async function main() {
         workspaceId: newWorkspaceId(),
         localPath: entry.path,
         blockOnOpenPr: entry.block_on_open_pr !== false,
+        forcePushToDefault: entry.force_push_to_default === true,
         isEnabled: false,
         healthStatus: 'unknown',
         healthMessage: 'Imported from conf; set real remote URL and test before enabling',
