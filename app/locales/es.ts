@@ -60,11 +60,13 @@ export const es: Messages = {
     'El clone y el push de Git usan HTTPS con tu token por defecto. Si GitLab bloquea git por HTTP(S), habilita Both o HTTP en los protocolos de acceso Git de la administración de GitLab, o añade la clave pública SSH de la plataforma que se muestra en Connections.',
   'howItWorks.workflows.heading': 'Flujos habituales en el forge',
   'howItWorks.workflows.implement.heading': 'Implementar un cambio',
-  'howItWorks.workflows.implement.step1': 'Abre un issue (o un PR/MR abierto) con un título y una descripción claros.',
-  'howItWorks.workflows.implement.step2': 'Añade la label ai.',
-  'howItWorks.workflows.implement.step3': 'Observa el cambio de labels: ai → ai-working → ai-pr (o ai-failed).',
-  'howItWorks.workflows.implement.step4':
-    'Revisa la rama y el PR/MR que el worker abrió o actualizó, y luego haz merge como de costumbre.',
+  'howItWorks.workflows.implement.step1':
+    'Confirma la rama destino del repositorio (y la opción opcional de force-push) en la página del repositorio.',
+  'howItWorks.workflows.implement.step2': 'Abre un issue (o un PR/MR abierto) con título y descripción claros.',
+  'howItWorks.workflows.implement.step3': 'Añade la etiqueta ai.',
+  'howItWorks.workflows.implement.step4': 'Observa las etiquetas: ai → ai-working → ai-pr (o ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'Revisa el PR/MR que abrió el worker o — si force-push está activo — los commits en la rama destino y el comentario del issue.',
   'howItWorks.workflows.qa.heading': 'Hacer una pregunta (sin cambios de código)',
   'howItWorks.workflows.qa.step1': 'Abre un issue con tu pregunta.',
   'howItWorks.workflows.qa.step2': 'Añade ai y no-change.',
@@ -75,6 +77,15 @@ export const es: Messages = {
   'howItWorks.workflows.review.step2': 'Añade la label ai-review.',
   'howItWorks.workflows.review.step3': 'Observa las labels: ai-review → ai-reviewing → ai-reviewed (o ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Lee el comentario de revisión en el PR/MR.',
+  'howItWorks.repoOptions.heading': 'Opciones del repositorio',
+  'howItWorks.repoOptions.intro':
+    'En cada página de repositorio controlas desde qué rama arrancan los trabajos y cómo se publican los resultados de implementación.',
+  'howItWorks.repoOptions.targetBranch':
+    'Rama destino de PR/MR — base de nuevos pull/merge requests (por ejemplo main, master o develop). También es el checkout limpio de cada ejecución.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Checkout limpio — antes de cada trabajo el worker hace fetch de origin/<rama destino>, hard-reset a esa punta y descarta cambios sin commit en el workspace.',
+  'howItWorks.repoOptions.forcePush':
+    'Force-push a la rama destino (omitir PR/MR) — desactivado por defecto. Si se activa, la implementación hace force-push a la rama destino en lugar de abrir un PR/MR y deja un comentario en el issue. Sobrescribe la rama remota; úsalo con cuidado.',
   'howItWorks.labels.heading': 'Referencia de labels',
   'howItWorks.labels.intro':
     'Normalmente solo añades ai, ai + no-change, o ai-review. El worker gestiona las labels de estado.',
@@ -83,7 +94,8 @@ export const es: Messages = {
   'howItWorks.labels.ai': 'Encola implementación, o preguntas y respuestas si se combina con no-change',
   'howItWorks.labels.noChange': 'Con ai: solo responde — sin rama ni PR/MR',
   'howItWorks.labels.aiWorking': 'Implementación o preguntas y respuestas en curso',
-  'howItWorks.labels.aiPr': 'Implementación terminada; PR/MR creado o actualizado',
+  'howItWorks.labels.aiPr':
+    'Implementación terminada; PR/MR creado o actualizado (o force-push a la rama destino si esa opción está activa)',
   'howItWorks.labels.aiAnswered': 'Preguntas y respuestas terminadas; respuesta publicada como comentario',
   'howItWorks.labels.aiFailed': 'Falló la implementación o las preguntas y respuestas — revisa tasks o los logs',
   'howItWorks.labels.aiReview': 'Encola una revisión con IA en un PR/MR abierto',
@@ -98,6 +110,8 @@ export const es: Messages = {
     'Para reintentar tras un fallo, corrige el issue si hace falta y vuelve a añadir ai o ai-review.',
   'howItWorks.tips.item4':
     'Las labels se crean automáticamente al registrar un repo; también puedes ejecutar Setup labels en la página del repositorio.',
+  'howItWorks.tips.item5':
+    'Configura la rama destino en la página del repositorio antes de los trabajos de implementación. Deja force-push desactivado salvo que quieras empujar directamente a esa rama.',
   'howItWorks.panel.heading': 'Trabajar en este panel',
   'howItWorks.panel.intro':
     'Usa el panel para conectar forges y proveedores de IA, habilitar repositorios, ajustar prompts y settings, y supervisar tasks. El trabajo diario de programación sigue haciéndose con labels en GitHub o GitLab.',
@@ -112,7 +126,7 @@ export const es: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — uso de IA, métricas del worker y ejecuciones recientes.',
   'howItWorks.panel.pages.connections': 'Connections — tokens del forge, descubrimiento, webhooks y la clave pública SSH opcional.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — registrar, habilitar/deshabilitar, estado del clone, proveedor y prompts por repo.',
+    'Repositories — registrar, activar/desactivar, estado de clon, rama destino, force-push opcional, proveedor y prompts por repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — cola en vivo del forge e historial de ejecuciones de implementación, revisión y trabajos relacionados.',
   'howItWorks.panel.pages.providers':

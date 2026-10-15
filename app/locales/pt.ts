@@ -60,10 +60,13 @@ export const pt: Messages = {
     'Git clone e push usam HTTPS com seu token por padrão. Se o GitLab bloquear git via HTTP(S), habilite Both ou HTTP em Git access protocols no admin do GitLab, ou adicione a chave pública SSH da plataforma mostrada em Connections.',
   'howItWorks.workflows.heading': 'Fluxos comuns no forge',
   'howItWorks.workflows.implement.heading': 'Implementar uma mudança',
-  'howItWorks.workflows.implement.step1': 'Abra uma issue (ou um PR/MR aberto) com título e descrição claros.',
-  'howItWorks.workflows.implement.step2': 'Adicione a label ai.',
-  'howItWorks.workflows.implement.step3': 'Acompanhe as labels: ai → ai-working → ai-pr (ou ai-failed).',
-  'howItWorks.workflows.implement.step4': 'Revise o branch e o PR/MR que o worker abriu ou atualizou e faça o merge normalmente.',
+  'howItWorks.workflows.implement.step1':
+    'Confirme o branch de destino do repositório (e a opção opcional de force-push) na página do repositório.',
+  'howItWorks.workflows.implement.step2': 'Abra um issue (ou um PR/MR aberto) com título e descrição claros.',
+  'howItWorks.workflows.implement.step3': 'Adicione o label ai.',
+  'howItWorks.workflows.implement.step4': 'Acompanhe os labels: ai → ai-working → ai-pr (ou ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'Revise o PR/MR que o worker abriu ou — se o force-push estiver ativo — os commits no branch de destino e o comentário no issue.',
   'howItWorks.workflows.qa.heading': 'Fazer uma pergunta (sem alterações de código)',
   'howItWorks.workflows.qa.step1': 'Abra uma issue com a sua pergunta.',
   'howItWorks.workflows.qa.step2': 'Adicione ai e no-change.',
@@ -74,6 +77,15 @@ export const pt: Messages = {
   'howItWorks.workflows.review.step2': 'Adicione a label ai-review.',
   'howItWorks.workflows.review.step3': 'Acompanhe as labels: ai-review → ai-reviewing → ai-reviewed (ou ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Leia o comentário de revisão no PR/MR.',
+  'howItWorks.repoOptions.heading': 'Opções do repositório',
+  'howItWorks.repoOptions.intro':
+    'Em cada página de repositório você controla de qual branch os jobs começam e como os resultados de implementação são publicados.',
+  'howItWorks.repoOptions.targetBranch':
+    'Branch de destino do PR/MR — base de novos pull/merge requests (por exemplo main, master ou develop). Também é o checkout limpo de cada execução.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Checkout limpo — antes de cada job o worker faz fetch de origin/<branch de destino>, hard-reset para esse tip e descarta mudanças não commitadas no workspace.',
+  'howItWorks.repoOptions.forcePush':
+    'Force-push para o branch de destino (pular PR/MR) — desligado por padrão. Quando ativo, a implementação faz force-push no branch de destino em vez de abrir um PR/MR e comenta no issue. Sobrescreve o branch remoto; use com cuidado.',
   'howItWorks.labels.heading': 'Referência de labels',
   'howItWorks.labels.intro':
     'Normalmente você só adiciona ai, ai + no-change ou ai-review. O worker gerencia as labels de status.',
@@ -82,7 +94,8 @@ export const pt: Messages = {
   'howItWorks.labels.ai': 'Enfileira implementação, ou Q&A quando combinado com no-change',
   'howItWorks.labels.noChange': 'Com ai: apenas responde — sem branch e sem PR/MR',
   'howItWorks.labels.aiWorking': 'Implementação ou Q&A em andamento',
-  'howItWorks.labels.aiPr': 'Implementação concluída; PR/MR criado ou atualizado',
+  'howItWorks.labels.aiPr':
+    'Implementação concluída; PR/MR criado ou atualizado (ou force-push no branch de destino quando essa opção está ligada)',
   'howItWorks.labels.aiAnswered': 'Q&A concluído; resposta publicada como comentário',
   'howItWorks.labels.aiFailed': 'Implementação ou Q&A falhou — verifique tasks ou logs',
   'howItWorks.labels.aiReview': 'Enfileira uma revisão por IA em um PR/MR aberto',
@@ -96,6 +109,8 @@ export const pt: Messages = {
     'Para tentar de novo após falha, corrija a issue se necessário e adicione ai ou ai-review novamente.',
   'howItWorks.tips.item4':
     'As labels são criadas automaticamente quando um repo é registrado; você também pode executar Setup labels na página do repositório.',
+  'howItWorks.tips.item5':
+    'Defina o branch de destino na página do repositório antes dos jobs de implementação. Deixe o force-push desligado a menos que queira enviar diretamente para esse branch.',
   'howItWorks.panel.heading': 'Trabalhando neste painel',
   'howItWorks.panel.intro':
     'Use o painel para conectar forges e provedores de IA, habilitar repositórios, ajustar prompts e configurações e monitorar tasks. O trabalho de código do dia a dia continua com labels no GitHub ou GitLab.',
@@ -110,7 +125,7 @@ export const pt: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — uso de IA, métricas do worker e execuções recentes.',
   'howItWorks.panel.pages.connections': 'Connections — tokens do forge, descoberta, webhooks e a chave pública SSH opcional.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — registrar, habilitar/desabilitar, status de clone, provedor e prompts por repo.',
+    'Repositories — registrar, ativar/desativar, status do clone, branch de destino, force-push opcional, provedor e prompts por repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — fila ao vivo do forge e histórico de execução para implementação, revisão e jobs relacionados.',
   'howItWorks.panel.pages.providers': 'Providers — credenciais Cursor / Claude, habilitação, health checks e padrão.',

@@ -60,11 +60,12 @@ export const hi: Messages = {
     'Git clone और push डिफ़ॉल्ट रूप से आपके token के साथ HTTPS उपयोग करते हैं। यदि GitLab HTTP(S) git को ब्लॉक करता है, तो GitLab admin में Git access protocols पर Both या HTTP सक्षम करें, या Connections पर दिखाया गया platform SSH public key जोड़ें।',
   'howItWorks.workflows.heading': 'सामान्य forge workflows',
   'howItWorks.workflows.implement.heading': 'कोई बदलाव लागू करें',
-  'howItWorks.workflows.implement.step1': 'स्पष्ट title और description के साथ कोई issue (या खुला PR/MR) खोलें।',
-  'howItWorks.workflows.implement.step2': 'ai label जोड़ें।',
-  'howItWorks.workflows.implement.step3': 'labels का क्रम देखें: ai → ai-working → ai-pr (या ai-failed)।',
-  'howItWorks.workflows.implement.step4':
-    'worker द्वारा खोली या अपडेट की गई branch और PR/MR की समीक्षा करें, फिर सामान्य रूप से merge करें।',
+  'howItWorks.workflows.implement.step1': 'repository पृष्ठ पर target branch (और वैकल्पिक force-push सेटिंग) की पुष्टि करें।',
+  'howItWorks.workflows.implement.step2': 'स्पष्ट title और description वाला issue (या खुला PR/MR) खोलें।',
+  'howItWorks.workflows.implement.step3': 'ai लेबल जोड़ें।',
+  'howItWorks.workflows.implement.step4': 'लेबल देखें: ai → ai-working → ai-pr (या ai-failed)।',
+  'howItWorks.workflows.implement.step5':
+    'worker द्वारा खोले गए PR/MR की समीक्षा करें, या — अगर force-push ऑन है — target branch के commits और issue comment देखें।',
   'howItWorks.workflows.qa.heading': 'प्रश्न पूछें (कोड में कोई बदलाव नहीं)',
   'howItWorks.workflows.qa.step1': 'अपने प्रश्न के साथ कोई issue खोलें।',
   'howItWorks.workflows.qa.step2': 'ai और no-change दोनों जोड़ें।',
@@ -75,6 +76,15 @@ export const hi: Messages = {
   'howItWorks.workflows.review.step2': 'ai-review label जोड़ें।',
   'howItWorks.workflows.review.step3': 'labels देखें: ai-review → ai-reviewing → ai-reviewed (या ai-review-failed)।',
   'howItWorks.workflows.review.step4': 'PR/MR पर review comment पढ़ें।',
+  'howItWorks.repoOptions.heading': 'Repository विकल्प',
+  'howItWorks.repoOptions.intro':
+    'प्रत्येक repository पृष्ठ पर आप नियंत्रित करते हैं कि jobs किस branch से शुरू हों और implement परिणाम कैसे प्रकाशित हों।',
+  'howItWorks.repoOptions.targetBranch':
+    'PR / MR target branch — नए pull/merge requests का आधार (जैसे main, master, या develop)। प्रत्येक रन के साफ़ checkout के लिए भी उपयोग होता है।',
+  'howItWorks.repoOptions.freshCheckout':
+    'ताज़ा checkout — हर job से पहले worker origin/<target branch> fetch करता है, hard-reset करता है, और workspace के uncommitted बदलाव हटाता है।',
+  'howItWorks.repoOptions.forcePush':
+    'Target branch पर force-push (PR/MR छोड़ें) — डिफ़ॉल्ट बंद। ऑन होने पर issue implement PR/MR खोले बिना target branch पर force-push करता है और issue पर comment करता है। Remote branch ओवरराइट होती है; सावधानी से उपयोग करें।',
   'howItWorks.labels.heading': 'Label संदर्भ',
   'howItWorks.labels.intro':
     'आमतौर पर आप केवल ai, ai + no-change, या ai-review जोड़ते हैं। status labels worker संभालता है।',
@@ -83,7 +93,7 @@ export const hi: Messages = {
   'howItWorks.labels.ai': 'implement कतार में लगाएँ, या no-change के साथ मिलाने पर Q&A',
   'howItWorks.labels.noChange': 'ai के साथ: केवल उत्तर — कोई branch और कोई PR/MR नहीं',
   'howItWorks.labels.aiWorking': 'Implement या Q&A प्रगति में है',
-  'howItWorks.labels.aiPr': 'Implement पूरा; PR/MR बनाया या अपडेट किया गया',
+  'howItWorks.labels.aiPr': 'Implement पूरा; PR/MR बनाया या अपडेट किया गया (या विकल्प ऑन होने पर target branch पर force-push)',
   'howItWorks.labels.aiAnswered': 'Q&A पूरा; उत्तर comment के रूप में पोस्ट किया गया',
   'howItWorks.labels.aiFailed': 'Implement या Q&A विफल — tasks या logs जाँचें',
   'howItWorks.labels.aiReview': 'खुले PR/MR पर AI review कतार में लगाएँ',
@@ -97,6 +107,8 @@ export const hi: Messages = {
     'विफलता के बाद पुनः प्रयास के लिए, ज़रूरत हो तो issue ठीक करें, फिर फिर से ai या ai-review जोड़ें।',
   'howItWorks.tips.item4':
     'repo पंजीकृत होने पर labels स्वचालित रूप से बनते हैं; आप repository पृष्ठ पर Setup labels भी चला सकते हैं।',
+  'howItWorks.tips.item5':
+    'Implement jobs से पहले repository पृष्ठ पर target branch सेट करें। जब तक आप सीधे उस branch पर push नहीं चाहते, force-push बंद रखें।',
   'howItWorks.panel.heading': 'इस पैनल में काम करना',
   'howItWorks.panel.intro':
     'forges और AI providers कनेक्ट करने, repositories सक्षम करने, prompts और settings ट्यून करने, तथा tasks की निगरानी करने के लिए पैनल का उपयोग करें। रोज़मर्रा का कोडिंग काम अब भी GitHub या GitLab में labels से होता है।',
@@ -111,7 +123,8 @@ export const hi: Messages = {
   'howItWorks.panel.pages.heading': 'प्रत्येक पृष्ठ किस लिए है',
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI उपयोग, worker मेट्रिक्स, और हाल के runs।',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks, और वैकल्पिक SSH public key।',
-  'howItWorks.panel.pages.repositories': 'Repositories — पंजीकरण, सक्षम/अक्षम, clone स्थिति, प्रति-repo provider और prompts।',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — पंजीकरण, सक्षम/अक्षम, clone स्थिति, target branch, वैकल्पिक force-push, प्रति-repo provider और prompts।',
   'howItWorks.panel.pages.tasks': 'Tasks — implement, review और संबंधित जॉब्स के लिए लाइव forge queue और run इतिहास।',
   'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, सक्षमता, health checks, और default।',
   'howItWorks.panel.pages.prompts': 'Prompts — worker द्वारा उपयोग किए जाने वाले वैश्विक templates और snippets।',

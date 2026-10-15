@@ -60,10 +60,12 @@ export const ar: Messages = {
     'عمليات Git clone و push تستخدم HTTPS مع الرمز افتراضيًا. إذا منع GitLab git عبر HTTP(S)، فعّل Both أو HTTP في Git access protocols ضمن إدارة GitLab، أو أضف مفتاح SSH العام للمنصة المعروض في Connections.',
   'howItWorks.workflows.heading': 'سير عمل شائع في الـ forge',
   'howItWorks.workflows.implement.heading': 'تنفيذ تغيير',
-  'howItWorks.workflows.implement.step1': 'افتح issue (أو PR/MR مفتوحًا) بعنوان ووصف واضحين.',
-  'howItWorks.workflows.implement.step2': 'أضف التسمية ai.',
-  'howItWorks.workflows.implement.step3': 'راقب انتقال التسميات: ai → ai-working → ai-pr (أو ai-failed).',
-  'howItWorks.workflows.implement.step4': 'راجع الفرع وPR/MR الذي فتحه أو حدّثه الـ worker، ثم ادمج كالمعتاد.',
+  'howItWorks.workflows.implement.step1': 'أكد فرع الهدف في صفحة المستودع (وخيار الدفع القسري الاختياري).',
+  'howItWorks.workflows.implement.step2': 'افتح issue (أو PR/MR مفتوحًا) بعنوان ووصف واضحين.',
+  'howItWorks.workflows.implement.step3': 'أضف التسمية ai.',
+  'howItWorks.workflows.implement.step4': 'راقب التسميات: ai → ai-working → ai-pr (أو ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'راجع PR/MR الذي فتحه الـ worker، أو — إن كان الدفع القسري مفعّلًا — المراجعات على فرع الهدف وتعليق الـ issue.',
   'howItWorks.workflows.qa.heading': 'طرح سؤال (بدون تغييرات في الكود)',
   'howItWorks.workflows.qa.step1': 'افتح issue يتضمن سؤالك.',
   'howItWorks.workflows.qa.step2': 'أضف ai و no-change معًا.',
@@ -74,6 +76,14 @@ export const ar: Messages = {
   'howItWorks.workflows.review.step2': 'أضف التسمية ai-review.',
   'howItWorks.workflows.review.step3': 'راقب التسميات: ai-review → ai-reviewing → ai-reviewed (أو ai-review-failed).',
   'howItWorks.workflows.review.step4': 'اقرأ تعليق المراجعة على الـ PR/MR.',
+  'howItWorks.repoOptions.heading': 'خيارات المستودع',
+  'howItWorks.repoOptions.intro': 'في صفحة كل مستودع تتحكم بفرع بدء المهام وكيفية نشر نتائج التنفيذ.',
+  'howItWorks.repoOptions.targetBranch':
+    'فرع هدف PR/MR — أساس طلبات السحب/الدمج الجديدة (مثل main أو master أو develop). ويُستخدم أيضًا كفحص نظيف لكل تشغيل.',
+  'howItWorks.repoOptions.freshCheckout':
+    'فحص نظيف — قبل كل مهمة يجلب الـ worker origin/<فرع الهدف> ويعيد التعيين القاسي إلى طرفه ويتجاهل التغييرات غير المُودَعة في مساحة العمل.',
+  'howItWorks.repoOptions.forcePush':
+    'دفع قسري إلى فرع الهدف (تخطي PR/MR) — معطّل افتراضيًا. عند التفعيل يدفع التنفيذ قسريًا إلى فرع الهدف بدل فتح PR/MR ويعلّق على الـ issue. يستبدل الفرع البعيد؛ استخدمه بحذر.',
   'howItWorks.labels.heading': 'مرجع التسميات',
   'howItWorks.labels.intro': 'عادةً تضيف فقط ai أو ai + no-change أو ai-review. يدير الـ worker تسميات الحالة.',
   'howItWorks.labels.youAdd': 'أنت تضيف',
@@ -81,7 +91,7 @@ export const ar: Messages = {
   'howItWorks.labels.ai': 'يضع التنفيذ في الانتظار، أو الأسئلة والأجوبة عند دمجه مع no-change',
   'howItWorks.labels.noChange': 'مع ai: إجابة فقط — بدون فرع وبدون PR/MR',
   'howItWorks.labels.aiWorking': 'التنفيذ أو الأسئلة والأجوبة قيد التنفيذ',
-  'howItWorks.labels.aiPr': 'اكتمل التنفيذ؛ تم إنشاء أو تحديث PR/MR',
+  'howItWorks.labels.aiPr': 'اكتمل التنفيذ؛ تم إنشاء أو تحديث PR/MR (أو دفع قسري إلى فرع الهدف عند تفعيل الخيار)',
   'howItWorks.labels.aiAnswered': 'اكتملت الأسئلة والأجوبة؛ نُشرت الإجابة كتعليق',
   'howItWorks.labels.aiFailed': 'فشل التنفيذ أو الأسئلة والأجوبة — راجع tasks أو السجلات',
   'howItWorks.labels.aiReview': 'يضع مراجعة بالذكاء الاصطناعي في الانتظار على PR/MR مفتوح',
@@ -93,6 +103,8 @@ export const ar: Messages = {
   'howItWorks.tips.item2': 'اكتب عنوانًا ونصًا واضحين؛ التعليقات الأحدث لها الأولوية عند التعارض.',
   'howItWorks.tips.item3': 'لإعادة المحاولة بعد الفشل، أصلح المشكلة إن لزم، ثم أضف ai أو ai-review مجددًا.',
   'howItWorks.tips.item4': 'تُنشأ التسميات تلقائيًا عند تسجيل repo؛ يمكنك أيضًا تشغيل Setup labels في صفحة المستودع.',
+  'howItWorks.tips.item5':
+    'اضبط فرع الهدف في صفحة المستودع قبل مهام التنفيذ. اترك الدفع القسري معطّلًا إلا إذا كنت تريد الدفع مباشرة إلى ذلك الفرع.',
   'howItWorks.panel.heading': 'العمل في هذه اللوحة',
   'howItWorks.panel.intro':
     'استخدم اللوحة لربط منصات الـ forge ومزوّدي الذكاء الاصطناعي، وتفعيل المستودعات، وضبط الـ prompts والإعدادات، ومراقبة المهام. عمل البرمجة اليومي يبقى عبر التسميات في GitHub أو GitLab.',
@@ -104,7 +116,8 @@ export const ar: Messages = {
   'howItWorks.panel.pages.heading': 'الغرض من كل صفحة',
   'howItWorks.panel.pages.dashboard': 'Dashboard — استخدام الذكاء الاصطناعي ومقاييس الـ worker والتشغيلات الأخيرة.',
   'howItWorks.panel.pages.connections': 'Connections — رموز الـ forge والاكتشاف والـ webhooks ومفتاح SSH العام الاختياري.',
-  'howItWorks.panel.pages.repositories': 'Repositories — التسجيل والتفعيل/التعطيل وحالة الاستنساخ والمزوّد والـ prompts لكل مستودع.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — التسجيل والتفعيل/التعطيل وحالة الاستنساخ وفرع الهدف والدفع القسري الاختياري والمزوّد والـ prompts لكل مستودع.',
   'howItWorks.panel.pages.tasks': 'Tasks — قائمة انتظار الـ forge المباشرة وسجل التشغيل لمهام التنفيذ والمراجعة وما يتصل بها.',
   'howItWorks.panel.pages.providers': 'Providers — بيانات اعتماد Cursor / Claude والتفعيل وفحوصات الصحة والافتراضي.',
   'howItWorks.panel.pages.prompts': 'Prompts — القوالب والمقتطفات العامة التي يستخدمها الـ worker.',

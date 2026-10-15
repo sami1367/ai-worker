@@ -61,10 +61,12 @@ export const en = {
 
   'howItWorks.workflows.heading': 'Common forge workflows',
   'howItWorks.workflows.implement.heading': 'Implement a change',
-  'howItWorks.workflows.implement.step1': 'Open an issue (or an open PR/MR) with a clear title and description.',
-  'howItWorks.workflows.implement.step2': 'Add the ai label.',
-  'howItWorks.workflows.implement.step3': 'Watch labels move: ai → ai-working → ai-pr (or ai-failed).',
-  'howItWorks.workflows.implement.step4': 'Review the branch and PR/MR the worker opened or updated, then merge as usual.',
+  'howItWorks.workflows.implement.step1': 'Confirm the repository target branch (and optional force-push setting) on the repository page.',
+  'howItWorks.workflows.implement.step2': 'Open an issue (or an open PR/MR) with a clear title and description.',
+  'howItWorks.workflows.implement.step3': 'Add the ai label.',
+  'howItWorks.workflows.implement.step4': 'Watch labels move: ai → ai-working → ai-pr (or ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'Review the PR/MR the worker opened, or — if force-push is enabled — review the commits on the target branch and the issue comment.',
 
   'howItWorks.workflows.qa.heading': 'Ask a question (no code changes)',
   'howItWorks.workflows.qa.step1': 'Open an issue with your question.',
@@ -78,6 +80,16 @@ export const en = {
   'howItWorks.workflows.review.step3': 'Watch labels: ai-review → ai-reviewing → ai-reviewed (or ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Read the review comment on the PR/MR.',
 
+  'howItWorks.repoOptions.heading': 'Repository options',
+  'howItWorks.repoOptions.intro':
+    'On each repository page you can control which branch jobs start from and how implement results are published.',
+  'howItWorks.repoOptions.targetBranch':
+    'PR / MR target branch — base branch for new pull/merge requests (for example main, master, or develop). Also used as the clean checkout for each run.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Fresh checkout — before each job the worker fetches origin/<target branch>, hard-resets to that tip, and discards uncommitted workspace changes so every run starts clean.',
+  'howItWorks.repoOptions.forcePush':
+    'Force-push to target branch (skip PR/MR) — off by default. When enabled, issue implement force-pushes onto the target branch instead of opening a PR/MR, and posts a result comment on the issue. This overwrites the remote branch; use with care.',
+
   'howItWorks.labels.heading': 'Label reference',
   'howItWorks.labels.intro':
     'You normally only add ai, ai + no-change, or ai-review. The worker manages the status labels.',
@@ -86,7 +98,8 @@ export const en = {
   'howItWorks.labels.ai': 'Queue implement, or Q&A when combined with no-change',
   'howItWorks.labels.noChange': 'With ai: answer only — no branch and no PR/MR',
   'howItWorks.labels.aiWorking': 'Implement or Q&A is in progress',
-  'howItWorks.labels.aiPr': 'Implement finished; PR/MR created or updated',
+  'howItWorks.labels.aiPr':
+    'Implement finished; PR/MR created or updated (or force-pushed to the target branch when that option is on)',
   'howItWorks.labels.aiAnswered': 'Q&A finished; answer posted as a comment',
   'howItWorks.labels.aiFailed': 'Implement or Q&A failed — check tasks or logs',
   'howItWorks.labels.aiReview': 'Queue an AI review on an open PR/MR',
@@ -99,6 +112,8 @@ export const en = {
   'howItWorks.tips.item2': 'Write a clear title and body; newer comments override older ones when they conflict.',
   'howItWorks.tips.item3': 'To retry after failure, fix the issue if needed, then add ai or ai-review again.',
   'howItWorks.tips.item4': 'Labels are created automatically when a repo is registered; you can also run Setup labels on the repository page.',
+  'howItWorks.tips.item5':
+    'Set the target branch on the repository page before implement jobs. Leave force-push off unless you intentionally want direct pushes to that branch.',
 
   'howItWorks.panel.heading': 'Working in this panel',
   'howItWorks.panel.intro':
@@ -112,7 +127,8 @@ export const en = {
   'howItWorks.panel.pages.heading': 'What each page is for',
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI usage, worker metrics, and recent runs.',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks, and the optional SSH public key.',
-  'howItWorks.panel.pages.repositories': 'Repositories — register, enable/disable, clone status, per-repo provider and prompts.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — register, enable/disable, clone status, target branch, optional force-push, per-repo provider and prompts.',
   'howItWorks.panel.pages.tasks': 'Tasks — live forge queue and run history for implement, review, and related jobs.',
   'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, enablement, health checks, and default.',
   'howItWorks.panel.pages.prompts': 'Prompts — global templates and snippets used by the worker.',

@@ -60,10 +60,12 @@ export const fa: Messages = {
     'کلون و push به‌طور پیش‌فرض با HTTPS و توکن شما انجام می‌شود. اگر GitLab گیت HTTP(S) را مسدود کند، در تنظیمات ادمین GitLab دسترسی Both یا HTTP را فعال کنید، یا کلید عمومی SSH پلتفرم را از صفحه Connections اضافه کنید.',
   'howItWorks.workflows.heading': 'گردش‌کارهای رایج در فورج',
   'howItWorks.workflows.implement.heading': 'پیاده‌سازی یک تغییر',
-  'howItWorks.workflows.implement.step1': 'یک issue (یا PR/MR باز) با عنوان و توضیح واضح باز کنید.',
-  'howItWorks.workflows.implement.step2': 'برچسب ai را اضافه کنید.',
-  'howItWorks.workflows.implement.step3': 'برچسب‌ها را دنبال کنید: ai → ai-working → ai-pr (یا ai-failed).',
-  'howItWorks.workflows.implement.step4': 'شاخه و PR/MR ساخته یا به‌روزشده را بررسی کنید، سپس مثل همیشه merge کنید.',
+  'howItWorks.workflows.implement.step1': 'در صفحه مخزن، شاخه هدف (و در صورت نیاز force-push) را تأیید کنید.',
+  'howItWorks.workflows.implement.step2': 'یک issue (یا PR/MR باز) با عنوان و توضیح واضح باز کنید.',
+  'howItWorks.workflows.implement.step3': 'برچسب ai را اضافه کنید.',
+  'howItWorks.workflows.implement.step4': 'برچسب‌ها را دنبال کنید: ai → ai-working → ai-pr (یا ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'PR/MR ساخته‌شده را بررسی کنید؛ اگر force-push روشن است، commitهای شاخه هدف و نظر روی issue را ببینید.',
   'howItWorks.workflows.qa.heading': 'پرسیدن سؤال (بدون تغییر کد)',
   'howItWorks.workflows.qa.step1': 'یک issue با سؤال خود باز کنید.',
   'howItWorks.workflows.qa.step2': 'هر دو برچسب ai و no-change را اضافه کنید.',
@@ -75,6 +77,14 @@ export const fa: Messages = {
   'howItWorks.workflows.review.step2': 'برچسب ai-review را اضافه کنید.',
   'howItWorks.workflows.review.step3': 'برچسب‌ها را دنبال کنید: ai-review → ai-reviewing → ai-reviewed (یا ai-review-failed).',
   'howItWorks.workflows.review.step4': 'کامنت بازبینی را روی PR/MR بخوانید.',
+  'howItWorks.repoOptions.heading': 'گزینه‌های مخزن',
+  'howItWorks.repoOptions.intro': 'در صفحه هر مخزن مشخص می‌کنید کارها از کدام شاخه شروع شوند و نتیجه پیاده‌سازی چگونه منتشر شود.',
+  'howItWorks.repoOptions.targetBranch':
+    'شاخه هدف PR/MR — پایه درخواست‌های pull/merge جدید (مثلاً main، master یا develop). همچنین checkout تمیز هر اجرا.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Checkout تازه — قبل از هر کار، worker از origin/<شاخه هدف> می‌گیرد، hard-reset می‌کند و تغییرات commitنشده workspace را دور می‌ریزد.',
+  'howItWorks.repoOptions.forcePush':
+    'Force-push به شاخه هدف (رد شدن از PR/MR) — پیش‌فرض خاموش. اگر روشن باشد، پیاده‌سازی به‌جای باز کردن PR/MR روی شاخه هدف force-push می‌کند و روی issue نظر می‌گذارد. شاخه remote را بازنویسی می‌کند؛ با احتیاط استفاده کنید.',
   'howItWorks.labels.heading': 'مرجع برچسب‌ها',
   'howItWorks.labels.intro':
     'معمولاً فقط ai، ai + no-change یا ai-review را اضافه می‌کنید. worker برچسب‌های وضعیت را مدیریت می‌کند.',
@@ -83,7 +93,7 @@ export const fa: Messages = {
   'howItWorks.labels.ai': 'صف پیاده‌سازی، یا پرسش‌وپاسخ وقتی با no-change همراه باشد',
   'howItWorks.labels.noChange': 'همراه ai: فقط پاسخ — بدون شاخه و بدون PR/MR',
   'howItWorks.labels.aiWorking': 'پیاده‌سازی یا پرسش‌وپاسخ در حال انجام است',
-  'howItWorks.labels.aiPr': 'پیاده‌سازی تمام شد؛ PR/MR ساخته یا به‌روز شد',
+  'howItWorks.labels.aiPr': 'پیاده‌سازی تمام شد؛ PR/MR ساخته یا به‌روز شد (یا در صورت روشن بودن گزینه، force-push به شاخه هدف)',
   'howItWorks.labels.aiAnswered': 'پرسش‌وپاسخ تمام شد؛ پاسخ به‌صورت کامنت ثبت شد',
   'howItWorks.labels.aiFailed': 'پیاده‌سازی یا پرسش‌وپاسخ شکست خورد — tasks یا لاگ‌ها را بررسی کنید',
   'howItWorks.labels.aiReview': 'صف بازبینی هوش مصنوعی روی PR/MR باز',
@@ -97,6 +107,8 @@ export const fa: Messages = {
     'برای تلاش مجدد پس از خطا، در صورت نیاز مشکل را رفع کنید و دوباره ai یا ai-review را اضافه کنید.',
   'howItWorks.tips.item4':
     'برچسب‌ها هنگام ثبت مخزن به‌صورت خودکار ساخته می‌شوند؛ می‌توانید Setup labels را هم در صفحه مخزن اجرا کنید.',
+  'howItWorks.tips.item5':
+    'قبل از کارهای پیاده‌سازی، شاخه هدف را در صفحه مخزن تنظیم کنید. force-push را فقط وقتی روشن کنید که عمداً مستقیم به آن شاخه push می‌خواهید.',
   'howItWorks.panel.heading': 'کار در این پنل',
   'howItWorks.panel.intro':
     'از پنل برای اتصال فورج و ارائه‌دهندگان هوش مصنوعی، فعال‌سازی مخازن، تنظیم پرامپت‌ها و تنظیمات، و پایش tasks استفاده کنید. کار روزمرهٔ کدنویسی همچنان با برچسب‌ها در GitHub یا GitLab انجام می‌شود.',
@@ -110,7 +122,8 @@ export const fa: Messages = {
   'howItWorks.panel.pages.heading': 'کاربرد هر صفحه',
   'howItWorks.panel.pages.dashboard': 'Dashboard — مصرف هوش مصنوعی، معیارهای worker و اجراهای اخیر.',
   'howItWorks.panel.pages.connections': 'Connections — توکن فورج، کشف، webhookها و کلید عمومی SSH اختیاری.',
-  'howItWorks.panel.pages.repositories': 'Repositories — ثبت، فعال/غیرفعال، وضعیت کلون، ارائه‌دهنده و پرامپت هر مخزن.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — ثبت، فعال/غیرفعال، وضعیت کلون، شاخه هدف، force-push اختیاری، ارائه‌دهنده و پرامپت هر مخزن.',
   'howItWorks.panel.pages.tasks': 'Tasks — صف زنده فورج و تاریخچه اجرا برای پیاده‌سازی، بازبینی و کارهای مرتبط.',
   'howItWorks.panel.pages.providers': 'Providers — اعتبارنامه Cursor / Claude، فعال‌سازی، سلامت و پیش‌فرض.',
   'howItWorks.panel.pages.prompts': 'Prompts — قالب‌ها و قطعه‌های سراسری مورد استفاده worker.',
