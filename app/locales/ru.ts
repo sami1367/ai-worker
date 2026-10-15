@@ -106,6 +106,8 @@ export const ru: Messages = {
     'Чистый checkout — перед каждым заданием worker делает fetch origin/<целевая ветка>, hard-reset к этому tip и отбрасывает незакоммиченные изменения в workspace.',
   'howItWorks.repoOptions.forcePush':
     'Force-push в целевую ветку (без PR/MR) — по умолчанию выкл. Если включено, реализация делает force-push в целевую ветку вместо открытия PR/MR и пишет комментарий в issue. Перезаписывает удалённую ветку; используйте осторожно.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — включён по умолчанию. При включении worker хранит локальный индекс .codegraph/ и при отсутствии запускает codegraph init перед агентами. При отключении .codegraph/ удаляется и не создаётся снова, пока вы не включите опцию. Индекс никогда не коммитится.',
   'howItWorks.labels.heading': 'Справочник labels',
   'howItWorks.labels.intro':
     'Обычно вы добавляете только ai, ai + no-change или ai-review. Worker управляет status labels по циклу выше (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',

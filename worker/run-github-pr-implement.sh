@@ -58,6 +58,7 @@ ai_init || exit 1
 PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
 PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
 DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
+export CODEGRAPH_ENABLED="$(ai_project_entry_bool "${PROJECT_ENTRY:-}" "codegraph_enabled" 1)"
 
 if [[ -z "$PROJECT_DIR" ]] || ! ai_validate_project_dir "$PROJECT" "$PROJECT_DIR"; then
     echo "ERROR: Invalid or unregistered project: $PROJECT"

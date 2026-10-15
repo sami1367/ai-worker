@@ -15,6 +15,10 @@
 #   default_branch — PR/MR target branch (default main).
 #   force_push_to_default — if true, force-push to default_branch instead of
 #                      opening a pull request. Default false (off).
+#   codegraph_enabled — if true (default), keep a local CodeGraph index
+#                      (.codegraph/) and run codegraph init before agents
+#                      when missing. If false, remove .codegraph/ and skip
+#                      init until re-enabled. Never commit .codegraph/.
 #
 # The name is what related-service detection matches in project docs.
 # Use the same name the documentation uses for that service.
@@ -26,12 +30,14 @@
     "path": "/home/ubuntu/dev/my-app",
     "block_on_open_pr": true,
     "default_branch": "main",
-    "force_push_to_default": false
+    "force_push_to_default": false,
+    "codegraph_enabled": true
   },
   {
     "name": "other-app",
     "path": "/home/ubuntu/dev/other-app",
     "block_on_open_pr": false,
-    "force_push_to_default": true
+    "force_push_to_default": true,
+    "codegraph_enabled": false
   }
 ]

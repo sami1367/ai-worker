@@ -107,6 +107,8 @@ export const de: Messages = {
     'Frischer Checkout — vor jedem Job holt der Worker origin/<Zielbranch>, setzt hard-reset auf diesen Stand und verwirft uncommittete Workspace-Änderungen.',
   'howItWorks.repoOptions.forcePush':
     'Force-Push auf Zielbranch (ohne PR/MR) — standardmäßig aus. Wenn aktiv, pusht Issue-Implement force auf den Zielbranch statt ein PR/MR zu öffnen und kommentiert das Issue. Überschreibt den Remote-Branch; mit Vorsicht nutzen.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — standardmäßig aktiv. Bei Aktivierung hält der Worker einen lokalen .codegraph/-Index und führt bei Bedarf codegraph init vor Agents aus. Bei Deaktivierung wird .codegraph/ entfernt und erst nach erneuter Aktivierung neu erstellt. Der Index wird nie committed.',
   'howItWorks.labels.heading': 'Label-Referenz',
   'howItWorks.labels.intro':
     'Normalerweise fügen Sie nur ai, ai + no-change oder ai-review hinzu. Der Worker verwaltet Status-Labels gemäß dem Lebenszyklus oben (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',

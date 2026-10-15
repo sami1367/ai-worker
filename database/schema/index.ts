@@ -76,6 +76,8 @@ export const promptKindEnum = pgEnum('prompt_kind', ['template', 'snippet'])
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   username: varchar('username', { length: 64 }).notNull(),
+  /** Optional contact email; required for first-admin bootstrap (CodeGraph waitlist). */
+  email: varchar('email', { length: 320 }),
   passwordHash: text('password_hash').notNull(),
   role: userRoleEnum('role').notNull().default('admin'),
   isActive: boolean('is_active').notNull().default(true),
@@ -178,6 +180,12 @@ export const repositories = pgTable('repositories', {
   blockOnOpenPr: boolean('block_on_open_pr').notNull().default(true),
   /** When true, issue implement force-pushes to defaultBranch instead of opening a PR/MR. */
   forcePushToDefault: boolean('force_push_to_default').notNull().default(false),
+  /**
+   * When true (default), the worker keeps a local CodeGraph index (`.codegraph/`)
+   * for this repository and runs `codegraph init` before agents when missing.
+   * When false, `.codegraph/` is removed and not recreated until re-enabled.
+   */
+  codegraphEnabled: boolean('codegraph_enabled').notNull().default(true),
   defaultAiProvider: varchar('default_ai_provider', { length: 32 }),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   connectionId: uuid('connection_id').references(() => forgeConnections.id, { onDelete: 'set null' }),

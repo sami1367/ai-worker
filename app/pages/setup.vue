@@ -3,6 +3,7 @@ definePageMeta({ layout: 'auth' })
 
 const { api } = useApi()
 const username = ref('')
+const email = ref('')
 const password = ref('')
 const confirm = ref('')
 const bootstrapSecret = ref('')
@@ -11,6 +12,10 @@ const error = ref('')
 
 async function submit() {
   error.value = ''
+  if (!email.value.trim() || !email.value.includes('@')) {
+    error.value = 'A valid email is required'
+    return
+  }
   if (password.value !== confirm.value) {
     error.value = 'Passwords do not match'
     return
@@ -25,6 +30,7 @@ async function submit() {
       method: 'POST',
       body: {
         username: username.value,
+        email: email.value.trim(),
         password: password.value,
         bootstrapSecret: bootstrapSecret.value,
       },
@@ -46,6 +52,13 @@ async function submit() {
     </p>
 
     <form class="mt-8 space-y-4" @submit.prevent="submit">
+      <UFormField
+        label="Admin email"
+        hint="Used for CodeGraph Pro waitlist signup when the worker configures CodeGraph."
+        required
+      >
+        <UInput v-model="email" type="email" autocomplete="email" class="w-full" />
+      </UFormField>
       <UFormField label="Admin username" required>
         <UInput v-model="username" autocomplete="username" class="w-full" />
       </UFormField>

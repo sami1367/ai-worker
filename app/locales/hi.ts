@@ -106,6 +106,8 @@ export const hi: Messages = {
     'ताज़ा checkout — हर job से पहले worker origin/<target branch> fetch करता है, hard-reset करता है, और workspace के uncommitted बदलाव हटाता है।',
   'howItWorks.repoOptions.forcePush':
     'Target branch पर force-push (PR/MR छोड़ें) — डिफ़ॉल्ट बंद। ऑन होने पर issue implement PR/MR खोले बिना target branch पर force-push करता है और issue पर comment करता है। Remote branch ओवरराइट होती है; सावधानी से उपयोग करें।',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — डिफ़ॉल्ट रूप से चालू। सक्षम होने पर worker स्थानीय .codegraph/ इंडेक्स रखता है और गायब होने पर agents से पहले codegraph init चलाता है। अक्षम होने पर .codegraph/ हटा दिया जाता है और फिर से चालू करने तक नहीं बनता। इंडेक्स कभी commit नहीं होता।',
   'howItWorks.labels.heading': 'Label संदर्भ',
   'howItWorks.labels.intro':
     'आमतौर पर आप केवल ai, ai + no-change, या ai-review जोड़ते हैं। Worker ऊपर के जीवनचक्र के अनुसार status labels संभालता है (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed)।',

@@ -104,6 +104,8 @@ export const ja: Messages = {
     'フレッシュ checkout — 各ジョブの前に worker は origin/<ターゲット branch> を fetch し、その tip に hard-reset し、未コミットの workspace 変更を破棄します。',
   'howItWorks.repoOptions.forcePush':
     'ターゲット branch への force-push（PR/MR をスキップ）— デフォルトはオフ。有効にすると issue implement は PR/MR を開かずターゲット branch に force-push し、issue に結果コメントを投稿します。リモート branch を上書きするので慎重に使ってください。',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — デフォルトで有効。有効時はローカルの .codegraph/ インデックスを保持し、無い場合は agent 実行前に codegraph init します。無効時は .codegraph/ を削除し、再有効化するまで作り直しません。インデックスはコミットしません。',
   'howItWorks.labels.heading': 'Label リファレンス',
   'howItWorks.labels.intro':
     '通常追加するのは ai、ai + no-change、または ai-review だけです。worker は上記のライフサイクルに沿って status labels を管理します（ai-working、ai-pr、ai-answered、ai-failed、ai-reviewing、ai-reviewed、ai-review-failed）。',

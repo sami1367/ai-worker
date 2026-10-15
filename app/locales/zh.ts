@@ -100,6 +100,7 @@ export const zh: Messages = {
   'howItWorks.repoOptions.targetBranch': 'PR / MR 目标分支 — 新 pull/merge request 的基线分支（例如 main、master 或 develop）。也用作每次运行的干净检出基准。',
   'howItWorks.repoOptions.freshCheckout': '全新检出 — 每次任务开始前，worker 会 fetch origin/<目标分支>、hard-reset 到该 tip，并丢弃工作区未提交的更改。',
   'howItWorks.repoOptions.forcePush': '强制推送到目标分支（跳过 PR/MR）— 默认关闭。启用后，issue 实现会强制推送到目标分支而不打开 PR/MR，并在 issue 上发表结果评论。会覆盖远程分支，请谨慎使用。',
+  'howItWorks.repoOptions.codegraph': 'CodeGraph — 默认开启。启用时，worker 会保留本地 .codegraph/ 索引，并在缺失时于 agent 运行前执行 codegraph init。禁用时会删除 .codegraph/，直到重新启用才重建。该索引永不提交。',
   'howItWorks.labels.heading': '标签参考',
   'howItWorks.labels.intro':
     '通常只需添加 ai、ai + no-change 或 ai-review。worker 按上方生命周期管理状态标签（ai-working、ai-pr、ai-answered、ai-failed、ai-reviewing、ai-reviewed、ai-review-failed）。',

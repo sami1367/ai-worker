@@ -16,8 +16,11 @@ export async function countUsers(): Promise<number> {
   return row?.c ?? 0
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function bootstrapAdmin(opts: {
   username: string
+  email: string
   password: string
   bootstrapSecret: string
   expectedSecret: string
@@ -39,6 +42,10 @@ export async function bootstrapAdmin(opts: {
   if ((await countUsers()) > 0) {
     throw new AppError(409, 'Administrator already exists', 'bootstrap_exists')
   }
+  const email = opts.email.trim().toLowerCase()
+  if (!email || email.length > 320 || !EMAIL_RE.test(email)) {
+    throw new AppError(400, 'Valid email is required', 'invalid_email')
+  }
   if (opts.password.length < 12) {
     throw new AppError(400, 'Password must be at least 12 characters', 'weak_password')
   }
@@ -50,6 +57,7 @@ export async function bootstrapAdmin(opts: {
   const passwordHash = await hashPassword(opts.password)
   const [user] = await db.insert(users).values({
     username: opts.username,
+    email,
     passwordHash,
     role: 'admin',
     isActive: true,
@@ -61,10 +69,19 @@ export async function bootstrapAdmin(opts: {
     action: 'auth.bootstrap_admin',
     targetType: 'user',
     targetId: user.id,
+    metadata: { email },
     ipHash: opts.ipHash,
   })
 
-  return { id: user.id, username: user.username, role: user.role }
+  // Materialize email for the worker so CodeGraph install can join the waitlist.
+  try {
+    const { exportCodegraphEnv } = await import('./codegraph')
+    await exportCodegraphEnv(email)
+  } catch {
+    // best-effort during bootstrap / tests
+  }
+
+  return { id: user.id, username: user.username, email: user.email, role: user.role }
 }
 
 async function assertNotRateLimited(username: string, ipHash: string) {

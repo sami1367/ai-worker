@@ -106,6 +106,8 @@ export const tr: Messages = {
     'Temiz checkout — her işten önce worker origin/<hedef dal> alır, hard-reset yapar ve workspace’teki commit edilmemiş değişiklikleri atar.',
   'howItWorks.repoOptions.forcePush':
     'Hedef dala force-push (PR/MR atla) — varsayılan kapalı. Açıkken issue implement PR/MR açmak yerine hedef dala force-push eder ve issue’ya yorum yazar. Uzak dalın üzerine yazar; dikkatli kullanın.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — varsayılan olarak açık. Açıkken worker yerel .codegraph/ indeksini tutar ve yoksa agent öncesi codegraph init çalıştırır. Kapalıyken .codegraph/ silinir ve yeniden açılana kadar oluşturulmaz. İndeks asla commit edilmez.',
   'howItWorks.labels.heading': 'Label başvurusu',
   'howItWorks.labels.intro':
     'Normalde yalnızca ai, ai + no-change veya ai-review eklersiniz. Worker status labels’ı yukarıdaki yaşam döngüsüne göre yönetir (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',

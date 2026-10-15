@@ -111,6 +111,8 @@ export const en = {
     'Fresh checkout — before each job the worker fetches origin/<target branch>, hard-resets to that tip, and discards uncommitted workspace changes so every run starts clean.',
   'howItWorks.repoOptions.forcePush':
     'Force-push to target branch (skip PR/MR) — off by default. When enabled, issue implement force-pushes onto the target branch instead of opening a PR/MR, and posts a result comment on the issue. This overwrites the remote branch; use with care.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — on by default. When enabled, the worker keeps a local .codegraph/ index and runs codegraph init before agents if it is missing. When disabled, .codegraph/ is removed and not recreated until you turn it back on. The index is never committed.',
 
   'howItWorks.labels.heading': 'Label reference',
   'howItWorks.labels.intro':

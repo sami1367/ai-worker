@@ -106,6 +106,8 @@ export const fa: Messages = {
     'Checkout تازه — قبل از هر کار، worker از origin/<شاخه هدف> می‌گیرد، hard-reset می‌کند و تغییرات commitنشده workspace را دور می‌ریزد.',
   'howItWorks.repoOptions.forcePush':
     'Force-push به شاخه هدف (رد شدن از PR/MR) — پیش‌فرض خاموش. اگر روشن باشد، پیاده‌سازی به‌جای باز کردن PR/MR روی شاخه هدف force-push می‌کند و روی issue نظر می‌گذارد. شاخه remote را بازنویسی می‌کند؛ با احتیاط استفاده کنید.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — به‌صورت پیش‌فرض روشن. وقتی فعال است، worker ایندکس محلی .codegraph/ را نگه می‌دارد و در صورت نبود قبل از agentها codegraph init را اجرا می‌کند. وقتی خاموش شود، .codegraph/ حذف می‌شود و تا فعال‌سازی دوباره ساخته نمی‌شود. ایندکس هرگز commit نمی‌شود.',
   'howItWorks.labels.heading': 'مرجع برچسب‌ها',
   'howItWorks.labels.intro':
     'معمولاً فقط ai، ai + no-change یا ai-review را اضافه می‌کنید. worker برچسب‌های وضعیت را طبق چرخه بالا مدیریت می‌کند (ai-working، ai-pr، ai-answered، ai-failed، ai-reviewing، ai-reviewed، ai-review-failed).',

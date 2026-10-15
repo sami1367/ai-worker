@@ -8,6 +8,7 @@ import { isInsecureSecret, SECRET_MIN_LENGTHS } from '#utils/app-secrets'
 
 const schema = z.object({
   username: z.string().min(3).max(64).optional(),
+  email: z.string().email().max(320),
   password: z.string().min(12).max(200),
   bootstrapSecret: z.string().min(1),
 })
@@ -28,6 +29,7 @@ export default defineEventHandler((event) => handleApi(event, async () => {
   }
   await bootstrapAdmin({
     username,
+    email: body.email,
     password: body.password,
     bootstrapSecret: body.bootstrapSecret,
     expectedSecret: expected,

@@ -105,6 +105,8 @@ export const ar: Messages = {
     'فحص نظيف — قبل كل مهمة يجلب الـ worker origin/<فرع الهدف> ويعيد التعيين القاسي إلى طرفه ويتجاهل التغييرات غير المُودَعة في مساحة العمل.',
   'howItWorks.repoOptions.forcePush':
     'دفع قسري إلى فرع الهدف (تخطي PR/MR) — معطّل افتراضيًا. عند التفعيل يدفع التنفيذ قسريًا إلى فرع الهدف بدل فتح PR/MR ويعلّق على الـ issue. يستبدل الفرع البعيد؛ استخدمه بحذر.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — مفعّل افتراضياً. عند التفعيل يحتفظ الـ worker بفهرس محلي .codegraph/ ويشغّل codegraph init قبل الوكلاء إن كان مفقوداً. عند التعطيل يُحذف .codegraph/ ولا يُعاد إنشاؤه حتى إعادة التفعيل. لا يُعمل commit للفهرس أبداً.',
   'howItWorks.labels.heading': 'مرجع التسميات',
   'howItWorks.labels.intro':
     'عادةً تضيف فقط ai أو ai + no-change أو ai-review. يدير الـ worker تسميات الحالة وفق الدورة أعلاه (ai-working، ai-pr، ai-answered، ai-failed، ai-reviewing، ai-reviewed، ai-review-failed).',

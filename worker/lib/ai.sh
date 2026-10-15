@@ -93,11 +93,21 @@ ai_run_agent() {
             ;;
     esac
 
+    # CODEGRAPH_ENABLED is set by runners from the project conf (default on).
+    if declare -F ai_codegraph_prepare >/dev/null 2>&1; then
+        ai_codegraph_prepare "$workspace" "${CODEGRAPH_ENABLED:-1}" || true
+    fi
+
     set +e
     "ai_${AI_PROVIDER}_run" \
         "$workspace" "$prompt_file" "$stdout_log" "$stderr_log" "$task_type"
     AGENT_EXIT_CODE=$?
     set -e
+
+    if declare -F ai_unstage_codegraph_dir >/dev/null 2>&1; then
+        ai_unstage_codegraph_dir "$workspace" || true
+    fi
+
     return "$AGENT_EXIT_CODE"
 }
 

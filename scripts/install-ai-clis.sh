@@ -38,6 +38,17 @@ gemini --version || true
 echo "[install-ai-clis] Installing Cursor Agent CLI…"
 curl https://cursor.com/install -fsS | bash
 
+echo "[install-ai-clis] Installing CodeGraph CLI…"
+# Self-contained bundle (no Node required at runtime for the CLI itself).
+# Agent MCP wiring (`codegraph install`) runs at worker start — not bake-time —
+# so configs land in the runtime home directory.
+curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
+if [[ -x "${HOME}/.local/bin/codegraph" ]]; then
+  ln -sfn "${HOME}/.local/bin/codegraph" "${HOME}/.local/bin/codegraph"
+fi
+command -v codegraph >/dev/null
+codegraph --version || true
+
 # Prefer system-wide symlinks so web + worker find binaries without PATH tweaks.
 link_into_usr_local() {
   local src="$1" dest="$2"
@@ -60,6 +71,9 @@ fi
 if command -v gemini >/dev/null 2>&1; then
   link_into_usr_local "$(command -v gemini)" gemini
 fi
+if command -v codegraph >/dev/null 2>&1; then
+  link_into_usr_local "$(command -v codegraph)" codegraph
+fi
 
 if ! command -v agent >/dev/null 2>&1 && ! command -v cursor-agent >/dev/null 2>&1; then
   echo "[install-ai-clis] ERROR: Cursor CLI not found after install (expected agent or cursor-agent)" >&2
@@ -77,6 +91,10 @@ if ! command -v gemini >/dev/null 2>&1; then
   echo "[install-ai-clis] ERROR: Gemini CLI not found after install" >&2
   exit 1
 fi
+if ! command -v codegraph >/dev/null 2>&1; then
+  echo "[install-ai-clis] ERROR: CodeGraph CLI not found after install" >&2
+  exit 1
+fi
 
 agent --version 2>/dev/null || cursor-agent --version 2>/dev/null || true
-echo "[install-ai-clis] Done. claude=$(command -v claude) codex=$(command -v codex) gemini=$(command -v gemini) agent=$(command -v agent || true) cursor-agent=$(command -v cursor-agent || true)"
+echo "[install-ai-clis] Done. claude=$(command -v claude) codex=$(command -v codex) gemini=$(command -v gemini) codegraph=$(command -v codegraph) agent=$(command -v agent || true) cursor-agent=$(command -v cursor-agent || true)"

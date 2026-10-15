@@ -29,6 +29,7 @@ const repoOptionKeys = [
   'howItWorks.repoOptions.targetBranch',
   'howItWorks.repoOptions.freshCheckout',
   'howItWorks.repoOptions.forcePush',
+  'howItWorks.repoOptions.codegraph',
 ] as const
 
 const tipKeys = [

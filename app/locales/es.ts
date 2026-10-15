@@ -107,6 +107,8 @@ export const es: Messages = {
     'Checkout limpio — antes de cada trabajo el worker hace fetch de origin/<rama destino>, hard-reset a esa punta y descarta cambios sin commit en el workspace.',
   'howItWorks.repoOptions.forcePush':
     'Force-push a la rama destino (omitir PR/MR) — desactivado por defecto. Si se activa, la implementación hace force-push a la rama destino en lugar de abrir un PR/MR y deja un comentario en el issue. Sobrescribe la rama remota; úsalo con cuidado.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — activado por defecto. Si está activo, el worker mantiene un índice local .codegraph/ y ejecuta codegraph init antes de los agents si falta. Si se desactiva, se elimina .codegraph/ y no se recrea hasta reactivarlo. El índice nunca se hace commit.',
   'howItWorks.labels.heading': 'Referencia de labels',
   'howItWorks.labels.intro':
     'Normalmente solo añades ai, ai + no-change, o ai-review. El worker gestiona las labels de estado según el ciclo anterior (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',

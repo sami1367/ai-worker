@@ -107,6 +107,8 @@ export const fr: Messages = {
     'Checkout propre — avant chaque job, le worker récupère origin/<branche cible>, fait un hard-reset sur cette pointe et ignore les changements non commités du workspace.',
   'howItWorks.repoOptions.forcePush':
     'Force-push vers la branche cible (sans PR/MR) — désactivé par défaut. Activé, l’implémentation force-push sur la branche cible au lieu d’ouvrir un PR/MR, et commente l’issue. Écrase la branche distante ; à utiliser avec prudence.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — activé par défaut. Quand c’est activé, le worker maintient un index local .codegraph/ et lance codegraph init avant les agents s’il manque. Quand c’est désactivé, .codegraph/ est supprimé et n’est recréé qu’après réactivation. L’index n’est jamais commité.',
   'howItWorks.labels.heading': 'Référence des labels',
   'howItWorks.labels.intro':
     'Vous n’ajoutez en général que ai, ai + no-change, ou ai-review. Le worker gère les labels de statut selon le cycle ci-dessus (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
