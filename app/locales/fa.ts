@@ -45,9 +45,26 @@ export const fa: Messages = {
   'howItWorks.subtitle': 'آموزش کار با GitHub، GitLab و این پنل',
   'howItWorks.intro.heading': 'نمای کلی',
   'howItWorks.intro.p1':
-    'AI Worker یک دستیار کدنویسی خودمیزبان برای GitHub و GitLab است. کار روزمره با برچسب‌های issue و pull/merge request هدایت می‌شود. این پنل برای راه‌اندازی، پایش و پیکربندی است.',
+    'AI Worker یک دستیار کدنویسی خودمیزبان برای GitHub و GitLab است. Cursor CLI، Claude Code، Codex CLI، Gemini CLI یا GitHub Copilot CLI را در محیط شما اجرا می‌کند، با ایندکس معنایی اختیاری CodeGraph. کار روزمره با برچسب‌ها روی issue و pull/merge request پیش می‌رود. این پنل برای راه‌اندازی، پایش و پیکربندی است.',
   'howItWorks.intro.p2':
     'ابتدا فورج و ارائه‌دهندگان هوش مصنوعی را اینجا متصل کنید، مخازن را فعال کنید، سپس در GitHub یا GitLab با برچسب‌ها کارهای پیاده‌سازی، پرسش‌وپاسخ یا بازبینی را صف کنید. عامل هوش مصنوعی فقط فضای کاری اختصاص‌یافته را ویرایش می‌کند؛ commit، push، PR/MR و نظرات فورج را لایه مورد اعتماد orchestration در AI Worker انجام می‌دهد — عامل نمی‌تواند توکن‌های فورج را به‌تنهایی استفاده کند.',
+  
+  'howItWorks.providers.heading': 'ارائه‌دهندگان هوش مصنوعی',
+  'howItWorks.providers.intro':
+    'Providers را باز کنید تا دست‌کم یک عامل را فعال و متصل کنید. یک پیش‌فرض تنظیم کنید؛ می‌توانید ارائه‌دهنده را برای هر مخزن عوض کنید. هر پنج CLI در تصویر Docker هستند. رمزها را اینجا بچسبانید (رمزنگاری در حالت سکون) یا متغیرهای متناظر را در .env مربوط به compose بگذارید.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — کلید API کورسر (CURSOR_API_KEY) از تنظیمات داشبورد Cursor.',
+  'howItWorks.providers.claude':
+    'Claude Code — کلید API آنتروپیک (ANTHROPIC_API_KEY) از console.anthropic.com، یا توکن OAuth کلود کد (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — کلید API اوپن‌ای‌آی (OPENAI_API_KEY یا CODEX_API_KEY) از platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — کلید API جمینای (GEMINI_API_KEY) از aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — PAT ریزدانه گیت‌هاب با Copilot Requests (COPILOT_GITHUB_TOKEN). توکن‌های کلاسیک ghp_ پشتیبانی نمی‌شوند؛ GITHUB_TOKEN فورج را برای عامل دوباره استفاده نکنید.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — همراه عوامل نصب می‌شود. به‌صورت پیش‌فرض برای هر مخزن روشن است: ایندکس محلی .codegraph/ را نگه می‌دارد و در صورت نبود قبل از عوامل codegraph init را اجرا می‌کند. برای حذف ایندکس در صفحه مخزن خاموش کنید. راه‌اندازی اولین ادمین ایمیل را برای فهرست انتظار اختیاری CodeGraph Pro جمع می‌کند. ایندکس هرگز commit نمی‌شود.',
+
   'howItWorks.forge.heading': 'کار در GitHub و GitLab',
   'howItWorks.forge.intro':
     'کار روزمره در GitHub یا GitLab انجام می‌شود — نه در ترمینال روی میزبان AI Worker. پس از اتصال و فعال‌سازی مخزن، یک issue یا PR/MR باز کنید، یک هدف روشن بنویسید، برچسب(های) درست را بزنید و تا پایان کار آیتم را باز نگه دارید. برچسب‌های وضعیت پیشرفت را نشان می‌دهند؛ سپس PR/MR، کامنت issue، یا (اگر force-push روشن است) commitهای شاخه هدف را بررسی کنید.',
@@ -146,7 +163,7 @@ export const fa: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — مصرف هوش مصنوعی، معیارهای worker و اجراهای اخیر.',
   'howItWorks.panel.pages.connections': 'Connections — توکن فورج، کشف، webhookها و کلید عمومی SSH اختیاری.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — ثبت، فعال/غیرفعال، وضعیت کلون، شاخه هدف، force-push اختیاری، ارائه‌دهنده و پرامپت هر مخزن.',
+    'Repositories — ثبت، فعال/غیرفعال، وضعیت clone، شاخه هدف، force-push اختیاری، کلید CodeGraph، ارائه‌دهنده و promptها به‌ازای هر مخزن.',
   'howItWorks.panel.pages.tasks': 'Tasks — صف زنده فورج و تاریخچه اجرا برای پیاده‌سازی، بازبینی و کارهای مرتبط.',
   'howItWorks.panel.pages.providers': 'Providers — اعتبارنامه Cursor / Claude / Codex / Gemini / Copilot، فعال‌سازی، سلامت و پیش‌فرض.',
   'howItWorks.panel.pages.prompts': 'Prompts — قالب‌ها و قطعه‌های سراسری مورد استفاده worker.',
@@ -159,7 +176,7 @@ export const fa: Messages = {
   'about.subtitle': 'معرفی محصول، خدمات، تماس و مجوز',
   'about.product.heading': 'درباره AI Worker',
   'about.product.p1':
-    'AI Worker یک دستیار کدنویسی هوش مصنوعی خودمیزبان برای GitHub و GitLab است. روی یک issue یا pull/merge request برچسب بزنید تا ابزارهای پشتیبانی‌شده در محیط شما اجرا شوند و کار را پیاده‌سازی یا تغییرات را بررسی کنند.',
+    'AI Worker یک دستیار کدنویسی هوش مصنوعی خودمیزبان برای GitHub و GitLab است. روی یک issue یا pull/merge request برچسب بزنید تا Cursor CLI، Claude Code، Codex CLI، Gemini CLI یا GitHub Copilot CLI را در محیط شما (با ایندکس اختیاری CodeGraph) برای پیاده‌سازی کار یا بازبینی تغییرات اجرا کند.',
   'about.product.p2':
     'برای تیم‌هایی ساخته شده که می‌خواهند خودکارسازی را روی زیرساخت خود داشته باشند—از جمله سازمان‌های دارای GitLab Self-Managed—بدون ارسال مخازن به سرویس‌های میزبانی‌شدهٔ شخص ثالث.',
   'about.services.heading': 'خدمات',

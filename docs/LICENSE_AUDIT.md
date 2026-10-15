@@ -19,7 +19,7 @@ This audit supports open-source publication of **AI Worker source code**. It doe
 | Open-source distribution of AI Worker | npm graph is overwhelmingly permissive (MIT/ISC/BSD/Apache); no AGPL/SSPL/BUSL copyleft blockers found | Apache-2.0 is compatible with redistributing those dependencies alongside project source |
 | Attract international / enterprise customers for paid install & customization | Commercial services are allowed under both MIT and Apache-2.0 | Apache-2.0 adds an **express patent grant** and clearer contributor patent termination — useful when selling services to companies |
 | Clarity vs MIT | MIT is shorter and also fine for this dependency mix | Apache-2.0’s NOTICE mechanism matches the need to document third-party and proprietary CLI boundaries |
-| Docker-bundled proprietary CLIs | Cursor CLI and Claude Code are **not** open source; redistribution of binaries in a public image is incompletely verified | Project license must cover **only this repository’s code**; proprietary CLIs stay under vendor terms (documented in `THIRD_PARTY_NOTICES.md`) |
+| Docker-bundled proprietary CLIs | Cursor, Claude Code, Codex, and GitHub Copilot CLIs are **not** open source; redistribution of binaries in a public image is incompletely verified (Gemini CLI is Apache-2.0; CodeGraph is MIT) | Project license must cover **only this repository’s code**; proprietary CLIs stay under vendor terms (documented in `THIRD_PARTY_NOTICES.md`) |
 
 **MIT alternative:** Acceptable if simplicity is preferred. It would not fix proprietary CLI redistribution questions. Prefer Apache-2.0 unless stakeholders explicitly want MIT.
 
@@ -143,6 +143,16 @@ Components referenced by `Dockerfile` and `docker-compose.yml` (audit only; thos
 | Covered by AI Worker Apache-2.0? | No — binary stays under GitHub / Microsoft terms |
 | Publishing pre-baked public images | Unresolved — confirm whether bundling `@github/copilot` in a public pullable image is permitted |
 | Auth model | Fine-grained PAT with **Copilot Requests** via `COPILOT_GITHUB_TOKEN` (classic `ghp_` tokens unsupported) |
+
+### 3.4d CodeGraph CLI
+
+| Item | Detail |
+|------|--------|
+| Install | Upstream install script via `scripts/install-ai-clis.sh` / `scripts/lib/codegraph.sh` |
+| Nature | Open-source CLI (MIT); optional Pro waitlist signup uses admin email at bootstrap |
+| Governing terms | [codegraph LICENSE](https://github.com/colbymchenry/codegraph) (MIT) |
+| Covered by AI Worker Apache-2.0? | Upstream is MIT (compatible); retain notices when redistributing the CLI |
+| Publishing pre-baked public images | Permissive for the MIT CLI binary; retain upstream attribution |
 
 ### 3.5 Operator credentials (AI CLIs)
 

@@ -15,6 +15,7 @@ Maps every discovered existing capability to the AI Worker Platform. Status valu
 | 8b | Codex CLI provider | `worker/lib/ai/codex.sh` | new | Provider health check (detect binary); `OPENAI_API_KEY` / `CODEX_API_KEY` |
 | 8c | Gemini CLI provider | `worker/lib/ai/gemini.sh` | new | Provider health check (detect binary); `GEMINI_API_KEY` |
 | 8d | GitHub Copilot CLI provider | `worker/lib/ai/copilot.sh` | new | Provider health check (detect binary); `COPILOT_GITHUB_TOKEN` |
+| 8e | CodeGraph semantic index | `scripts/lib/codegraph.sh`, `worker/lib/common.sh` (`ai_codegraph_prepare`), per-repo `codegraph_enabled` | new | `worker/tests/codegraph-prepare.sh`; UI toggle; waitlist email at bootstrap |
 | 9 | JSON project registries | `github-projects.conf` / `gitlab-projects.conf` | adapted — DB authoritative; atomic export | Import + export tests |
 | 10 | Per-repo `block_on_open_pr` (AI-labeled PR/MR only) | `lib/common.sh`, worker poll | preserved via exported conf | `tests/assignee-filter.sh` + UI setting |
 | 11 | One task per repository | `worker.sh` locks | preserved | Lock behavior unchanged |

@@ -157,7 +157,7 @@ Verified with per-connection secrets (GitHub HMAC / GitLab token). On `ai` or `a
 | `forge_connections` | Provider account, instance URL, encrypted access/refresh tokens, sync status |
 | `oauth_states` | Short-lived OAuth CSRF state + PKCE verifier |
 | `discovered_repositories` | Cached provider catalog (not every page hit) |
-| `repositories` | Registered automation targets (+ workspace status, provider identity) |
+| `repositories` | Registered automation targets (+ workspace status, provider identity, `codegraph_enabled`) |
 | `workspace_operations` | Queued clone/sync/verify/delete jobs |
 
 ### Workspace rules
@@ -176,6 +176,7 @@ Verified with per-connection secrets (GitHub HMAC / GitLab token). On `ai` or `a
 4. `scripts/worker-entrypoint.sh` sources that file before `platform-wrapper.sh`.
 5. Project conf JSON never contains tokens.
 6. **AI agent phase** runs under `lib/ai-isolation.sh`: forge tokens, app secrets, git credential helpers, and SSH keys are withheld from the agent; only the trusted runner (validate/publish) uses forge credentials afterward. See `docs/SECURITY.md`.
+7. **CodeGraph** — web exports admin email to `/data/config/codegraph.env` (`CODEGRAPH_EMAIL`). Worker entrypoint ensures the CLI and global MCP wiring; each runner sets `CODEGRAPH_ENABLED` from the exported conf (`codegraph_enabled`, default true). Before the agent, `ai_codegraph_prepare` inits or removes workspace `.codegraph/` accordingly; the index is never committed.
 
 ### SSRF policy for GitLab URLs
 

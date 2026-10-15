@@ -44,9 +44,25 @@ export const en = {
   'howItWorks.subtitle': 'Tutorial for GitHub, GitLab, and this panel',
   'howItWorks.intro.heading': 'Overview',
   'howItWorks.intro.p1':
-    'AI Worker is a self-hosted coding assistant for GitHub and GitLab. Day-to-day work is driven by labels on issues and pull/merge requests. This panel is for setup, monitoring, and configuration.',
+    'AI Worker is a self-hosted coding assistant for GitHub and GitLab. It runs Cursor CLI, Claude Code, Codex CLI, Gemini CLI, or GitHub Copilot CLI in your environment, with optional CodeGraph semantic indexing. Day-to-day work is driven by labels on issues and pull/merge requests. This panel is for setup, monitoring, and configuration.',
   'howItWorks.intro.p2':
     'Start by connecting your forge and AI providers here, enable repositories, then use labels in GitHub or GitLab to queue implement, Q&A, or review jobs. The AI agent only edits the assigned workspace; commit, push, pull/merge requests, and forge comments are performed by the trusted AI Worker orchestration layer — the agent cannot use your forge tokens on its own.',
+
+  'howItWorks.providers.heading': 'AI providers',
+  'howItWorks.providers.intro':
+    'Open Providers to enable and connect at least one agent. Set a default; you can override the provider per repository. All five CLIs ship in the Docker image. Paste secrets here (encrypted at rest) or set the matching variables in compose .env.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — Cursor API key (CURSOR_API_KEY) from Cursor dashboard settings.',
+  'howItWorks.providers.claude':
+    'Claude Code — Anthropic API key (ANTHROPIC_API_KEY) from console.anthropic.com, or a Claude Code OAuth token (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — OpenAI API key (OPENAI_API_KEY or CODEX_API_KEY) from platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — Gemini API key (GEMINI_API_KEY) from aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — fine-grained GitHub PAT with Copilot Requests (COPILOT_GITHUB_TOKEN). Classic ghp_ tokens are not supported; do not reuse forge GITHUB_TOKEN for the agent.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — installed with the agents. On by default per repository: keeps a local .codegraph/ index and runs codegraph init before agents when missing. Disable on the repository page to remove the index. First-admin setup collects an email for optional CodeGraph Pro waitlist signup. The index is never committed.',
 
   'howItWorks.forge.heading': 'Working in GitHub and GitLab',
   'howItWorks.forge.intro':
@@ -152,7 +168,7 @@ export const en = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI usage, worker metrics, and recent runs.',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks, and the optional SSH public key.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — register, enable/disable, clone status, target branch, optional force-push, per-repo provider and prompts.',
+    'Repositories — register, enable/disable, clone status, target branch, optional force-push, CodeGraph toggle, per-repo provider and prompts.',
   'howItWorks.panel.pages.tasks': 'Tasks — live forge queue and run history for implement, review, and related jobs.',
   'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini / Copilot credentials, enablement, health checks, and default.',
   'howItWorks.panel.pages.prompts': 'Prompts — global templates and snippets used by the worker.',
@@ -164,7 +180,7 @@ export const en = {
   'about.subtitle': 'Product overview, services, contact, and license',
   'about.product.heading': 'About AI Worker',
   'about.product.p1':
-    'AI Worker is a self-hosted AI coding assistant for GitHub and GitLab. Label an issue or pull/merge request, and it runs supported AI coding tools in your environment to implement work or review changes.',
+    'AI Worker is a self-hosted AI coding assistant for GitHub and GitLab. Label an issue or pull/merge request, and it runs Cursor CLI, Claude Code, Codex CLI, Gemini CLI, or GitHub Copilot CLI in your environment (with optional CodeGraph indexing) to implement work or review changes.',
   'about.product.p2':
     'It is built for teams that want automation on their own infrastructure—including organizations running GitLab Self-Managed—without sending repositories to a third-party hosted agent service.',
   'about.services.heading': 'Services',

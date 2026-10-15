@@ -137,6 +137,10 @@ Images install `bubblewrap`. Host/systemd installs without `bwrap` fall back to 
 
 Automated checks: `bash worker/tests/agent-isolation.sh` (included in `pnpm test:worker`).
 
+## CodeGraph
+
+CodeGraph maintains a local `.codegraph/` index inside workspaces when enabled for that repository. The index is prepared before the agent phase and unstaged so it is not committed. Optional waitlist signup uses the admin email collected at first-run `/setup` (exported as `CODEGRAPH_EMAIL`); treat that email as operator contact data, not a secret equivalent to API keys.
+
 ## Known limitations
 
 - Worker forge auth is process-global for the **orchestration** process (`GH_TOKEN` / `GITLAB_TOKEN`). Multiple simultaneous GitHub identities are not supported; the most recently validated active connection is exported. These tokens are **not** exported into the AI agent phase.

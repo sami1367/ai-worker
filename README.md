@@ -73,9 +73,10 @@ You do **not** fill secrets by hand. After the command finishes, the bootstrap s
 
 1. Open http://127.0.0.1:8080/setup  
 2. Paste `INITIAL_ADMIN_BOOTSTRAP_SECRET` (`cat INITIAL_ADMIN_BOOTSTRAP_SECRET.txt`)  
-3. Choose admin username + password (min 12 characters)
+3. Enter an **admin email** (used for CodeGraph Pro waitlist signup when the worker configures CodeGraph)  
+4. Choose admin username + password (min 12 characters)
 
-Optional forge / AI tokens (`GITHUB_TOKEN`, `CURSOR_API_KEY`, …) can be added to `.env` anytime, or set later in the UI. Restart after editing `.env`:
+Optional forge / AI tokens can be added to `.env` anytime, or set later in the UI (see [AI providers](#ai-providers)). Restart after editing `.env`:
 
 ```bash
 docker compose up -d
@@ -101,6 +102,38 @@ Keep that terminal open. On your computer, open http://127.0.0.1:8080 (or http:/
 ### Removing `.env` after setup
 
 On first successful start, required secrets are saved on the Docker `data` volume at `/data/config/app-secrets.env`. You may delete the host `.env` afterward if you do not need optional env overrides. Keep an offline backup of encryption/session secrets — see [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md).
+
+---
+
+## AI providers
+
+AI Worker ships five coding agents in the Docker image. Connect at least one under **Providers** (http://127.0.0.1:8080/providers): enable it, paste credentials, and set a default. Secrets are encrypted at rest and never shown again after save. You can also put the same variables in compose `.env` (DB/UI values override env when both are set).
+
+| Provider | Credential | Env vars |
+|----------|------------|----------|
+| **Cursor CLI** | Cursor API key | `CURSOR_API_KEY` |
+| **Claude Code** | Anthropic API key or Claude Code OAuth token | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` |
+| **Codex CLI** | OpenAI API key | `OPENAI_API_KEY` or `CODEX_API_KEY` |
+| **Gemini CLI** | Gemini API key | `GEMINI_API_KEY` |
+| **GitHub Copilot CLI** | Fine-grained GitHub PAT with **Copilot Requests** | `COPILOT_GITHUB_TOKEN` |
+
+Notes:
+
+- Copilot requires a **fine-grained** PAT with the Copilot Requests permission. Classic `ghp_` tokens are not supported. Use `COPILOT_GITHUB_TOKEN` — do not reuse forge `GITHUB_TOKEN` / `GH_TOKEN` for the agent.
+- Per-repository you can override the default provider on the repository page.
+- Use **Test** on the Providers page to confirm the CLI binary and credential wiring.
+
+---
+
+## CodeGraph
+
+[CodeGraph](https://github.com/colbymchenry/codegraph) builds a local semantic index (`.codegraph/`) in each workspace and wires MCP into the agent CLIs so agents can navigate code more accurately.
+
+- Installed in the image and enabled **per repository by default** (toggle on the repository page).
+- When enabled, the worker runs `codegraph init` before an agent if `.codegraph/` is missing.
+- When disabled, `.codegraph/` is removed and not recreated until you turn the option back on.
+- The index is **never committed** (unstaged / gitignored from agent publishes).
+- At first-admin setup, the admin email is exported for optional CodeGraph Pro waitlist signup on worker start.
 
 ---
 
@@ -196,6 +229,8 @@ Open a repository in the panel to configure how implement jobs publish changes:
 | **PR / MR target branch** | Forge default (often `main`) | Branch that new pull/merge requests target. Also used as the clean checkout base before each run. |
 | **Force-push to target branch (skip PR/MR)** | Off | When **enabled**, issue implement force-pushes commits onto the target branch instead of opening a PR/MR, and posts a result comment on the issue. Overwrites that remote branch — use with care. |
 | **Block new issues while an AI-labeled PR/MR is open** | On | Prevents starting another implement job while an AI-labeled PR/MR is still open (ignored when force-push mode skips PRs/MRs). |
+| **Enable CodeGraph** | On | Keeps a local `.codegraph/` semantic index and runs `codegraph init` before agents when missing. Turn off to remove the index for that repo. |
+| **AI provider** | Global default | Optional per-repo override of which agent CLI runs (Cursor / Claude / Codex / Gemini / Copilot). |
 
 Before every implement (and related) run, the worker **fetches a fresh copy of the target branch**, hard-resets to `origin/<target>`, and discards uncommitted workspace changes so each job starts clean.
 
@@ -371,7 +406,7 @@ docker compose down
 - Third-party and proprietary CLI terms: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - Audit findings and unresolved vendor questions: [docs/LICENSE_AUDIT.md](docs/LICENSE_AUDIT.md)
 
-Cursor Agent CLI, Claude Code, Codex CLI, and GitHub Copilot CLI are proprietary products of their vendors; Gemini CLI is Apache-2.0 with API use under Google’s terms. AI Worker does not relicense them. Operators must use their own provider credentials and comply with Cursor, Anthropic, OpenAI, Google, and GitHub terms.
+Cursor Agent CLI, Claude Code, Codex CLI, and GitHub Copilot CLI are proprietary products of their vendors; Gemini CLI is Apache-2.0 with API use under Google’s terms; CodeGraph CLI is MIT. AI Worker does not relicense them. Operators must use their own provider credentials and comply with Cursor, Anthropic, OpenAI, Google, and GitHub terms.
 
 ---
 

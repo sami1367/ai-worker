@@ -41,7 +41,8 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 9b. **Codex CLI provider** — `codex` (`lib/ai/codex.sh`)
 9c. **Gemini CLI provider** — `gemini` (`lib/ai/gemini.sh`)
 9d. **GitHub Copilot CLI provider** — `copilot` (`lib/ai/copilot.sh`)
-10. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`
+9e. **CodeGraph** — local `.codegraph/` index + MCP for agents; per-repo `codegraph_enabled` (default on); `ai_codegraph_prepare` / waitlist email via admin bootstrap
+10. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`, `codegraph_enabled`
 11. **One task per repository** — in-memory PID map + `state/slots/<key>.lock` via `flock`
 12. **Cross-repository concurrency** — multiple repo agents in parallel
 13. **Global worker lock** — `state/worker.lock` (single supervisor)
@@ -72,6 +73,7 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 | `codex` | `AI_PROVIDER=codex` |
 | `gemini` | `AI_PROVIDER=gemini` |
 | `copilot` | `AI_PROVIDER=copilot` |
+| `codegraph` | CodeGraph enabled for a repo (default); binary on PATH in the image |
 
 ---
 

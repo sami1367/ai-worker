@@ -45,9 +45,26 @@ export const ar: Messages = {
   'howItWorks.subtitle': 'دليل تعليمي لـ GitHub و GitLab وهذه اللوحة',
   'howItWorks.intro.heading': 'نظرة عامة',
   'howItWorks.intro.p1':
-    'AI Worker هو مساعد برمجة مستضاف ذاتيًا لـ GitHub و GitLab. العمل اليومي يعتمد على التسميات (labels) في الـ issues وطلبات السحب/الدمج. هذه اللوحة مخصّصة للإعداد والمراقبة والتهيئة.',
+    'AI Worker مساعد ترميز مستضاف ذاتياً لـ GitHub و GitLab. يشغّل Cursor CLI أو Claude Code أو Codex CLI أو Gemini CLI أو GitHub Copilot CLI في بيئتك، مع فهرسة CodeGraph الدلالية الاختيارية. العمل اليومي يُقاد عبر التسميات على القضايا وطلبات الدمج. هذه اللوحة للإعداد والمراقبة والتهيئة.',
   'howItWorks.intro.p2':
     'ابدأ بربط منصة الاستضافة ومزوّدي الذكاء الاصطناعي هنا، فعّل المستودعات، ثم استخدم التسميات في GitHub أو GitLab لوضع مهام التنفيذ أو الأسئلة والأجوبة أو المراجعة في قائمة الانتظار. يعدّل وكيل الذكاء الاصطناعي مساحة العمل المعيّنة فقط؛ وتنفّذ طبقة تنسيق AI Worker الموثوقة عمليات commit وpush وPR/MR وتعليقات المنصة — ولا يستطيع الوكيل استخدام رموز المنصة بمفرده.',
+  
+  'howItWorks.providers.heading': 'مزوّدو الذكاء الاصطناعي',
+  'howItWorks.providers.intro':
+    'افتح Providers لتمكين وربط وكيل واحد على الأقل. عيّن افتراضياً؛ يمكنك تجاوز المزوّد لكل مستودع. تُشحن أدوات CLI الخمس في صورة Docker. الصق الأسرار هنا (مشفّرة أثناء التخزين) أو عيّن المتغيرات المطابقة في .env لـ compose.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — مفتاح API لـ Cursor (CURSOR_API_KEY) من إعدادات لوحة Cursor.',
+  'howItWorks.providers.claude':
+    'Claude Code — مفتاح Anthropic API (ANTHROPIC_API_KEY) من console.anthropic.com، أو رمز OAuth لـ Claude Code (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — مفتاح OpenAI API (OPENAI_API_KEY أو CODEX_API_KEY) من platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — مفتاح Gemini API (GEMINI_API_KEY) من aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — PAT دقيق الصلاحيات من GitHub مع Copilot Requests (COPILOT_GITHUB_TOKEN). الرموز الكلاسيكية ghp_ غير مدعومة؛ لا تُعد استخدام GITHUB_TOKEN الخاص بالـ forge للوكيل.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — يُثبَّت مع الوكلاء. مفعّل افتراضياً لكل مستودع: يحتفظ بفهرس محلي .codegraph/ ويشغّل codegraph init قبل الوكلاء إن كان مفقوداً. عطّله في صفحة المستودع لحذف الفهرس. يجمع إعداد أول مسؤول بريداً لقائمة انتظار CodeGraph Pro الاختيارية. لا يُعمل commit للفهرس أبداً.',
+
   'howItWorks.forge.heading': 'العمل في GitHub و GitLab',
   'howItWorks.forge.intro':
     'العمل اليومي يتم في GitHub أو GitLab — وليس في طرفية على مضيف AI Worker. بعد ربط المستودع وتفعيله، افتح issue أو PR/MR، صِف هدفًا واحدًا واضحًا، أضف التسمية/التسميات الصحيحة، واترك العنصر مفتوحًا أثناء تشغيل الـ worker. راقب تسميات الحالة للتقدم، ثم راجع الـ PR/MR أو تعليق الـ issue أو (إذا كان الدفع القسري مفعّلًا) الالتزامات على الفرع الهدف.',
@@ -141,7 +158,7 @@ export const ar: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — استخدام الذكاء الاصطناعي ومقاييس الـ worker والتشغيلات الأخيرة.',
   'howItWorks.panel.pages.connections': 'Connections — رموز الـ forge والاكتشاف والـ webhooks ومفتاح SSH العام الاختياري.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — التسجيل والتفعيل/التعطيل وحالة الاستنساخ وفرع الهدف والدفع القسري الاختياري والمزوّد والـ prompts لكل مستودع.',
+    'Repositories — التسجيل، التفعيل/التعطيل، حالة النسخ، الفرع الهدف، force-push اختياري، مفتاح CodeGraph، المزوّد والقوالب لكل مستودع.',
   'howItWorks.panel.pages.tasks': 'Tasks — قائمة انتظار الـ forge المباشرة وسجل التشغيل لمهام التنفيذ والمراجعة وما يتصل بها.',
   'howItWorks.panel.pages.providers': 'Providers — بيانات اعتماد Cursor / Claude / Codex / Gemini / Copilot والتفعيل وفحوصات الصحة والافتراضي.',
   'howItWorks.panel.pages.prompts': 'Prompts — القوالب والمقتطفات العامة التي يستخدمها الـ worker.',
@@ -154,7 +171,7 @@ export const ar: Messages = {
   'about.subtitle': 'نظرة عامة على المنتج والخدمات والتواصل والترخيص',
   'about.product.heading': 'حول AI Worker',
   'about.product.p1':
-    'AI Worker مساعد ترميز بالذكاء الاصطناعي مستضاف ذاتيًا لـ GitHub و GitLab. ضع تسمية على issue أو pull/merge request ليشغّل أدوات الترميز المدعومة في بيئتك لتنفيذ العمل أو مراجعة التغييرات.',
+    'AI Worker مساعد ترميز بالذكاء الاصطناعي مستضاف ذاتياً لـ GitHub و GitLab. ضع تسمية على قضية أو طلب دمج، فيشغّل Cursor CLI أو Claude Code أو Codex CLI أو Gemini CLI أو GitHub Copilot CLI في بيئتك (مع فهرسة CodeGraph الاختيارية) لتنفيذ العمل أو مراجعة التغييرات.',
   'about.product.p2':
     'مصمم للفرق التي تريد الأتمتة على بنيتها التحتية الخاصة—بما في ذلك المؤسسات التي تشغّل GitLab Self-Managed—دون إرسال المستودعات إلى خدمة وكيل مستضافة من طرف ثالث.',
   'about.services.heading': 'الخدمات',

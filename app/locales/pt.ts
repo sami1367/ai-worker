@@ -45,9 +45,26 @@ export const pt: Messages = {
   'howItWorks.subtitle': 'Tutorial para GitHub, GitLab e este painel',
   'howItWorks.intro.heading': 'Visão geral',
   'howItWorks.intro.p1':
-    'AI Worker é um assistente de código auto-hospedado para GitHub e GitLab. O trabalho do dia a dia é impulsionado por labels em issues e pull/merge requests. Este painel serve para configuração, monitoramento e ajustes.',
+    'AI Worker é um assistente de código auto-hospedado para GitHub e GitLab. Ele executa Cursor CLI, Claude Code, Codex CLI, Gemini CLI ou GitHub Copilot CLI no seu ambiente, com indexação semântica opcional do CodeGraph. O trabalho diário é impulsionado por labels em issues e pull/merge requests. Este painel serve para configuração, monitoramento e ajustes.',
   'howItWorks.intro.p2':
     'Comece conectando seu forge e os provedores de IA aqui, habilite repositórios e use labels no GitHub ou GitLab para enfileirar jobs de implementação, Q&A ou revisão. O agente de IA só edita o workspace atribuído; commit, push, PRs/MRs e comentários no forge são feitos pela camada confiável de orquestração do AI Worker — o agente não pode usar seus tokens do forge por conta própria.',
+  
+  'howItWorks.providers.heading': 'Provedores de IA',
+  'howItWorks.providers.intro':
+    'Abra Providers para ativar e conectar pelo menos um agente. Defina um padrão; você pode substituir o provedor por repositório. Os cinco CLIs vêm na imagem Docker. Cole segredos aqui (criptografados em repouso) ou defina as variáveis equivalentes no .env do compose.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — chave de API do Cursor (CURSOR_API_KEY) nas configurações do painel do Cursor.',
+  'howItWorks.providers.claude':
+    'Claude Code — chave de API Anthropic (ANTHROPIC_API_KEY) em console.anthropic.com, ou um token OAuth do Claude Code (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — chave de API OpenAI (OPENAI_API_KEY ou CODEX_API_KEY) em platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — chave de API Gemini (GEMINI_API_KEY) em aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — PAT fine-grained do GitHub com Copilot Requests (COPILOT_GITHUB_TOKEN). Tokens clássicos ghp_ não são suportados; não reutilize GITHUB_TOKEN do forge para o agente.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — instalado com os agentes. Ativado por padrão por repositório: mantém um índice local .codegraph/ e executa codegraph init antes dos agents se estiver ausente. Desative na página do repositório para remover o índice. O setup do primeiro admin coleta um e-mail para a lista de espera opcional do CodeGraph Pro. O índice nunca é commitado.',
+
   'howItWorks.forge.heading': 'Trabalhando no GitHub e no GitLab',
   'howItWorks.forge.intro':
     'O trabalho do dia a dia acontece no GitHub ou GitLab — não em um terminal no host do AI Worker. Depois que um repositório está conectado e habilitado, abra um issue ou PR/MR, descreva um objetivo claro, adicione o(s) label(s) certo(s) e deixe o item aberto enquanto o worker roda. Acompanhe os labels de status e depois revise o PR/MR, o comentário no issue ou (se force-push estiver ligado) os commits na branch de destino.',
@@ -148,7 +165,7 @@ export const pt: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — uso de IA, métricas do worker e execuções recentes.',
   'howItWorks.panel.pages.connections': 'Connections — tokens do forge, descoberta, webhooks e a chave pública SSH opcional.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — registrar, ativar/desativar, status do clone, branch de destino, force-push opcional, provedor e prompts por repo.',
+    'Repositories — registrar, habilitar/desabilitar, status do clone, branch alvo, force-push opcional, interruptor CodeGraph, provedor e prompts por repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — fila ao vivo do forge e histórico de execução para implementação, revisão e jobs relacionados.',
   'howItWorks.panel.pages.providers': 'Providers — credenciais Cursor / Claude / Codex / Gemini / Copilot, habilitação, health checks e padrão.',
@@ -162,7 +179,7 @@ export const pt: Messages = {
   'about.subtitle': 'Visão geral do produto, serviços, contato e licença',
   'about.product.heading': 'Sobre o AI Worker',
   'about.product.p1':
-    'AI Worker é um assistente de codificação com IA auto-hospedado para GitHub e GitLab. Rotule um issue ou pull/merge request e ele executa ferramentas de IA compatíveis no seu ambiente para implementar o trabalho ou revisar mudanças.',
+    'AI Worker é um assistente de código com IA auto-hospedado para GitHub e GitLab. Rotule uma issue ou pull/merge request e ele executa Cursor CLI, Claude Code, Codex CLI, Gemini CLI ou GitHub Copilot CLI no seu ambiente (com indexação CodeGraph opcional) para implementar trabalho ou revisar mudanças.',
   'about.product.p2':
     'Foi feito para equipes que querem automação na própria infraestrutura—incluindo organizações com GitLab Self-Managed—sem enviar repositórios a um serviço de agente hospedado de terceiros.',
   'about.services.heading': 'Serviços',

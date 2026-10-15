@@ -45,9 +45,26 @@ export const ja: Messages = {
   'howItWorks.subtitle': 'GitHub、GitLab、このパネルのチュートリアル',
   'howItWorks.intro.heading': '概要',
   'howItWorks.intro.p1':
-    'AI Worker は、GitHub と GitLab 向けの self-hosted コーディングアシスタントです。日常の作業は issues と pull/merge requests の labels で駆動されます。このパネルは setup、監視、設定用です。',
+    'AI Worker は GitHub と GitLab 向けのセルフホスト型コーディングアシスタントです。環境内で Cursor CLI、Claude Code、Codex CLI、Gemini CLI、または GitHub Copilot CLI を実行し、任意で CodeGraph セマンティック索引を使えます。日常作業は issue と pull/merge request のラベルで進めます。このパネルはセットアップ、監視、設定用です。',
   'howItWorks.intro.p2':
     'まずここで forge と AI providers を接続し、repositories を有効にしてから、GitHub または GitLab の labels で implement、Q&A、review のジョブをキューに入れます。 AI エージェントは割り当てられたワークスペースのみ編集し、commit・push・PR/MR・コメントは信頼された AI Worker オーケストレーション層が行います。エージェントは forge トークンを独自に使えません。',
+  
+  'howItWorks.providers.heading': 'AI プロバイダー',
+  'howItWorks.providers.intro':
+    'Providers を開き、少なくとも 1 つのエージェントを有効化して接続します。デフォルトを設定し、リポジトリごとに上書きできます。5 つの CLI は Docker イメージに同梱されています。ここにシークレットを貼るか（保存時暗号化）、compose の .env に対応変数を設定します。',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — Cursor ダッシュボード設定の API キー（CURSOR_API_KEY）。',
+  'howItWorks.providers.claude':
+    'Claude Code — console.anthropic.com の Anthropic API キー（ANTHROPIC_API_KEY）、または Claude Code OAuth トークン（CLAUDE_CODE_OAUTH_TOKEN）。',
+  'howItWorks.providers.codex':
+    'Codex CLI — platform.openai.com/api-keys の OpenAI API キー（OPENAI_API_KEY または CODEX_API_KEY）。',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — aistudio.google.com/apikey の Gemini API キー（GEMINI_API_KEY）。',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — Copilot Requests 付きの fine-grained GitHub PAT（COPILOT_GITHUB_TOKEN）。クラシックな ghp_ トークンは非対応。forge の GITHUB_TOKEN をエージェントに使わないでください。',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — エージェントと共にインストール。リポジトリごとに既定でオン：ローカル .codegraph/ インデックスを保持し、無い場合はエージェント前に codegraph init を実行。リポジトリページでオフにするとインデックスを削除。初回管理者セットアップで任意の CodeGraph Pro ウェイトリスト用メールを収集。インデックスはコミットされません。',
+
   'howItWorks.forge.heading': 'GitHub と GitLab での作業',
   'howItWorks.forge.intro':
     '日常の作業は GitHub または GitLab で行います — AI Worker ホストのターミナルではありません。リポジトリを接続して有効にしたら、issue または PR/MR を開き、明確な目標を書き、適切な label(s) を付け、worker の実行中はそのまま開いたままにします。status labels で進捗を確認し、その後 PR/MR、issue のコメント、または（force-push がオンの場合）ターゲット branch のコミットを確認します。',
@@ -139,7 +156,7 @@ export const ja: Messages = {
   'howItWorks.panel.pages.heading': '各ページの用途',
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI 利用状況、worker メトリクス、最近の runs。',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens、discovery、webhooks、任意の SSH public key。',
-  'howItWorks.panel.pages.repositories': 'Repositories — 登録、有効/無効、clone 状態、ターゲット branch、任意の force-push、repo ごとの provider と prompts。',
+  'howItWorks.panel.pages.repositories': 'Repositories — 登録、有効/無効、clone 状態、ターゲットブランチ、任意の force-push、CodeGraph 切替、リポジトリごとのプロバイダーとプロンプト。',
   'howItWorks.panel.pages.tasks': 'Tasks — implement、review、関連ジョブのライブ forge queue と run 履歴。',
   'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini / Copilot の credentials、有効化、health checks、default。',
   'howItWorks.panel.pages.prompts': 'Prompts — worker が使うグローバル templates と snippets。',
@@ -152,7 +169,7 @@ export const ja: Messages = {
   'about.subtitle': '製品概要、サービス、連絡先、ライセンス',
   'about.product.heading': 'AI Worker について',
   'about.product.p1':
-    'AI Worker は GitHub と GitLab 向けのセルフホスト型 AI コーディングアシスタントです。issue または pull/merge request にラベルを付けると、対応する AI ツールが環境内で実行され、実装やレビューを行います。',
+    'AI Worker は GitHub と GitLab 向けのセルフホスト型 AI コーディングアシスタントです。issue または pull/merge request にラベルを付けると、環境内で Cursor CLI、Claude Code、Codex CLI、Gemini CLI、または GitHub Copilot CLI（任意で CodeGraph 索引）を実行し、実装やレビューを行います。',
   'about.product.p2':
     '自社インフラ上での自動化を望むチーム向けに設計されています。GitLab Self-Managed を運用する組織を含み、リポジトリを第三者のホスト型エージェントサービスへ送らずに利用できます。',
   'about.services.heading': 'サービス',

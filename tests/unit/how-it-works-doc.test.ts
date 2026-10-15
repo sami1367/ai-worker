@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { en } from '../../app/locales/en'
-import { forgePracticeKeys, labelLifecycleSections } from '../../app/utils/how-it-works-doc'
+import { forgePracticeKeys, labelLifecycleSections, providerDocKeys } from '../../app/utils/how-it-works-doc'
 
 describe('how-it-works forge / label lifecycle docs', () => {
+  it('lists AI provider and CodeGraph guidance keys', () => {
+    expect(providerDocKeys).toHaveLength(6)
+    for (const key of providerDocKeys) {
+      expect(en[key]?.trim().length).toBeGreaterThan(0)
+    }
+    expect(en['howItWorks.providers.intro']).toMatch(/Providers|Codex|Gemini|Copilot/i)
+    expect(en['howItWorks.providers.codegraph']).toMatch(/CodeGraph|\.codegraph/i)
+  })
+
   it('lists practice guidance keys that exist in English messages', () => {
     expect(forgePracticeKeys).toHaveLength(4)
     for (const key of forgePracticeKeys) {
