@@ -50,7 +50,16 @@ export const hi: Messages = {
     'पहले यहाँ अपना forge और AI providers कनेक्ट करें, repositories सक्षम करें, फिर implement, Q&A या review जॉब्स कतार में लगाने के लिए GitHub या GitLab में labels का उपयोग करें।',
   'howItWorks.forge.heading': 'GitHub और GitLab में काम करना',
   'howItWorks.forge.intro':
-    'repository कनेक्ट और सक्षम होने के बाद, सामान्य कार्यों के लिए AI Worker होस्ट पर terminal की ज़रूरत नहीं होती। कोई issue या PR/MR खोलें, सही labels जोड़ें, और worker चलते समय status labels अपडेट होते देखें।',
+    'रोजमर्रा का काम GitHub या GitLab में होता है — AI Worker होस्ट के टर्मिनल में नहीं। रिपॉजिटरी कनेक्ट और सक्षम होने के बाद, issue या PR/MR खोलें, एक स्पष्ट लक्ष्य लिखें, सही label(s) जोड़ें, और worker चलते समय आइटम खुला रखें। प्रगति के लिए status labels देखें, फिर PR/MR, issue comment, या (force-push ऑन हो तो) target branch पर commits की समीक्षा करें।',
+  'howItWorks.forge.practice.heading': 'Forge में कैसे काम करें',
+  'howItWorks.forge.practice.item1':
+    'हर issue या PR/MR को एक अनुरोध मानें: स्पष्ट title और body एजेंट को एक साफ़ लक्ष्य देते हैं।',
+  'howItWorks.forge.practice.item2':
+    'आप केवल trigger labels जोड़ते हैं — ai (implement), ai + no-change (Q&A), या ai-review (review)। Status labels खुद न जोड़ें; worker उन्हें संभालता है।',
+  'howItWorks.forge.practice.item3':
+    'Implement jobs से पहले इस पैनल में repository target branch सेट करें। डिफ़ॉल्ट PR/MR प्रवाह को प्राथमिकता दें; force-push तभी चालू करें जब आप जानबूझकर उस branch पर सीधे commits चाहते हों।',
+  'howItWorks.forge.practice.item4':
+    'Job खत्म होने तक issue या PR/MR खुला रखें। विफलता के बाद पुनः प्रयास: ज़रूरत हो तो अनुरोध ठीक करें, फिर ai या ai-review फिर जोड़ें। एक और Q&A राउंड: no-change रखें, ai-answered हटाएँ, और ai जोड़ें।',
   'howItWorks.forge.tokens.heading': 'Tokens और पहुँच',
   'howItWorks.forge.tokens.github':
     'GitHub: repo scope वाला classic PAT उपयोग करें (workflow वैकल्पिक), या Metadata read के साथ Contents, Issues और Pull requests read/write वाला fine-grained token। इसे Connections → Connect GitHub के अंतर्गत पेस्ट करें।',
@@ -76,6 +85,18 @@ export const hi: Messages = {
   'howItWorks.workflows.review.step2': 'ai-review label जोड़ें।',
   'howItWorks.workflows.review.step3': 'labels देखें: ai-review → ai-reviewing → ai-reviewed (या ai-review-failed)।',
   'howItWorks.workflows.review.step4': 'PR/MR पर review comment पढ़ें।',
+  'howItWorks.lifecycle.heading': 'Label जीवनचक्र',
+  'howItWorks.lifecycle.intro':
+    'हर workflow के लिए labels का छोटा जीवनचक्र होता है। आप start label(s) जोड़ते हैं; worker चलते और समाप्त होते समय उन्हें status labels से बदलता है। चलते समय status labels न हटाएँ।',
+  'howItWorks.lifecycle.implement.heading': 'Implement (कोड परिवर्तन)',
+  'howItWorks.lifecycle.implement.body':
+    'शुरुआत: खुले issue (या खुले PR/MR) पर ai जोड़ें। चलते हुए: worker target branch का fresh checkout लेता है और ai-working सेट करता है। सफलता: ai-pr, और target branch के विरुद्ध नया/अपडेटेड PR/MR या उस branch पर force-push प्लस issue comment। विफलता: ai-failed। ज़रूरत हो तो अनुरोध ठीक करके फिर ai जोड़कर पुनः प्रयास करें।',
+  'howItWorks.lifecycle.qa.heading': 'Q&A (बिना कोड परिवर्तन)',
+  'howItWorks.lifecycle.qa.body':
+    'शुरुआत: खुले issue पर ai और no-change जोड़ें। चलते हुए: ai-working no-change के साथ रहता है। सफलता: ai-answered + no-change, उत्तर issue comment में (कोई branch नहीं, कोई PR/MR नहीं)। विफलता: ai-failed + no-change। फिर पूछने के लिए: ai-answered हटाएँ, no-change रखें, ai जोड़ें।',
+  'howItWorks.lifecycle.review.heading': 'Review (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'शुरुआत: पहले से खुले PR (GitHub) या MR (GitLab) पर ai-review जोड़ें। चलते हुए: ai-reviewing। सफलता: ai-reviewed प्लस PR/MR पर review comment। विफलता: ai-review-failed। फिर ai-review जोड़कर पुनः प्रयास करें।',
   'howItWorks.repoOptions.heading': 'Repository विकल्प',
   'howItWorks.repoOptions.intro':
     'प्रत्येक repository पृष्ठ पर आप नियंत्रित करते हैं कि jobs किस branch से शुरू हों और implement परिणाम कैसे प्रकाशित हों।',
@@ -87,7 +108,7 @@ export const hi: Messages = {
     'Target branch पर force-push (PR/MR छोड़ें) — डिफ़ॉल्ट बंद। ऑन होने पर issue implement PR/MR खोले बिना target branch पर force-push करता है और issue पर comment करता है। Remote branch ओवरराइट होती है; सावधानी से उपयोग करें।',
   'howItWorks.labels.heading': 'Label संदर्भ',
   'howItWorks.labels.intro':
-    'आमतौर पर आप केवल ai, ai + no-change, या ai-review जोड़ते हैं। status labels worker संभालता है।',
+    'आमतौर पर आप केवल ai, ai + no-change, या ai-review जोड़ते हैं। Worker ऊपर के जीवनचक्र के अनुसार status labels संभालता है (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed)।',
   'howItWorks.labels.youAdd': 'आप जोड़ते हैं',
   'howItWorks.labels.workerAdds': 'Worker जोड़ता है',
   'howItWorks.labels.ai': 'implement कतार में लगाएँ, या no-change के साथ मिलाने पर Q&A',

@@ -26,4 +26,26 @@ describe('i18n locales', () => {
     expect(en['dashboard.enabledCount']).toContain('{count}')
     expect(en['dashboard.usageDetail']).toContain('{total}')
   })
+
+  it('includes How it works forge practice and label lifecycle keys', () => {
+    const required = [
+      'howItWorks.forge.practice.heading',
+      'howItWorks.forge.practice.item1',
+      'howItWorks.forge.practice.item2',
+      'howItWorks.forge.practice.item3',
+      'howItWorks.forge.practice.item4',
+      'howItWorks.lifecycle.heading',
+      'howItWorks.lifecycle.intro',
+      'howItWorks.lifecycle.implement.heading',
+      'howItWorks.lifecycle.implement.body',
+      'howItWorks.lifecycle.qa.heading',
+      'howItWorks.lifecycle.qa.body',
+      'howItWorks.lifecycle.review.heading',
+      'howItWorks.lifecycle.review.body',
+    ] as const
+    for (const key of required) {
+      expect(keys).toContain(key)
+      expect(en[key].trim().length).toBeGreaterThan(0)
+    }
+  })
 })

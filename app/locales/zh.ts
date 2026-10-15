@@ -48,7 +48,17 @@ export const zh: Messages = {
     'AI Worker 是面向 GitHub 与 GitLab 的自托管编程助手。日常工作由 issue 与 pull/merge request 上的标签驱动。本面板用于设置、监控与配置。',
   'howItWorks.intro.p2': '先在此连接代码托管平台与 AI 提供商，启用仓库，再在 GitHub 或 GitLab 中用标签排队实现、问答或评审任务。',
   'howItWorks.forge.heading': '在 GitHub 与 GitLab 中工作',
-  'howItWorks.forge.intro': '仓库连接并启用后，普通任务无需在 AI Worker 主机上打开终端。打开 issue 或 PR/MR，添加正确标签，然后观察状态标签随 worker 运行而更新。',
+  'howItWorks.forge.intro':
+    '日常工作在 GitHub 或 GitLab 中完成——而不是在 AI Worker 主机的终端里。仓库连接并启用后，打开 issue 或 PR/MR，写清一个明确目标，添加正确的标签，并在 worker 运行期间保持该条目打开。通过状态标签查看进度，然后审查 PR/MR、issue 评论，或（若开启 force-push）目标分支上的提交。',
+  'howItWorks.forge.practice.heading': '如何在 Forge 中工作',
+  'howItWorks.forge.practice.item1':
+    '把每个 issue 或 PR/MR 当作一个请求：具体的标题和正文能给代理一个清晰目标。',
+  'howItWorks.forge.practice.item2':
+    '你只需添加触发标签——ai（实现）、ai + no-change（问答）或 ai-review（评审）。不要自己添加状态标签；由 worker 管理。',
+  'howItWorks.forge.practice.item3':
+    '在实现任务开始前，先在此面板设置仓库目标分支。优先使用默认的 PR/MR 流程；仅在你有意要直接提交到该分支时再开启 force-push。',
+  'howItWorks.forge.practice.item4':
+    '任务完成前保持 issue 或 PR/MR 打开。失败后重试：必要时修正请求，然后再次添加 ai 或 ai-review。再问一轮问答：保留 no-change，移除 ai-answered，再添加 ai。',
   'howItWorks.forge.tokens.heading': '令牌与访问权限',
   'howItWorks.forge.tokens.github':
     'GitHub：使用具有 repo 权限的 classic PAT（workflow 可选），或具有 Metadata 读取以及 Contents、Issues、Pull requests 读写权限的 fine-grained token。将其粘贴到 Connections → Connect GitHub。',
@@ -73,13 +83,26 @@ export const zh: Messages = {
   'howItWorks.workflows.review.step2': '添加 ai-review 标签。',
   'howItWorks.workflows.review.step3': '观察标签：ai-review → ai-reviewing → ai-reviewed（或 ai-review-failed）。',
   'howItWorks.workflows.review.step4': '阅读 PR/MR 上的评审评论。',
+  'howItWorks.lifecycle.heading': '标签生命周期',
+  'howItWorks.lifecycle.intro':
+    '每种工作流的标签都有简短生命周期。你添加起始标签；worker 在运行与结束时用状态标签替换它们。运行中途不要移除状态标签。',
+  'howItWorks.lifecycle.implement.heading': '实现（代码变更）',
+  'howItWorks.lifecycle.implement.body':
+    '开始：在打开的 issue（或打开的 PR/MR）上添加 ai。运行中：worker 对目标分支做一次全新 checkout，并设置 ai-working。成功：ai-pr，并针对目标分支新建/更新 PR/MR，或 force-push 到该分支并在 issue 上评论。失败：ai-failed。必要时修正请求后再次添加 ai 以重试。',
+  'howItWorks.lifecycle.qa.heading': '问答（无代码变更）',
+  'howItWorks.lifecycle.qa.body':
+    '开始：在打开的 issue 上添加 ai 与 no-change。运行中：ai-working 与 no-change 并存。成功：ai-answered + no-change，答案以 issue 评论形式发布（无分支、无 PR/MR）。失败：ai-failed + no-change。再问一次：移除 ai-answered，保留 no-change，再添加 ai。',
+  'howItWorks.lifecycle.review.heading': '评审（PR/MR）',
+  'howItWorks.lifecycle.review.body':
+    '开始：在已打开的 PR（GitHub）或 MR（GitLab）上添加 ai-review。运行中：ai-reviewing。成功：ai-reviewed，并在 PR/MR 上发布评审评论。失败：ai-review-failed。再次添加 ai-review 即可重试。',
   'howItWorks.repoOptions.heading': '仓库选项',
   'howItWorks.repoOptions.intro': '在每个仓库页面可控制任务从哪个分支开始，以及实现结果如何发布。',
   'howItWorks.repoOptions.targetBranch': 'PR / MR 目标分支 — 新 pull/merge request 的基线分支（例如 main、master 或 develop）。也用作每次运行的干净检出基准。',
   'howItWorks.repoOptions.freshCheckout': '全新检出 — 每次任务开始前，worker 会 fetch origin/<目标分支>、hard-reset 到该 tip，并丢弃工作区未提交的更改。',
   'howItWorks.repoOptions.forcePush': '强制推送到目标分支（跳过 PR/MR）— 默认关闭。启用后，issue 实现会强制推送到目标分支而不打开 PR/MR，并在 issue 上发表结果评论。会覆盖远程分支，请谨慎使用。',
   'howItWorks.labels.heading': '标签参考',
-  'howItWorks.labels.intro': '通常只需添加 ai、ai + no-change，或 ai-review。状态标签由 worker 管理。',
+  'howItWorks.labels.intro':
+    '通常只需添加 ai、ai + no-change 或 ai-review。worker 按上方生命周期管理状态标签（ai-working、ai-pr、ai-answered、ai-failed、ai-reviewing、ai-reviewed、ai-review-failed）。',
   'howItWorks.labels.youAdd': '你添加',
   'howItWorks.labels.workerAdds': 'Worker 添加',
   'howItWorks.labels.ai': '排队实现；与 no-change 组合时为问答',

@@ -50,7 +50,16 @@ export const ar: Messages = {
     'ابدأ بربط منصة الاستضافة ومزوّدي الذكاء الاصطناعي هنا، فعّل المستودعات، ثم استخدم التسميات في GitHub أو GitLab لوضع مهام التنفيذ أو الأسئلة والأجوبة أو المراجعة في قائمة الانتظار.',
   'howItWorks.forge.heading': 'العمل في GitHub و GitLab',
   'howItWorks.forge.intro':
-    'بعد ربط المستودع وتفعيله، لا تحتاج إلى طرفية على مضيف AI Worker للمهام العادية. افتح issue أو PR/MR، أضف التسميات المناسبة، وراقب تحديث تسميات الحالة أثناء تشغيل الـ worker.',
+    'العمل اليومي يتم في GitHub أو GitLab — وليس في طرفية على مضيف AI Worker. بعد ربط المستودع وتفعيله، افتح issue أو PR/MR، صِف هدفًا واحدًا واضحًا، أضف التسمية/التسميات الصحيحة، واترك العنصر مفتوحًا أثناء تشغيل الـ worker. راقب تسميات الحالة للتقدم، ثم راجع الـ PR/MR أو تعليق الـ issue أو (إذا كان الدفع القسري مفعّلًا) الالتزامات على الفرع الهدف.',
+  'howItWorks.forge.practice.heading': 'كيف تعمل في الـ forge',
+  'howItWorks.forge.practice.item1':
+    'عامل كل issue أو PR/MR كطلب واحد: عنوان ونص محددان يمنحان الوكيل هدفًا واضحًا.',
+  'howItWorks.forge.practice.item2':
+    'تضيف فقط تسميات التشغيل — ai (تنفيذ)، ai + no-change (أسئلة وأجوبة)، أو ai-review (مراجعة). لا تضف تسميات الحالة بنفسك؛ يديرها الـ worker.',
+  'howItWorks.forge.practice.item3':
+    'اضبط فرع الهدف للمستودع في هذه اللوحة قبل مهام التنفيذ. فضّل مسار PR/MR الافتراضي؛ فعّل الدفع القسري فقط عندما تريد عمدًا التزامات مباشرة على ذلك الفرع.',
+  'howItWorks.forge.practice.item4':
+    'أبقِ الـ issue أو PR/MR مفتوحًا حتى تنتهي المهمة. لإعادة المحاولة بعد الفشل، أصلِح الطلب إن لزم ثم أضف ai أو ai-review مجددًا. لجولة أسئلة وأجوبة أخرى: أبقِ no-change، أزل ai-answered، وأضف ai.',
   'howItWorks.forge.tokens.heading': 'الرموز والصلاحيات',
   'howItWorks.forge.tokens.github':
     'GitHub: استخدم classic PAT بنطاق repo (وworkflow اختياريًا)، أو fine-grained token بقراءة Metadata بالإضافة إلى Contents و Issues و Pull requests للقراءة/الكتابة. الصقه تحت Connections → Connect GitHub.',
@@ -76,6 +85,18 @@ export const ar: Messages = {
   'howItWorks.workflows.review.step2': 'أضف التسمية ai-review.',
   'howItWorks.workflows.review.step3': 'راقب التسميات: ai-review → ai-reviewing → ai-reviewed (أو ai-review-failed).',
   'howItWorks.workflows.review.step4': 'اقرأ تعليق المراجعة على الـ PR/MR.',
+  'howItWorks.lifecycle.heading': 'دورة حياة التسميات',
+  'howItWorks.lifecycle.intro':
+    'تتبع التسميات دورة قصيرة لكل سير عمل. تضيف تسمية/تسميات البداية؛ ويستبدلها الـ worker بتسميات الحالة أثناء التشغيل وعند الانتهاء. لا تزل تسميات الحالة أثناء التشغيل.',
+  'howItWorks.lifecycle.implement.heading': 'تنفيذ (تغيير الشيفرة)',
+  'howItWorks.lifecycle.implement.body':
+    'البداية: تضيف ai على issue مفتوح (أو PR/MR مفتوح). أثناء التشغيل: يأخذ الـ worker checkout جديدًا من الفرع الهدف ويضع ai-working. النجاح: ai-pr، مع PR/MR جديد/محدَّث مقابل الفرع الهدف أو دفع قسري إلى ذلك الفرع مع تعليق على الـ issue. الفشل: ai-failed. أعد المحاولة بإصلاح الطلب إن لزم وإضافة ai مجددًا.',
+  'howItWorks.lifecycle.qa.heading': 'أسئلة وأجوبة (بدون تغيير الشيفرة)',
+  'howItWorks.lifecycle.qa.body':
+    'البداية: تضيف ai و no-change على issue مفتوح. أثناء التشغيل: تبقى ai-working مع no-change. النجاح: ai-answered + no-change مع الإجابة في تعليق على الـ issue (بدون فرع وبدون PR/MR). الفشل: ai-failed + no-change. للسؤال مجددًا: أزل ai-answered، أبقِ no-change، وأضف ai.',
+  'howItWorks.lifecycle.review.heading': 'مراجعة (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'البداية: تضيف ai-review على PR مفتوح مسبقًا (GitHub) أو MR (GitLab). أثناء التشغيل: ai-reviewing. النجاح: ai-reviewed مع تعليق مراجعة على الـ PR/MR. الفشل: ai-review-failed. أعد المحاولة بإضافة ai-review مجددًا.',
   'howItWorks.repoOptions.heading': 'خيارات المستودع',
   'howItWorks.repoOptions.intro': 'في صفحة كل مستودع تتحكم بفرع بدء المهام وكيفية نشر نتائج التنفيذ.',
   'howItWorks.repoOptions.targetBranch':
@@ -85,7 +106,8 @@ export const ar: Messages = {
   'howItWorks.repoOptions.forcePush':
     'دفع قسري إلى فرع الهدف (تخطي PR/MR) — معطّل افتراضيًا. عند التفعيل يدفع التنفيذ قسريًا إلى فرع الهدف بدل فتح PR/MR ويعلّق على الـ issue. يستبدل الفرع البعيد؛ استخدمه بحذر.',
   'howItWorks.labels.heading': 'مرجع التسميات',
-  'howItWorks.labels.intro': 'عادةً تضيف فقط ai أو ai + no-change أو ai-review. يدير الـ worker تسميات الحالة.',
+  'howItWorks.labels.intro':
+    'عادةً تضيف فقط ai أو ai + no-change أو ai-review. يدير الـ worker تسميات الحالة وفق الدورة أعلاه (ai-working، ai-pr، ai-answered، ai-failed، ai-reviewing، ai-reviewed، ai-review-failed).',
   'howItWorks.labels.youAdd': 'أنت تضيف',
   'howItWorks.labels.workerAdds': 'الـ worker يضيف',
   'howItWorks.labels.ai': 'يضع التنفيذ في الانتظار، أو الأسئلة والأجوبة عند دمجه مع no-change',

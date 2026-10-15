@@ -50,7 +50,16 @@ export const es: Messages = {
     'Empieza conectando aquí tu forge y los proveedores de IA, habilita repositorios y luego usa labels en GitHub o GitLab para encolar trabajos de implementación, preguntas y respuestas, o revisión.',
   'howItWorks.forge.heading': 'Trabajar en GitHub y GitLab',
   'howItWorks.forge.intro':
-    'Cuando un repositorio está conectado y habilitado, no necesitas un terminal en el host de AI Worker para las tareas habituales. Abre un issue o PR/MR, añade las labels adecuadas y observa cómo se actualizan las labels de estado mientras corre el worker.',
+    'El trabajo diario ocurre en GitHub o GitLab — no en un terminal del host de AI Worker. Cuando un repositorio está conectado y habilitado, abre un issue o PR/MR, describe un objetivo claro, añade la(s) label(s) correcta(s) y deja el ítem abierto mientras corre el worker. Observa las labels de estado para el progreso y luego revisa el PR/MR, el comentario del issue o (si force-push está activo) los commits en la rama destino.',
+  'howItWorks.forge.practice.heading': 'Cómo trabajar en el forge',
+  'howItWorks.forge.practice.item1':
+    'Trata cada issue o PR/MR como una sola petición: un título y un cuerpo específicos dan al agente un objetivo claro.',
+  'howItWorks.forge.practice.item2':
+    'Solo añades labels de disparo — ai (implementar), ai + no-change (preguntas y respuestas), o ai-review (revisión). No añadas labels de estado tú mismo; las gestiona el worker.',
+  'howItWorks.forge.practice.item3':
+    'Configura la rama destino del repositorio en este panel antes de los trabajos de implementación. Prefiere el flujo PR/MR por defecto; activa force-push solo si quieres commits directos en esa rama.',
+  'howItWorks.forge.practice.item4':
+    'Mantén el issue o PR/MR abierto hasta que termine el trabajo. Para reintentar tras un fallo, corrige la petición si hace falta y vuelve a añadir ai o ai-review. Para otra ronda de Q&A: mantén no-change, quita ai-answered y añade ai.',
   'howItWorks.forge.tokens.heading': 'Tokens y acceso',
   'howItWorks.forge.tokens.github':
     'GitHub: usa un PAT clásico con el scope repo (workflow opcional), o un token de granularidad fina con Metadata en lectura más Contents, Issues y Pull requests en lectura/escritura. Pégalo en Connections → Connect GitHub.',
@@ -77,6 +86,18 @@ export const es: Messages = {
   'howItWorks.workflows.review.step2': 'Añade la label ai-review.',
   'howItWorks.workflows.review.step3': 'Observa las labels: ai-review → ai-reviewing → ai-reviewed (o ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Lee el comentario de revisión en el PR/MR.',
+  'howItWorks.lifecycle.heading': 'Ciclo de vida de las labels',
+  'howItWorks.lifecycle.intro':
+    'Las labels siguen un ciclo corto en cada flujo. Tú añades la(s) label(s) de inicio; el worker las sustituye por labels de estado mientras el trabajo corre y termina. No quites labels de estado a mitad de ejecución.',
+  'howItWorks.lifecycle.implement.heading': 'Implementar (cambio de código)',
+  'howItWorks.lifecycle.implement.body':
+    'Inicio: añades ai en un issue abierto (o PR/MR abierto). En curso: el worker hace un checkout limpio de la rama destino y pone ai-working. Éxito: ai-pr, y un PR/MR nuevo/actualizado contra la rama destino o un force-push a esa rama más un comentario en el issue. Fallo: ai-failed. Reintenta corrigiendo la petición si hace falta y añadiendo ai de nuevo.',
+  'howItWorks.lifecycle.qa.heading': 'Preguntas y respuestas (sin cambios de código)',
+  'howItWorks.lifecycle.qa.body':
+    'Inicio: añades ai y no-change en un issue abierto. En curso: ai-working permanece con no-change. Éxito: ai-answered + no-change, con la respuesta en un comentario del issue (sin rama ni PR/MR). Fallo: ai-failed + no-change. Para preguntar otra vez: quita ai-answered, mantén no-change y añade ai.',
+  'howItWorks.lifecycle.review.heading': 'Revisión (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'Inicio: añades ai-review en un PR ya abierto (GitHub) o MR (GitLab). En curso: ai-reviewing. Éxito: ai-reviewed más un comentario de revisión en el PR/MR. Fallo: ai-review-failed. Reintenta añadiendo ai-review de nuevo.',
   'howItWorks.repoOptions.heading': 'Opciones del repositorio',
   'howItWorks.repoOptions.intro':
     'En cada página de repositorio controlas desde qué rama arrancan los trabajos y cómo se publican los resultados de implementación.',
@@ -88,7 +109,7 @@ export const es: Messages = {
     'Force-push a la rama destino (omitir PR/MR) — desactivado por defecto. Si se activa, la implementación hace force-push a la rama destino en lugar de abrir un PR/MR y deja un comentario en el issue. Sobrescribe la rama remota; úsalo con cuidado.',
   'howItWorks.labels.heading': 'Referencia de labels',
   'howItWorks.labels.intro':
-    'Normalmente solo añades ai, ai + no-change, o ai-review. El worker gestiona las labels de estado.',
+    'Normalmente solo añades ai, ai + no-change, o ai-review. El worker gestiona las labels de estado según el ciclo anterior (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
   'howItWorks.labels.youAdd': 'Tú añades',
   'howItWorks.labels.workerAdds': 'El worker añade',
   'howItWorks.labels.ai': 'Encola implementación, o preguntas y respuestas si se combina con no-change',

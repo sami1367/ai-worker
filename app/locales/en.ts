@@ -50,7 +50,16 @@ export const en = {
 
   'howItWorks.forge.heading': 'Working in GitHub and GitLab',
   'howItWorks.forge.intro':
-    'After a repository is connected and enabled, you do not need a terminal on the AI Worker host for normal tasks. Open an issue or PR/MR, add the right labels, and watch status labels update as the worker runs.',
+    'Day-to-day work happens in GitHub or GitLab — not in a terminal on the AI Worker host. After a repository is connected and enabled, open an issue or PR/MR, describe one clear goal, add the right label(s), and leave the item open while the worker runs. Watch status labels for progress, then review the PR/MR, the issue comment, or (if force-push is on) the commits on the target branch.',
+  'howItWorks.forge.practice.heading': 'How to work in the forge',
+  'howItWorks.forge.practice.item1':
+    'Treat each issue or PR/MR as one request: a specific title and body give the agent a single clear goal.',
+  'howItWorks.forge.practice.item2':
+    'You only add trigger labels — ai (implement), ai + no-change (Q&A), or ai-review (review). Do not add status labels yourself; the worker owns those.',
+  'howItWorks.forge.practice.item3':
+    'Set the repository target branch in this panel before implement jobs. Prefer the default PR/MR flow; turn on force-push only when you intentionally want direct commits on that branch.',
+  'howItWorks.forge.practice.item4':
+    'Keep the issue or PR/MR open until the job finishes. To retry after failure, fix the request if needed, then add ai or ai-review again. For another Q&A turn: keep no-change, remove ai-answered, and add ai.',
   'howItWorks.forge.tokens.heading': 'Tokens and access',
   'howItWorks.forge.tokens.github':
     'GitHub: use a classic PAT with the repo scope (workflow optional), or a fine-grained token with Metadata read plus Contents, Issues, and Pull requests read/write. Paste it under Connections → Connect GitHub.',
@@ -80,6 +89,19 @@ export const en = {
   'howItWorks.workflows.review.step3': 'Watch labels: ai-review → ai-reviewing → ai-reviewed (or ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Read the review comment on the PR/MR.',
 
+  'howItWorks.lifecycle.heading': 'Label lifecycle',
+  'howItWorks.lifecycle.intro':
+    'Labels follow a short lifecycle for each workflow. You add the start label(s); the worker replaces them with status labels as the job runs and finishes. Do not remove status labels mid-run.',
+  'howItWorks.lifecycle.implement.heading': 'Implement (code change)',
+  'howItWorks.lifecycle.implement.body':
+    'Start: you add ai on an open issue (or open PR/MR). Running: the worker takes a fresh checkout of the target branch and sets ai-working. Success: ai-pr, and either a new/updated PR/MR against the target branch or a force-push to that branch plus an issue comment. Failure: ai-failed. Retry by fixing the request if needed and adding ai again.',
+  'howItWorks.lifecycle.qa.heading': 'Q&A (no code changes)',
+  'howItWorks.lifecycle.qa.body':
+    'Start: you add ai and no-change on an open issue. Running: ai-working stays together with no-change. Success: ai-answered + no-change, with the answer in an issue comment (no branch, no PR/MR). Failure: ai-failed + no-change. Ask again by removing ai-answered, keeping no-change, and adding ai.',
+  'howItWorks.lifecycle.review.heading': 'Review (PR/MR)',
+  'howItWorks.lifecycle.review.body':
+    'Start: you add ai-review on an already open PR (GitHub) or MR (GitLab). Running: ai-reviewing. Success: ai-reviewed plus a review comment on the PR/MR. Failure: ai-review-failed. Retry by adding ai-review again.',
+
   'howItWorks.repoOptions.heading': 'Repository options',
   'howItWorks.repoOptions.intro':
     'On each repository page you can control which branch jobs start from and how implement results are published.',
@@ -92,7 +114,7 @@ export const en = {
 
   'howItWorks.labels.heading': 'Label reference',
   'howItWorks.labels.intro':
-    'You normally only add ai, ai + no-change, or ai-review. The worker manages the status labels.',
+    'You normally only add ai, ai + no-change, or ai-review. The worker manages status labels through the lifecycle above (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
   'howItWorks.labels.youAdd': 'You add',
   'howItWorks.labels.workerAdds': 'Worker adds',
   'howItWorks.labels.ai': 'Queue implement, or Q&A when combined with no-change',
