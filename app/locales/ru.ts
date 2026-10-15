@@ -60,11 +60,12 @@ export const ru: Messages = {
     'Git clone и push по умолчанию используют HTTPS с вашим token. Если GitLab блокирует HTTP(S) git, включите Both или HTTP в Git access protocols в админке GitLab или добавьте platform SSH public key, показанный на Connections.',
   'howItWorks.workflows.heading': 'Типичные forge workflows',
   'howItWorks.workflows.implement.heading': 'Внести изменение',
-  'howItWorks.workflows.implement.step1': 'Откройте issue (или открытый PR/MR) с понятным title и description.',
-  'howItWorks.workflows.implement.step2': 'Добавьте label ai.',
-  'howItWorks.workflows.implement.step3': 'Следите за labels: ai → ai-working → ai-pr (или ai-failed).',
-  'howItWorks.workflows.implement.step4':
-    'Проверьте branch и PR/MR, которые worker открыл или обновил, затем выполните merge как обычно.',
+  'howItWorks.workflows.implement.step1': 'На странице репозитория подтвердите целевую ветку (и при необходимости force-push).',
+  'howItWorks.workflows.implement.step2': 'Откройте issue (или открытый PR/MR) с понятным заголовком и описанием.',
+  'howItWorks.workflows.implement.step3': 'Добавьте метку ai.',
+  'howItWorks.workflows.implement.step4': 'Следите за метками: ai → ai-working → ai-pr (или ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'Проверьте PR/MR, который открыл worker, или — если включён force-push — коммиты в целевой ветке и комментарий к issue.',
   'howItWorks.workflows.qa.heading': 'Задать вопрос (без изменений кода)',
   'howItWorks.workflows.qa.step1': 'Откройте issue с вашим вопросом.',
   'howItWorks.workflows.qa.step2': 'Добавьте и ai, и no-change.',
@@ -75,6 +76,15 @@ export const ru: Messages = {
   'howItWorks.workflows.review.step2': 'Добавьте label ai-review.',
   'howItWorks.workflows.review.step3': 'Следите за labels: ai-review → ai-reviewing → ai-reviewed (или ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Прочитайте review comment в PR/MR.',
+  'howItWorks.repoOptions.heading': 'Параметры репозитория',
+  'howItWorks.repoOptions.intro':
+    'На странице каждого репозитория можно выбрать ветку старта заданий и способ публикации результатов реализации.',
+  'howItWorks.repoOptions.targetBranch':
+    'Целевая ветка PR/MR — база новых pull/merge request (например main, master или develop). Также используется как чистый checkout для каждого запуска.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Чистый checkout — перед каждым заданием worker делает fetch origin/<целевая ветка>, hard-reset к этому tip и отбрасывает незакоммиченные изменения в workspace.',
+  'howItWorks.repoOptions.forcePush':
+    'Force-push в целевую ветку (без PR/MR) — по умолчанию выкл. Если включено, реализация делает force-push в целевую ветку вместо открытия PR/MR и пишет комментарий в issue. Перезаписывает удалённую ветку; используйте осторожно.',
   'howItWorks.labels.heading': 'Справочник labels',
   'howItWorks.labels.intro':
     'Обычно вы добавляете только ai, ai + no-change или ai-review. Status labels управляет worker.',
@@ -83,7 +93,8 @@ export const ru: Messages = {
   'howItWorks.labels.ai': 'Поставить в очередь implement или Q&A вместе с no-change',
   'howItWorks.labels.noChange': 'С ai: только ответ — без branch и без PR/MR',
   'howItWorks.labels.aiWorking': 'Implement или Q&A выполняется',
-  'howItWorks.labels.aiPr': 'Implement завершён; PR/MR создан или обновлён',
+  'howItWorks.labels.aiPr':
+    'Implement завершён; PR/MR создан или обновлён (или выполнен force-push в целевую ветку, если опция включена)',
   'howItWorks.labels.aiAnswered': 'Q&A завершён; ответ опубликован комментарием',
   'howItWorks.labels.aiFailed': 'Implement или Q&A завершились с ошибкой — проверьте tasks или logs',
   'howItWorks.labels.aiReview': 'Поставить в очередь AI review для открытого PR/MR',
@@ -98,6 +109,8 @@ export const ru: Messages = {
     'Чтобы повторить после сбоя, при необходимости исправьте issue, затем снова добавьте ai или ai-review.',
   'howItWorks.tips.item4':
     'Labels создаются автоматически при регистрации repo; также можно запустить Setup labels на странице repository.',
+  'howItWorks.tips.item5':
+    'Задайте целевую ветку на странице репозитория до заданий реализации. Оставляйте force-push выключенным, если не хотите пушить напрямую в эту ветку.',
   'howItWorks.panel.heading': 'Работа в этой панели',
   'howItWorks.panel.intro':
     'Используйте панель, чтобы подключать forges и AI providers, включать repositories, настраивать prompts и settings и отслеживать tasks. Повседневная работа с кодом по-прежнему идёт через labels в GitHub или GitLab.',
@@ -112,7 +125,7 @@ export const ru: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — использование AI, метрики worker и недавние runs.',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks и необязательный SSH public key.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — регистрация, включение/отключение, статус clone, provider и prompts для каждого repo.',
+    'Repositories — регистрация, вкл/выкл, статус клона, целевая ветка, опциональный force-push, провайдер и промпты для каждого репо.',
   'howItWorks.panel.pages.tasks': 'Tasks — живая forge queue и история runs для implement, review и связанных заданий.',
   'howItWorks.panel.pages.providers': 'Providers — учётные данные Cursor / Claude, включение, health checks и default.',
   'howItWorks.panel.pages.prompts': 'Prompts — глобальные templates и snippets, которые использует worker.',

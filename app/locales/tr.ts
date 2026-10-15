@@ -60,11 +60,12 @@ export const tr: Messages = {
     'Git clone ve push varsayılan olarak token\'ınızla HTTPS kullanır. GitLab HTTP(S) git\'i engellerse, GitLab admin Git access protocols bölümünde Both veya HTTP\'yi etkinleştirin ya da Connections\'ta gösterilen platform SSH public key\'i ekleyin.',
   'howItWorks.workflows.heading': 'Yaygın forge workflows',
   'howItWorks.workflows.implement.heading': 'Bir değişiklik uygula',
-  'howItWorks.workflows.implement.step1': 'Net bir title ve description ile bir issue (veya açık bir PR/MR) açın.',
-  'howItWorks.workflows.implement.step2': 'ai label ekleyin.',
-  'howItWorks.workflows.implement.step3': 'Labels geçişini izleyin: ai → ai-working → ai-pr (veya ai-failed).',
-  'howItWorks.workflows.implement.step4':
-    'Worker\'ın açtığı veya güncellediği branch ve PR/MR\'yi inceleyin, ardından her zamanki gibi merge edin.',
+  'howItWorks.workflows.implement.step1': 'Depo sayfasında hedef dalı (ve isteğe bağlı force-push ayarını) doğrulayın.',
+  'howItWorks.workflows.implement.step2': 'Net başlık ve açıklamalı bir issue (veya açık PR/MR) açın.',
+  'howItWorks.workflows.implement.step3': 'ai etiketini ekleyin.',
+  'howItWorks.workflows.implement.step4': 'Etiketleri izleyin: ai → ai-working → ai-pr (veya ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'Worker’ın açtığı PR/MR’yi inceleyin; force-push açıksa hedef daldaki commit’leri ve issue yorumunu inceleyin.',
   'howItWorks.workflows.qa.heading': 'Soru sorun (kod değişikliği yok)',
   'howItWorks.workflows.qa.step1': 'Sorunuzla bir issue açın.',
   'howItWorks.workflows.qa.step2': 'Hem ai hem no-change ekleyin.',
@@ -75,6 +76,15 @@ export const tr: Messages = {
   'howItWorks.workflows.review.step2': 'ai-review label ekleyin.',
   'howItWorks.workflows.review.step3': 'Labels: ai-review → ai-reviewing → ai-reviewed (veya ai-review-failed).',
   'howItWorks.workflows.review.step4': 'PR/MR üzerindeki review comment\'i okuyun.',
+  'howItWorks.repoOptions.heading': 'Depo seçenekleri',
+  'howItWorks.repoOptions.intro':
+    'Her depo sayfasında işlerin hangi daldan başlayacağını ve implement sonuçlarının nasıl yayınlanacağını kontrol edersiniz.',
+  'howItWorks.repoOptions.targetBranch':
+    'PR / MR hedef dalı — yeni pull/merge request’lerin tabanı (ör. main, master veya develop). Her çalıştırmanın temiz checkout tabanı da budur.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Temiz checkout — her işten önce worker origin/<hedef dal> alır, hard-reset yapar ve workspace’teki commit edilmemiş değişiklikleri atar.',
+  'howItWorks.repoOptions.forcePush':
+    'Hedef dala force-push (PR/MR atla) — varsayılan kapalı. Açıkken issue implement PR/MR açmak yerine hedef dala force-push eder ve issue’ya yorum yazar. Uzak dalın üzerine yazar; dikkatli kullanın.',
   'howItWorks.labels.heading': 'Label başvurusu',
   'howItWorks.labels.intro':
     'Normalde yalnızca ai, ai + no-change veya ai-review eklersiniz. Status labels öğelerini worker yönetir.',
@@ -83,7 +93,7 @@ export const tr: Messages = {
   'howItWorks.labels.ai': 'Implement kuyruğa alın; no-change ile birlikteyse Q&A',
   'howItWorks.labels.noChange': 'ai ile: yalnızca yanıt — branch ve PR/MR yok',
   'howItWorks.labels.aiWorking': 'Implement veya Q&A devam ediyor',
-  'howItWorks.labels.aiPr': 'Implement bitti; PR/MR oluşturuldu veya güncellendi',
+  'howItWorks.labels.aiPr': 'Implement bitti; PR/MR oluşturuldu veya güncellendi (veya seçenek açıksa hedef dala force-push)',
   'howItWorks.labels.aiAnswered': 'Q&A bitti; yanıt comment olarak yayınlandı',
   'howItWorks.labels.aiFailed': 'Implement veya Q&A başarısız — tasks veya logs kontrol edin',
   'howItWorks.labels.aiReview': 'Açık bir PR/MR üzerinde AI review kuyruğa alın',
@@ -97,6 +107,8 @@ export const tr: Messages = {
     'Başarısızlıktan sonra yeniden denemek için gerekirse issue\'yu düzeltin, ardından yeniden ai veya ai-review ekleyin.',
   'howItWorks.tips.item4':
     'Labels, bir repo kaydedildiğinde otomatik oluşturulur; repository sayfasında Setup labels da çalıştırabilirsiniz.',
+  'howItWorks.tips.item5':
+    'Implement işlerinden önce depo sayfasında hedef dalı ayarlayın. Doğrudan o dala push istemiyorsanız force-push’u kapalı bırakın.',
   'howItWorks.panel.heading': 'Bu panelde çalışma',
   'howItWorks.panel.intro':
     'Forges ve AI providers bağlantısı kurmak, repositories etkinleştirmek, prompts ve settings ayarlamak ve tasks izlemek için paneli kullanın. Günlük kodlama işi yine GitHub veya GitLab\'daki labels ile yapılır.',
@@ -112,7 +124,7 @@ export const tr: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI kullanımı, worker metrikleri ve son runs.',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks ve isteğe bağlı SSH public key.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — kayıt, etkinleştir/devre dışı bırak, clone durumu, repo başına provider ve prompts.',
+    'Repositories — kayıt, etkin/devre dışı, clone durumu, hedef dal, isteğe bağlı force-push, depo başına sağlayıcı ve prompt’lar.',
   'howItWorks.panel.pages.tasks': 'Tasks — implement, review ve ilgili işler için canlı forge queue ve run geçmişi.',
   'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, etkinleştirme, health checks ve default.',
   'howItWorks.panel.pages.prompts': 'Prompts — worker tarafından kullanılan global templates ve snippets.',

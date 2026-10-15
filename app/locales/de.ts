@@ -60,11 +60,12 @@ export const de: Messages = {
     'Git-Clone und -Push nutzen standardmäßig HTTPS mit Ihrem Token. Wenn GitLab HTTP(S)-Git blockiert, aktivieren Sie Both oder HTTP in den Git-Zugriffsprotokollen der GitLab-Administration, oder fügen Sie den auf Connections angezeigten SSH-Public-Key der Plattform hinzu.',
   'howItWorks.workflows.heading': 'Übliche Forge-Workflows',
   'howItWorks.workflows.implement.heading': 'Eine Änderung implementieren',
-  'howItWorks.workflows.implement.step1': 'Öffnen Sie ein Issue (oder eine offene PR/MR) mit klarem Titel und Beschreibung.',
-  'howItWorks.workflows.implement.step2': 'Fügen Sie das Label ai hinzu.',
-  'howItWorks.workflows.implement.step3': 'Beobachten Sie die Labels: ai → ai-working → ai-pr (oder ai-failed).',
-  'howItWorks.workflows.implement.step4':
-    'Prüfen Sie den Branch und die vom Worker geöffnete oder aktualisierte PR/MR und mergen Sie wie gewohnt.',
+  'howItWorks.workflows.implement.step1': 'Bestätigen Sie auf der Repository-Seite den Zielbranch (und optional Force-Push).',
+  'howItWorks.workflows.implement.step2': 'Öffnen Sie ein Issue (oder ein offenes PR/MR) mit klarem Titel und Beschreibung.',
+  'howItWorks.workflows.implement.step3': 'Fügen Sie das Label ai hinzu.',
+  'howItWorks.workflows.implement.step4': 'Beobachten Sie die Labels: ai → ai-working → ai-pr (oder ai-failed).',
+  'howItWorks.workflows.implement.step5':
+    'Prüfen Sie das PR/MR des Workers — oder bei aktiviertem Force-Push die Commits auf dem Zielbranch und den Issue-Kommentar.',
   'howItWorks.workflows.qa.heading': 'Eine Frage stellen (ohne Codeänderungen)',
   'howItWorks.workflows.qa.step1': 'Öffnen Sie ein Issue mit Ihrer Frage.',
   'howItWorks.workflows.qa.step2': 'Fügen Sie sowohl ai als auch no-change hinzu.',
@@ -76,6 +77,15 @@ export const de: Messages = {
   'howItWorks.workflows.review.step2': 'Fügen Sie das Label ai-review hinzu.',
   'howItWorks.workflows.review.step3': 'Beobachten Sie die Labels: ai-review → ai-reviewing → ai-reviewed (oder ai-review-failed).',
   'howItWorks.workflows.review.step4': 'Lesen Sie den Review-Kommentar an der PR/MR.',
+  'howItWorks.repoOptions.heading': 'Repository-Optionen',
+  'howItWorks.repoOptions.intro':
+    'Auf jeder Repository-Seite steuern Sie, von welchem Branch Jobs starten und wie Implementierungsergebnisse veröffentlicht werden.',
+  'howItWorks.repoOptions.targetBranch':
+    'PR-/MR-Zielbranch — Basis für neue Pull-/Merge-Requests (z. B. main, master oder develop). Auch die saubere Checkout-Basis für jeden Lauf.',
+  'howItWorks.repoOptions.freshCheckout':
+    'Frischer Checkout — vor jedem Job holt der Worker origin/<Zielbranch>, setzt hard-reset auf diesen Stand und verwirft uncommittete Workspace-Änderungen.',
+  'howItWorks.repoOptions.forcePush':
+    'Force-Push auf Zielbranch (ohne PR/MR) — standardmäßig aus. Wenn aktiv, pusht Issue-Implement force auf den Zielbranch statt ein PR/MR zu öffnen und kommentiert das Issue. Überschreibt den Remote-Branch; mit Vorsicht nutzen.',
   'howItWorks.labels.heading': 'Label-Referenz',
   'howItWorks.labels.intro':
     'Normalerweise fügen Sie nur ai, ai + no-change oder ai-review hinzu. Der Worker verwaltet die Status-Labels.',
@@ -84,7 +94,8 @@ export const de: Messages = {
   'howItWorks.labels.ai': 'Implementierung einreihen, oder Q&A in Kombination mit no-change',
   'howItWorks.labels.noChange': 'Mit ai: nur antworten — kein Branch und keine PR/MR',
   'howItWorks.labels.aiWorking': 'Implementierung oder Q&A läuft',
-  'howItWorks.labels.aiPr': 'Implementierung abgeschlossen; PR/MR erstellt oder aktualisiert',
+  'howItWorks.labels.aiPr':
+    'Implementierung fertig; PR/MR erstellt oder aktualisiert (oder Force-Push auf den Zielbranch, wenn diese Option an ist)',
   'howItWorks.labels.aiAnswered': 'Q&A abgeschlossen; Antwort als Kommentar veröffentlicht',
   'howItWorks.labels.aiFailed': 'Implementierung oder Q&A fehlgeschlagen — Tasks oder Logs prüfen',
   'howItWorks.labels.aiReview': 'KI-Review für eine offene PR/MR einreihen',
@@ -99,6 +110,8 @@ export const de: Messages = {
     'Zum erneuten Versuch nach einem Fehler beheben Sie bei Bedarf das Issue und fügen Sie ai oder ai-review erneut hinzu.',
   'howItWorks.tips.item4':
     'Labels werden automatisch erstellt, wenn ein Repo registriert wird; Sie können auch Setup labels auf der Repository-Seite ausführen.',
+  'howItWorks.tips.item5':
+    'Setzen Sie den Zielbranch auf der Repository-Seite, bevor Implement-Jobs laufen. Force-Push nur einschalten, wenn Sie absichtlich direkt auf diesen Branch pushen wollen.',
   'howItWorks.panel.heading': 'Arbeiten in diesem Panel',
   'howItWorks.panel.intro':
     'Nutzen Sie das Panel, um Forges und KI-Anbieter zu verbinden, Repositories zu aktivieren, Prompts und Settings anzupassen und Tasks zu überwachen. Die tägliche Coding-Arbeit läuft weiterhin über Labels in GitHub oder GitLab.',
@@ -115,7 +128,7 @@ export const de: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — KI-Nutzung, Worker-Metriken und aktuelle Läufe.',
   'howItWorks.panel.pages.connections': 'Connections — Forge-Tokens, Erkennung, Webhooks und optionaler SSH-Public-Key.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — registrieren, aktivieren/deaktivieren, Clone-Status, Anbieter und Prompts pro Repo.',
+    'Repositories — Registrieren, aktivieren/deaktivieren, Clone-Status, Zielbranch, optionaler Force-Push, Provider und Prompts pro Repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — Live-Forge-Warteschlange und Laufhistorie für Implementierung, Review und verwandte Jobs.',
   'howItWorks.panel.pages.providers': 'Providers — Cursor-/Claude-Zugangsdaten, Aktivierung, Health-Checks und Standard.',

@@ -6,6 +6,7 @@ const implementSteps = [
   'howItWorks.workflows.implement.step2',
   'howItWorks.workflows.implement.step3',
   'howItWorks.workflows.implement.step4',
+  'howItWorks.workflows.implement.step5',
 ] as const
 
 const qaSteps = [
@@ -22,11 +23,18 @@ const reviewSteps = [
   'howItWorks.workflows.review.step4',
 ] as const
 
+const repoOptionKeys = [
+  'howItWorks.repoOptions.targetBranch',
+  'howItWorks.repoOptions.freshCheckout',
+  'howItWorks.repoOptions.forcePush',
+] as const
+
 const tipKeys = [
   'howItWorks.tips.item1',
   'howItWorks.tips.item2',
   'howItWorks.tips.item3',
   'howItWorks.tips.item4',
+  'howItWorks.tips.item5',
 ] as const
 
 const setupKeys = [
@@ -145,6 +153,20 @@ const workerLabels = [
           </li>
         </ol>
       </div>
+    </section>
+
+    <section class="aw-panel space-y-3 rounded-xl p-5" aria-labelledby="how-repo-options">
+      <h2 id="how-repo-options" class="font-display text-xl">
+        {{ t('howItWorks.repoOptions.heading') }}
+      </h2>
+      <p class="text-sm leading-relaxed opacity-90">
+        {{ t('howItWorks.repoOptions.intro') }}
+      </p>
+      <ul class="list-disc space-y-2 ps-5 text-sm leading-relaxed opacity-90">
+        <li v-for="key in repoOptionKeys" :key="key">
+          {{ t(key) }}
+        </li>
+      </ul>
     </section>
 
     <section class="aw-panel space-y-4 rounded-xl p-5" aria-labelledby="how-labels">

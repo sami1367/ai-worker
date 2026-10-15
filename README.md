@@ -187,11 +187,23 @@ After you connect a forge and repositories appear under **Repositories**, work i
 4. Optional: **Setup labels** / **Setup webhooks** on the connection or repository page.
 5. Labels are also created automatically when a project is registered and again whenever the worker is about to change labels on that project — so older repos pick up new labels (for example `no-change`) without a manual setup run.
 
+### Repository options (per repo)
+
+Open a repository in the panel to configure how implement jobs publish changes:
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| **PR / MR target branch** | Forge default (often `main`) | Branch that new pull/merge requests target. Also used as the clean checkout base before each run. |
+| **Force-push to target branch (skip PR/MR)** | Off | When **enabled**, issue implement force-pushes commits onto the target branch instead of opening a PR/MR, and posts a result comment on the issue. Overwrites that remote branch — use with care. |
+| **Block new issues while an AI-labeled PR/MR is open** | On | Prevents starting another implement job while an AI-labeled PR/MR is still open (ignored when force-push mode skips PRs/MRs). |
+
+Before every implement (and related) run, the worker **fetches a fresh copy of the target branch**, hard-resets to `origin/<target>`, and discards uncommitted workspace changes so each job starts clean.
+
 ### What you do in the forge
 
 | Goal | Where | Labels to add | What happens |
 |------|--------|---------------|--------------|
-| Implement a change | Open **issue** | `ai` | Agent implements on a branch and opens a PR/MR |
+| Implement a change | Open **issue** | `ai` | Agent implements from a fresh target-branch checkout, then opens a PR/MR **or** force-pushes to the target branch (if that repo option is enabled) |
 | Ask a question about the code | Open **issue** | `ai` + `no-change` | Agent answers in an **issue comment** only (no branch, no PR/MR) |
 | Review a change | Open **PR** (GitHub) or **MR** (GitLab) | `ai-review` | Agent posts a review comment on the PR/MR |
 
@@ -201,6 +213,7 @@ Tips:
 - Keep the issue/PR **open** while the worker runs.
 - To **retry** after failure: fix the problem if needed, then add `ai` or `ai-review` again (keep `no-change` if you are in Q&A mode).
 - To **ask again** after `ai-answered`: keep `no-change`, remove `ai-answered`, add `ai` again.
+- Set the **target branch** (for example `main`, `master`, or `develop`) on the repository page before relying on implement jobs.
 
 ---
 
@@ -213,7 +226,7 @@ These labels are managed by AI Worker on each connected repository:
 | `ai` | Green | Queue implement or (with `no-change`) Q&A | **You** |
 | `no-change` | Teal | With `ai`: answer only, no code / no PR | **You** (keep it on the issue) |
 | `ai-working` | Yellow | Worker is processing the issue/PR | Worker |
-| `ai-pr` | Blue | Implement finished; PR/MR created (or updated) | Worker |
+| `ai-pr` | Blue | Implement finished; PR/MR created (or updated). With force-push mode, changes landed on the target branch instead | Worker |
 | `ai-answered` | Green | Q&A finished; answer posted as a comment | Worker |
 | `ai-failed` | Red | Implement / Q&A failed — check worker logs | Worker |
 | `ai-review` | Purple | Queue an AI review on an open PR/MR | **You** |
@@ -227,25 +240,28 @@ You normally only add **`ai`**, **`ai` + `no-change`**, or **`ai-review`**. The 
 
 ## Label lifecycles
 
-### 1. Implement an issue (`ai` → PR/MR)
+### 1. Implement an issue (`ai` → PR/MR or force-push)
 
-Use this when you want code changes and a pull/merge request.
+Use this when you want code changes. By default the worker opens a pull/merge request against the repository’s **target branch**. If **Force-push to target branch** is enabled for that repo, it force-pushes onto the target branch instead (no PR/MR).
 
 ```mermaid
 flowchart LR
-  A["You: add label ai<br/>on an open issue"] --> B["ai-working"]
-  B --> C{Success?}
-  C -->|yes| D["ai-pr<br/>+ branch / PR or MR"]
-  C -->|no| E["ai-failed"]
-  E -.->|re-add ai| A
+  A["You: add label ai<br/>on an open issue"] --> B["Fresh checkout<br/>origin/target branch"]
+  B --> C["ai-working"]
+  C --> D{Success?}
+  D -->|yes, default| E["ai-pr<br/>+ branch / PR or MR"]
+  D -->|yes, force-push on| F["ai-pr<br/>+ force-push to target<br/>+ issue comment"]
+  D -->|no| G["ai-failed"]
+  G -.->|re-add ai| A
 ```
 
 **Steps**
 
-1. Open an issue describing the work.
-2. Add label `ai`.
-3. Watch labels: `ai` → `ai-working` → `ai-pr` (or `ai-failed`).
-4. Review the PR/MR the worker opened, then merge as usual in Git.
+1. Confirm the repository **target branch** (and optional force-push setting) on the repository page.
+2. Open an issue describing the work.
+3. Add label `ai`.
+4. Watch labels: `ai` → `ai-working` → `ai-pr` (or `ai-failed`).
+5. Review the PR/MR, **or** review the commits on the target branch if force-push mode is on.
 
 ### 2. Ask a question — no code changes (`ai` + `no-change`)
 
@@ -305,7 +321,7 @@ flowchart TB
   end
 
   subgraph outcomes [Results]
-    O1[Branch + PR/MR<br/>label ai-pr]
+    O1[PR/MR or force-push to target<br/>label ai-pr]
     O2[Issue comment<br/>labels ai-answered + no-change]
     O3[PR/MR review comment<br/>label ai-reviewed]
   end
