@@ -172,19 +172,57 @@ async function refreshRepos(id: string) {
   }
 }
 
-async function disconnect(id: string) {
-  if (!confirm('Disconnect this account? Stored tokens will be deleted locally. Registered repositories and workspaces are kept.')) {
+async function disableConnection(id: string) {
+  if (!confirm('Disable this connection? Credentials are kept so you can re-enable later. Its repositories will be hidden and the worker will stop fetching issues for them.')) {
     return
   }
-  busy.value = `disconnect-${id}`
+  busy.value = `disable-${id}`
   try {
     await api(`/api/v1/connections/${id}/disconnect`, { method: 'POST' })
-    message.value = 'Connection disconnected'
+    message.value = 'Connection disabled'
     messageError.value = false
     await refresh()
     await refreshNuxtData('setup-readiness')
+    await refreshNuxtData('repos-managed')
   } catch (e: any) {
-    message.value = e?.data?.message || 'Disconnect failed'
+    message.value = e?.data?.message || 'Disable failed'
+    messageError.value = true
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function enableConnection(id: string) {
+  busy.value = `enable-${id}`
+  try {
+    await api(`/api/v1/connections/${id}/enable`, { method: 'POST' })
+    message.value = 'Connection enabled'
+    messageError.value = false
+    await refresh()
+    await refreshNuxtData('setup-readiness')
+    await refreshNuxtData('repos-managed')
+  } catch (e: any) {
+    message.value = e?.data?.message || 'Enable failed'
+    messageError.value = true
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function removeConnection(id: string) {
+  if (!confirm('Permanently remove this connection? This deletes the connection, its discovered data, registered repositories, and managed workspaces. This cannot be undone.')) {
+    return
+  }
+  busy.value = `remove-${id}`
+  try {
+    const res = await api<{ removedRepositories: number }>(`/api/v1/connections/${id}/remove`, { method: 'POST' })
+    message.value = `Connection removed (${res.removedRepositories} repositories deleted)`
+    messageError.value = false
+    await refresh()
+    await refreshNuxtData('setup-readiness')
+    await refreshNuxtData('repos-managed')
+  } catch (e: any) {
+    message.value = e?.data?.message || 'Remove failed'
     messageError.value = true
   } finally {
     busy.value = ''
@@ -196,6 +234,11 @@ function statusColor(status: string) {
   if (status === 'error' || status === 'expired') return 'error'
   if (status === 'disconnected') return 'neutral'
   return 'warning'
+}
+
+function statusLabel(status: string) {
+  if (status === 'disconnected') return 'disabled'
+  return status
 }
 
 function formatTime(v: string | null | undefined) {
@@ -305,28 +348,59 @@ function formatTime(v: string | null | undefined) {
             </p>
             <p class="text-xs opacity-50">{{ c.instanceUrl }}</p>
           </div>
-          <UBadge :color="statusColor(c.status)" variant="subtle">{{ c.status }}</UBadge>
+          <UBadge :color="statusColor(c.status)" variant="subtle">{{ statusLabel(c.status) }}</UBadge>
         </div>
         <p class="text-sm opacity-70">Last sync: {{ formatTime(c.lastSyncAt) }}</p>
         <p class="text-sm opacity-70">Last validated: {{ formatTime(c.lastValidatedAt) }}</p>
         <p v-if="c.lastError" class="text-sm text-red-700 dark:text-red-300">{{ c.lastError }}</p>
         <div class="flex flex-wrap gap-2">
           <UButton size="sm" variant="soft" :to="`/connections/${c.id}`">Repositories</UButton>
-          <UButton size="sm" variant="ghost" :loading="busy === `test-${c.id}`" @click="testConnection(c.id)">
+          <UButton
+            size="sm"
+            variant="ghost"
+            :loading="busy === `test-${c.id}`"
+            :disabled="c.status === 'disconnected'"
+            @click="testConnection(c.id)"
+          >
             Test
           </UButton>
-          <UButton size="sm" variant="ghost" :loading="busy === `refresh-${c.id}`" @click="refreshRepos(c.id)">
+          <UButton
+            size="sm"
+            variant="ghost"
+            :loading="busy === `refresh-${c.id}`"
+            :disabled="c.status === 'disconnected'"
+            @click="refreshRepos(c.id)"
+          >
             Refresh
+          </UButton>
+          <UButton
+            v-if="c.status === 'disconnected'"
+            size="sm"
+            color="success"
+            variant="soft"
+            :loading="busy === `enable-${c.id}`"
+            :disabled="!c.hasAccessToken"
+            @click="enableConnection(c.id)"
+          >
+            Enable
+          </UButton>
+          <UButton
+            v-else
+            size="sm"
+            variant="ghost"
+            :loading="busy === `disable-${c.id}`"
+            @click="disableConnection(c.id)"
+          >
+            Disable
           </UButton>
           <UButton
             size="sm"
             color="error"
             variant="ghost"
-            :loading="busy === `disconnect-${c.id}`"
-            :disabled="c.status === 'disconnected'"
-            @click="disconnect(c.id)"
+            :loading="busy === `remove-${c.id}`"
+            @click="removeConnection(c.id)"
           >
-            Disconnect
+            Remove
           </UButton>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { repositories } from '#db/schema'
 import { getDb } from '#utils/db'
 import { workerBaseDir } from '#utils/paths'
+import { listPausedConnectionIds, shouldExposeRepositoryForConnection } from './connections'
 import { getSettings, bumpConfigVersion } from './settings'
 import { writeAudit } from './audit'
 import { execFile } from 'node:child_process'
@@ -65,12 +66,14 @@ export async function exportWorkerConfig(
 ) {
   const db = getDb()
   const rows = await db.select().from(repositories).where(eq(repositories.isArchived, false))
+  const pausedConnectionIds = new Set(await listPausedConnectionIds())
 
   const github: ExportedProject[] = []
   const gitlab: ExportedProject[] = []
 
   for (const row of rows) {
     if (!row.isEnabled) continue
+    if (!shouldExposeRepositoryForConnection(row.connectionId, pausedConnectionIds)) continue
     if (!row.localPath) continue
     const fullName = row.canonicalProjectIdentifier
       || fullNameFromRemoteUrl(row.remoteUrl)

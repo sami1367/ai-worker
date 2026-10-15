@@ -1,9 +1,11 @@
+import { rm } from 'node:fs/promises'
 import { and, desc, eq, lt } from 'drizzle-orm'
 import { z } from 'zod'
-import { forgeConnections, oauthStates } from '#db/schema'
+import { forgeConnections, oauthStates, repositories } from '#db/schema'
 import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { decryptSecret, encryptSecret } from '#utils/crypto'
+import { managedWorkspacePath } from '#utils/paths'
 import { redactSecrets } from '#utils/redact'
 import {
   buildGitHubAuthorizeUrl,
@@ -48,6 +50,20 @@ function decryptToken(ciphertext: string | null | undefined): string {
   }
 }
 
+/** Paused connections keep credentials but are excluded from fetch/list/export. */
+export function isConnectionPaused(status: string): boolean {
+  return status === 'disconnected'
+}
+
+/** Whether a managed repo should appear / be polled for its forge connection. */
+export function shouldExposeRepositoryForConnection(
+  connectionId: string | null | undefined,
+  pausedConnectionIds: ReadonlySet<string>,
+): boolean {
+  if (!connectionId) return true
+  return !pausedConnectionIds.has(connectionId)
+}
+
 export function publicConnection(row: typeof forgeConnections.$inferSelect) {
   const base = (process.env.APP_BASE_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '')
   return {
@@ -60,6 +76,8 @@ export function publicConnection(row: typeof forgeConnections.$inferSelect) {
     accountName: row.accountName,
     scopes: row.scopes,
     status: row.status,
+    /** True when connection is disabled but credentials are retained for re-enable. */
+    disabled: isConnectionPaused(row.status),
     lastError: row.lastError ? redactSecrets(row.lastError) : null,
     lastSyncAt: row.lastSyncAt,
     lastValidatedAt: row.lastValidatedAt,
@@ -71,6 +89,13 @@ export function publicConnection(row: typeof forgeConnections.$inferSelect) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+export async function listPausedConnectionIds(): Promise<string[]> {
+  const db = getDb()
+  const rows = await db.select({ id: forgeConnections.id }).from(forgeConnections)
+    .where(eq(forgeConnections.status, 'disconnected'))
+  return rows.map((r) => r.id)
 }
 
 export async function listConnections() {
@@ -531,29 +556,21 @@ export async function testConnection(id: string, actor: { id: string, username: 
   return { ...publicConnection(updated), test: result }
 }
 
+/**
+ * Disable a connection without clearing credentials so it can be re-enabled.
+ * Discovery, issue fetch, and the repositories page skip this connection's repos.
+ */
 export async function disconnectConnection(
   id: string,
   actor: { id: string, username: string },
 ) {
   const { row } = await getConnection(id)
-  let token: string | null
-  try {
-    token = row.accessTokenCiphertext ? decryptToken(row.accessTokenCiphertext) : null
-  } catch {
-    token = null
-  }
-
-  // OAuth revoke only applies to OAuth access tokens, not personal access tokens
-  const isPat = Boolean(row.scopes?.includes('personal_access_token'))
-  if (token && !isPat) {
-    if (row.provider === 'github') await revokeGitHubToken(token)
-    else await revokeGitLabToken(row.instanceUrl, token)
+  if (row.status === 'disconnected') {
+    return publicConnection(row)
   }
 
   const db = getDb()
   const [updated] = await db.update(forgeConnections).set({
-    accessTokenCiphertext: null,
-    refreshTokenCiphertext: null,
     status: 'disconnected',
     lastError: null,
     updatedAt: new Date(),
@@ -562,14 +579,136 @@ export async function disconnectConnection(
   await writeAudit({
     actorUserId: actor.id,
     actorUsername: actor.username,
-    action: 'connection.disconnect',
+    action: 'connection.disable',
+    targetType: 'forge_connection',
+    targetId: id,
+    metadata: {
+      provider: row.provider,
+      instanceUrl: row.instanceUrl,
+      hasAccessToken: Boolean(row.accessTokenCiphertext),
+    },
+  })
+
+  await exportForgeCredentialsAndWake('forge.disable')
+  try {
+    const { exportWorkerConfig } = await import('./config-sync')
+    await exportWorkerConfig(actor)
+  } catch {
+    // best-effort: credentials wake already ran
+  }
+  return publicConnection(updated)
+}
+
+/** Re-enable a previously disabled connection using retained credentials. */
+export async function enableConnection(
+  id: string,
+  actor: { id: string, username: string },
+) {
+  const { row } = await getConnection(id)
+  if (row.status !== 'disconnected') {
+    return publicConnection(row)
+  }
+  if (!row.accessTokenCiphertext) {
+    throw new AppError(
+      400,
+      'Connection has no stored credentials; reconnect with a token',
+      'missing_credentials',
+    )
+  }
+
+  const db = getDb()
+  const [updated] = await db.update(forgeConnections).set({
+    status: 'active',
+    lastError: null,
+    updatedAt: new Date(),
+  }).where(eq(forgeConnections.id, id)).returning()
+
+  await writeAudit({
+    actorUserId: actor.id,
+    actorUsername: actor.username,
+    action: 'connection.enable',
     targetType: 'forge_connection',
     targetId: id,
     metadata: { provider: row.provider, instanceUrl: row.instanceUrl },
   })
 
-  await exportForgeCredentialsAndWake('forge.disconnect')
+  await exportForgeCredentialsAndWake('forge.enable')
+  try {
+    const { exportWorkerConfig } = await import('./config-sync')
+    await exportWorkerConfig(actor)
+  } catch {
+    // best-effort
+  }
   return publicConnection(updated)
+}
+
+/**
+ * Permanently delete a connection, its discovered repos, and registered repositories
+ * (including managed workspace directories on disk).
+ */
+export async function removeConnection(
+  id: string,
+  actor: { id: string, username: string },
+) {
+  const { row } = await getConnection(id)
+  const db = getDb()
+
+  const linkedRepos = await db.select().from(repositories).where(eq(repositories.connectionId, id))
+
+  for (const repo of linkedRepos) {
+    try {
+      const managed = managedWorkspacePath(repo.workspaceId)
+      if (!repo.localPath || repo.localPath === managed) {
+        await rm(managed, { recursive: true, force: true })
+      }
+    } catch {
+      // best-effort workspace cleanup
+    }
+  }
+
+  let token: string | null
+  try {
+    token = row.accessTokenCiphertext ? decryptToken(row.accessTokenCiphertext) : null
+  } catch {
+    token = null
+  }
+  const isPat = Boolean(row.scopes?.includes('personal_access_token'))
+  if (token && !isPat) {
+    if (row.provider === 'github') await revokeGitHubToken(token)
+    else await revokeGitLabToken(row.instanceUrl, token)
+  }
+
+  if (linkedRepos.length) {
+    await db.delete(repositories).where(eq(repositories.connectionId, id))
+  }
+  await db.delete(forgeConnections).where(eq(forgeConnections.id, id))
+
+  await writeAudit({
+    actorUserId: actor.id,
+    actorUsername: actor.username,
+    action: 'connection.remove',
+    targetType: 'forge_connection',
+    targetId: id,
+    metadata: {
+      provider: row.provider,
+      instanceUrl: row.instanceUrl,
+      removedRepositories: linkedRepos.length,
+    },
+  })
+
+  await exportForgeCredentialsAndWake('forge.remove')
+  try {
+    const { exportWorkerConfig } = await import('./config-sync')
+    await exportWorkerConfig(actor)
+  } catch {
+    // best-effort
+  }
+
+  return {
+    ok: true as const,
+    id,
+    removedRepositories: linkedRepos.length,
+  }
 }
 
 export async function oauthStatus() {
