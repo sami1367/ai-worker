@@ -234,6 +234,7 @@ report_task_run_from_meta() {
         --arg status "$status" \
         --arg exitCode "$exit_code" \
         --arg finishedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        --arg provider "${AI_PROVIDER:-}" \
         '
         ($meta.taskType // "") as $tt
         | {
@@ -249,6 +250,7 @@ report_task_run_from_meta() {
         + (if $status == "running" or $status == "starting" then {} else {finishedAt: $finishedAt} end)
         + (if $exitCode == "" then {} else {exitCode: ($exitCode | tonumber)} end)
         + (if ($meta.title // "") != "" then {title: $meta.title} else {} end)
+        + (if $provider != "" then {provider: $provider} else {} end)
         ' 2>/dev/null || true)"
 
     if [[ -n "$payload" ]]; then

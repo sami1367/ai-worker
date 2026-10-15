@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm'
+import { and, avg, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from 'drizzle-orm'
 import { createReadStream } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
@@ -288,6 +288,26 @@ export async function upsertTaskRunFromWorker(input: {
   return row
 }
 
+export type ProviderUsageStats = {
+  provider: string
+  runs: number
+  succeeded: number
+  failed: number
+  running: number
+  cancelled: number
+  interrupted: number
+  other: number
+  successRate: number | null
+  avgDurationMs: number | null
+  totalDurationMs: number
+  byTaskType: Array<{
+    taskType: string
+    runs: number
+    succeeded: number
+    failed: number
+  }>
+}
+
 export async function taskMetrics(windowHours = 24) {
   const db = getDb()
   const since = new Date(Date.now() - windowHours * 3600 * 1000)
@@ -301,6 +321,16 @@ export async function taskMetrics(windowHours = 24) {
     eq(taskRuns.status, 'failed'),
     gte(taskRuns.finishedAt, since),
   ))
+  const [avgAll] = await db.select({
+    avgDurationMs: avg(taskRuns.durationMs),
+    totalDurationMs: sum(taskRuns.durationMs),
+    finished: count(),
+  }).from(taskRuns).where(and(
+    gte(taskRuns.finishedAt, since),
+    inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
+  ))
+
+  const byProvider = await providerUsageStats(windowHours)
 
   return {
     windowHours,
@@ -308,5 +338,116 @@ export async function taskMetrics(windowHours = 24) {
     queued: queued?.c ?? 0,
     succeeded: succeeded?.c ?? 0,
     failed: failed?.c ?? 0,
+    avgDurationMs: avgAll?.avgDurationMs != null ? Math.round(Number(avgAll.avgDurationMs)) : null,
+    totalDurationMs: avgAll?.totalDurationMs != null ? Number(avgAll.totalDurationMs) : 0,
+    byProvider,
   }
+}
+
+/** Aggregate task_runs usage for each AI provider inside the time window. */
+export async function providerUsageStats(windowHours = 24): Promise<ProviderUsageStats[]> {
+  const db = getDb()
+  const since = new Date(Date.now() - windowHours * 3600 * 1000)
+
+  const statusRows = await db.select({
+    provider: sql<string>`coalesce(${taskRuns.provider}, 'unassigned')`.as('provider'),
+    status: taskRuns.status,
+    c: count(),
+  }).from(taskRuns)
+    .where(gte(taskRuns.createdAt, since))
+    .groupBy(sql`coalesce(${taskRuns.provider}, 'unassigned')`, taskRuns.status)
+
+  const durationRows = await db.select({
+    provider: sql<string>`coalesce(${taskRuns.provider}, 'unassigned')`.as('provider'),
+    avgDurationMs: avg(taskRuns.durationMs),
+    totalDurationMs: sum(taskRuns.durationMs),
+  }).from(taskRuns)
+    .where(and(
+      gte(taskRuns.createdAt, since),
+      inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
+    ))
+    .groupBy(sql`coalesce(${taskRuns.provider}, 'unassigned')`)
+
+  const typeRows = await db.select({
+    provider: sql<string>`coalesce(${taskRuns.provider}, 'unassigned')`.as('provider'),
+    taskType: taskRuns.taskType,
+    status: taskRuns.status,
+    c: count(),
+  }).from(taskRuns)
+    .where(gte(taskRuns.createdAt, since))
+    .groupBy(sql`coalesce(${taskRuns.provider}, 'unassigned')`, taskRuns.taskType, taskRuns.status)
+
+  const map = new Map<string, ProviderUsageStats>()
+
+  function ensure(provider: string): ProviderUsageStats {
+    let row = map.get(provider)
+    if (!row) {
+      row = {
+        provider,
+        runs: 0,
+        succeeded: 0,
+        failed: 0,
+        running: 0,
+        cancelled: 0,
+        interrupted: 0,
+        other: 0,
+        successRate: null,
+        avgDurationMs: null,
+        totalDurationMs: 0,
+        byTaskType: [],
+      }
+      map.set(provider, row)
+    }
+    return row
+  }
+
+  for (const r of statusRows) {
+    const row = ensure(r.provider)
+    const n = Number(r.c) || 0
+    row.runs += n
+    if (r.status === 'succeeded') row.succeeded += n
+    else if (r.status === 'failed') row.failed += n
+    else if (r.status === 'running' || r.status === 'starting') row.running += n
+    else if (r.status === 'cancelled') row.cancelled += n
+    else if (r.status === 'interrupted') row.interrupted += n
+    else row.other += n
+  }
+
+  for (const r of durationRows) {
+    const row = ensure(r.provider)
+    row.avgDurationMs = r.avgDurationMs != null ? Math.round(Number(r.avgDurationMs)) : null
+    row.totalDurationMs = r.totalDurationMs != null ? Number(r.totalDurationMs) : 0
+  }
+
+  const typeMap = new Map<string, Map<string, { runs: number, succeeded: number, failed: number }>>()
+  for (const r of typeRows) {
+    const byType = typeMap.get(r.provider) || new Map()
+    const cur = byType.get(r.taskType) || { runs: 0, succeeded: 0, failed: 0 }
+    const n = Number(r.c) || 0
+    cur.runs += n
+    if (r.status === 'succeeded') cur.succeeded += n
+    if (r.status === 'failed') cur.failed += n
+    byType.set(r.taskType, cur)
+    typeMap.set(r.provider, byType)
+  }
+
+  for (const [provider, byType] of typeMap) {
+    const row = ensure(provider)
+    row.byTaskType = [...byType.entries()]
+      .map(([taskType, v]) => ({ taskType, ...v }))
+      .sort((a, b) => b.runs - a.runs)
+  }
+
+  for (const row of map.values()) {
+    const decided = row.succeeded + row.failed
+    row.successRate = decided > 0 ? Math.round((row.succeeded / decided) * 1000) / 10 : null
+  }
+
+  const preferred = ['cursor', 'claude', 'unassigned']
+  return [...map.values()].sort((a, b) => {
+    const ai = preferred.indexOf(a.provider)
+    const bi = preferred.indexOf(b.provider)
+    if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+    return b.runs - a.runs
+  })
 }
