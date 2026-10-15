@@ -41,6 +41,8 @@ source "$WORKER_CODE_DIR/lib/common.sh"
 source "$WORKER_CODE_DIR/lib/gitlab.sh"
 # shellcheck source=lib/labels.sh
 source "$WORKER_CODE_DIR/lib/labels.sh"
+# shellcheck source=lib/ai.sh
+source "$WORKER_CODE_DIR/lib/ai.sh"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 ai_load_env "$BASE_DIR/.env"
@@ -221,13 +223,63 @@ agent_meta_from_job() {
         } + (if $branch != "" then {branch: $branch} else {} end)'
 }
 
+# Find newest result / agent log artifacts for a finished task.
+# Usage: latest_task_artifact <project> <external_id> <suffix>
+# suffix examples: result.txt | agent.ndjson | log
+latest_task_artifact() {
+    local project_name="$1"
+    local external_id="$2"
+    local suffix="$3"
+    local match=""
+
+    [[ -n "$project_name" && -n "$external_id" && -n "$suffix" ]] || return 1
+    shopt -s nullglob
+    # Newest first by mtime; names include a sortable timestamp prefix segment.
+    # shellcheck disable=SC2086
+    match="$(ls -t "$LOG_DIR"/${project_name}-*-${external_id}-*.${suffix} 2>/dev/null | head -n 1 || true)"
+    shopt -u nullglob
+    [[ -n "$match" ]] || return 1
+    printf '%s\n' "$match"
+}
+
 report_task_run_from_meta() {
     local meta="$1"
     local status="$2"
     local exit_code="${3:-}"
     local payload
+    local project_name="" external_id="" branch=""
+    local agent_log="" main_log="" result_file="" usage_json="{}" log_path=""
 
     [[ -n "$meta" ]] || return 0
+
+    project_name="$(jq -r '.repositoryName // empty' <<<"$meta" 2>/dev/null || true)"
+    external_id="$(jq -r '.externalId // empty' <<<"$meta" 2>/dev/null || true)"
+    branch="$(jq -r '.branch // empty' <<<"$meta" 2>/dev/null || true)"
+
+    # On terminal status, attach log path + token usage from the agent NDJSON log.
+    if [[ "$status" != "running" && "$status" != "starting" && "$status" != "queued" ]]; then
+        result_file="$(latest_task_artifact "$project_name" "$external_id" "result.txt" 2>/dev/null || true)"
+        if [[ -n "$result_file" && -f "$result_file" ]]; then
+            agent_log="$(awk -F= '/^agent_log=/{print substr($0, index($0,$2)); exit}' "$result_file" 2>/dev/null || true)"
+            main_log="$(awk -F= '/^main_log=/{print substr($0, index($0,$2)); exit}' "$result_file" 2>/dev/null || true)"
+            if [[ -z "$branch" ]]; then
+                branch="$(awk -F= '/^branch=/{print substr($0, index($0,$2)); exit}' "$result_file" 2>/dev/null || true)"
+            fi
+        fi
+        if [[ -z "$agent_log" || ! -f "$agent_log" ]]; then
+            agent_log="$(latest_task_artifact "$project_name" "$external_id" "agent.ndjson" 2>/dev/null || true)"
+        fi
+        if [[ -z "$main_log" || ! -f "$main_log" ]]; then
+            main_log="$(latest_task_artifact "$project_name" "$external_id" "log" 2>/dev/null || true)"
+        fi
+        if [[ -n "$agent_log" && -f "$agent_log" ]]; then
+            usage_json="$(ai_extract_token_usage "$agent_log" 2>/dev/null || true)"
+            [[ -n "$usage_json" ]] || usage_json="{}"
+        fi
+        if [[ -n "$main_log" && -f "$main_log" ]]; then
+            log_path="$main_log"
+        fi
+    fi
 
     payload="$(jq -nc \
         --argjson meta "$meta" \
@@ -235,8 +287,15 @@ report_task_run_from_meta() {
         --arg exitCode "$exit_code" \
         --arg finishedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
         --arg provider "${AI_PROVIDER:-}" \
+        --arg branch "$branch" \
+        --argjson usage "$usage_json" \
+        --arg logPath "$log_path" \
         '
         ($meta.taskType // "") as $tt
+        | (
+            (if $branch != "" then {branch: $branch} else {} end)
+            + (if ($usage | type) == "object" and ($usage | length) > 0 then {usage: $usage} else {} end)
+          ) as $resultMetadata
         | {
             repositoryName: ($meta.repositoryName // null),
             forgeType: (if ($tt | startswith("gitlab_")) then "gitlab" else "github" end),
@@ -245,12 +304,13 @@ report_task_run_from_meta() {
             status: $status,
             startedAt: ($meta.startedAt // null),
             correlationId: ($meta.correlationId // null),
-            resultMetadata: (if ($meta.branch // "") != "" then {branch: $meta.branch} else {} end)
+            resultMetadata: $resultMetadata
           }
         + (if $status == "running" or $status == "starting" then {} else {finishedAt: $finishedAt} end)
         + (if $exitCode == "" then {} else {exitCode: ($exitCode | tonumber)} end)
         + (if ($meta.title // "") != "" then {title: $meta.title} else {} end)
         + (if $provider != "" then {provider: $provider} else {} end)
+        + (if $logPath != "" then {logPath: $logPath} else {} end)
         ' 2>/dev/null || true)"
 
     if [[ -n "$payload" ]]; then

@@ -49,6 +49,26 @@ function planLabel(service: any): string {
   if (service.plan.error) return 'Plan unavailable'
   return 'Plan unknown'
 }
+
+function formatTokens(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return '—'
+  return new Intl.NumberFormat('en-US').format(n)
+}
+
+function formatFinishedAt(value: string | null | undefined): string {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString()
+}
+
+function usageLabel(usage: any): string {
+  if (!usage) return '—'
+  const total = formatTokens(usage.totalTokens)
+  const input = formatTokens(usage.inputTokens)
+  const output = formatTokens(usage.outputTokens)
+  return `${total} (in ${input} / out ${output})`
+}
 </script>
 
 <template>
@@ -216,6 +236,73 @@ function planLabel(service: any): string {
 
             <p v-if="svc.healthMessage" class="text-xs opacity-55">{{ svc.healthMessage }}</p>
           </div>
+        </div>
+      </section>
+
+      <!-- Finished tasks: status + token usage -->
+      <section class="space-y-3">
+        <div class="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 class="font-display text-xl">Finished tasks</h2>
+            <p class="text-sm opacity-70">
+              Completed runs in the selected window · status and token usage
+            </p>
+          </div>
+          <NuxtLink to="/tasks" class="text-sm text-[var(--aw-accent)] underline-offset-2 hover:underline">
+            All tasks
+          </NuxtLink>
+        </div>
+
+        <div v-if="!data.finishedTasks?.length" class="aw-panel rounded-xl p-8 text-center text-sm opacity-70">
+          No finished tasks in the last {{ data.windowHours }}h.
+        </div>
+        <div v-else class="aw-panel overflow-x-auto rounded-xl">
+          <table class="min-w-full text-sm">
+            <thead class="border-b border-[var(--aw-line)] text-left opacity-70">
+              <tr>
+                <th class="px-4 py-3">Task</th>
+                <th class="px-4 py-3">Repo</th>
+                <th class="px-4 py-3">Type</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3">Provider</th>
+                <th class="px-4 py-3">Duration</th>
+                <th class="px-4 py-3">Tokens</th>
+                <th class="px-4 py-3">Finished</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="run in data.finishedTasks"
+                :key="run.id"
+                class="border-b border-[var(--aw-line)]"
+              >
+                <td class="px-4 py-3">
+                  <NuxtLink :to="`/tasks/${run.id}`" class="font-medium hover:underline">
+                    {{ run.title || `#${run.externalId}` }}
+                  </NuxtLink>
+                  <p class="mt-0.5 text-xs opacity-50">#{{ run.externalId }}</p>
+                </td>
+                <td class="px-4 py-3">{{ run.repositoryName || '—' }}</td>
+                <td class="px-4 py-3">{{ taskTypeLabel(run.taskType) }}</td>
+                <td class="px-4 py-3">
+                  <UBadge :color="statusColor(run.status)" variant="subtle">{{ run.status }}</UBadge>
+                </td>
+                <td class="px-4 py-3">{{ run.provider || '—' }}</td>
+                <td class="px-4 py-3 tabular-nums">{{ formatDuration(run.durationMs) }}</td>
+                <td class="px-4 py-3">
+                  <span
+                    class="tabular-nums"
+                    :title="run.usage
+                      ? `cache read ${formatTokens(run.usage.cacheReadTokens)} · cache write ${formatTokens(run.usage.cacheWriteTokens)}`
+                      : 'Token usage not recorded for this run'"
+                  >
+                    {{ usageLabel(run.usage) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap opacity-70">{{ formatFinishedAt(run.finishedAt) }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 

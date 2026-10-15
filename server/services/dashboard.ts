@@ -6,7 +6,7 @@ import { listProviders } from './providers'
 import { getProviderPlanSnapshots } from './provider-plans'
 import { getWorkerStatus, listRecentWorkerEvents } from './worker'
 import { getSettings } from './settings'
-import { taskMetrics, type ProviderUsageStats } from './tasks'
+import { listFinishedTaskRuns, taskMetrics, type ProviderUsageStats } from './tasks'
 
 async function queuePhaseCounts() {
   const db = getDb()
@@ -59,6 +59,7 @@ export async function getDashboard(windowHours = 24) {
     providers,
     events,
     recentRuns,
+    finishedTasks,
     dbHealth,
     plans,
     queue,
@@ -70,6 +71,7 @@ export async function getDashboard(windowHours = 24) {
     listProviders(),
     listRecentWorkerEvents(10),
     db.select().from(taskRuns).orderBy(desc(taskRuns.createdAt)).limit(10),
+    listFinishedTaskRuns({ windowHours, limit: 50 }),
     checkDatabaseConnectivity(),
     getProviderPlanSnapshots(),
     queuePhaseCounts(),
@@ -161,6 +163,7 @@ export async function getDashboard(windowHours = 24) {
       }]),
     ),
     recentRuns,
+    finishedTasks,
     recentEvents: events,
     latestFailures,
     database: dbHealth,

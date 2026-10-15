@@ -109,3 +109,42 @@ ai_log_agent_finish() {
     echo "Finished:  $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "============================================================"
 }
+
+# Parse token usage from a Cursor / Claude stream-json NDJSON agent log.
+# Prints a single JSON object, or nothing (exit 1) when unavailable.
+# Usage: ai_extract_token_usage <agent.ndjson>
+ai_extract_token_usage() {
+    local file="${1:-}"
+    local result_line
+
+    [[ -n "$file" && -f "$file" ]] || return 1
+    command -v jq >/dev/null 2>&1 || return 1
+
+    # Prefer the last terminal result event that carries a usage object.
+    result_line="$(
+        jq -c 'select(type == "object" and .type == "result" and (.usage | type) == "object")' "$file" 2>/dev/null \
+            | tail -n 1
+    )"
+    [[ -n "$result_line" ]] || return 1
+
+    jq -c '
+        . as $r
+        | .usage
+        | {
+            inputTokens: ((.inputTokens // .input_tokens // 0) | tonumber? // 0 | floor),
+            outputTokens: ((.outputTokens // .output_tokens // 0) | tonumber? // 0 | floor),
+            cacheReadTokens: (
+                (.cacheReadTokens // .cache_read_input_tokens // .cache_read_tokens // 0)
+                | tonumber? // 0 | floor
+            ),
+            cacheWriteTokens: (
+                (.cacheWriteTokens // .cache_creation_input_tokens // .cache_write_tokens // 0)
+                | tonumber? // 0 | floor
+            )
+          }
+        | . + { totalTokens: (.inputTokens + .outputTokens) }
+        | if ($r.total_cost_usd // $r.totalCostUsd) != null then
+            . + { totalCostUsd: ($r.total_cost_usd // $r.totalCostUsd) }
+          else . end
+    ' <<<"$result_line" 2>/dev/null
+}

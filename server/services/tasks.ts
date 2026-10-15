@@ -451,3 +451,97 @@ export async function providerUsageStats(windowHours = 24): Promise<ProviderUsag
     return b.runs - a.runs
   })
 }
+
+export type TaskTokenUsage = {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalTokens: number
+  totalCostUsd: number | null
+}
+
+function asNonNegInt(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.floor(n)
+}
+
+/** Normalize Cursor (camelCase) / Claude (snake_case) usage stored on result_metadata. */
+export function extractTaskTokenUsage(resultMetadata: unknown): TaskTokenUsage | null {
+  if (!resultMetadata || typeof resultMetadata !== 'object') return null
+  const root = resultMetadata as Record<string, unknown>
+  const usage = (root.usage && typeof root.usage === 'object')
+    ? root.usage as Record<string, unknown>
+    : root
+  const inputTokens = asNonNegInt(usage.inputTokens ?? usage.input_tokens)
+  const outputTokens = asNonNegInt(usage.outputTokens ?? usage.output_tokens)
+  const cacheReadTokens = asNonNegInt(
+    usage.cacheReadTokens ?? usage.cache_read_input_tokens ?? usage.cache_read_tokens,
+  )
+  const cacheWriteTokens = asNonNegInt(
+    usage.cacheWriteTokens ?? usage.cache_creation_input_tokens ?? usage.cache_write_tokens,
+  )
+  const totalTokens = asNonNegInt(usage.totalTokens ?? usage.total_tokens)
+    || (inputTokens + outputTokens)
+  const costRaw = usage.totalCostUsd ?? usage.total_cost_usd
+  const totalCostUsd = typeof costRaw === 'number' && Number.isFinite(costRaw) ? costRaw : null
+
+  if (inputTokens === 0 && outputTokens === 0 && cacheReadTokens === 0 && cacheWriteTokens === 0 && totalTokens === 0) {
+    return null
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalTokens,
+    totalCostUsd,
+  }
+}
+
+/** Finished task runs for dashboards (status + token usage). */
+export async function listFinishedTaskRuns(opts: {
+  windowHours?: number
+  limit?: number
+} = {}) {
+  const db = getDb()
+  const windowHours = Math.min(168, Math.max(1, opts.windowHours ?? 24))
+  const limit = Math.min(100, Math.max(1, opts.limit ?? 50))
+  const since = new Date(Date.now() - windowHours * 3600 * 1000)
+
+  const rows = await db.select({
+    run: taskRuns,
+    repositoryName: repositories.name,
+  }).from(taskRuns)
+    .leftJoin(repositories, eq(taskRuns.repositoryId, repositories.id))
+    .where(and(
+      inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
+      gte(taskRuns.finishedAt, since),
+    ))
+    .orderBy(desc(taskRuns.finishedAt))
+    .limit(limit)
+
+  return rows.map(({ run, repositoryName }) => {
+    const usage = extractTaskTokenUsage(run.resultMetadata)
+    return {
+      id: run.id,
+      title: run.title,
+      externalId: run.externalId,
+      externalUrl: run.externalUrl,
+      taskType: run.taskType,
+      forgeType: run.forgeType,
+      provider: run.provider,
+      status: run.status,
+      repositoryName,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      durationMs: run.durationMs,
+      exitCode: run.exitCode,
+      errorSummary: run.errorSummary,
+      branch: typeof run.resultMetadata?.branch === 'string' ? run.resultMetadata.branch : null,
+      usage,
+    }
+  })
+}
