@@ -33,7 +33,7 @@ export default defineEventHandler((event) => handleApi(event, async () => {
   ])
   return {
     application: {
-      version: useRuntimeConfig().appVersion || '1.0.0',
+      version: useRuntimeConfig().public.appVersion || '1.0.0',
       nodeEnv: process.env.NODE_ENV || 'development',
       time: new Date().toISOString(),
     },
