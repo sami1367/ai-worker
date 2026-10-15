@@ -129,7 +129,7 @@ export async function getDashboard(windowHours = 24) {
     }
   }
 
-  const providerOrder = ['cursor', 'claude', 'codex', 'gemini', 'unassigned']
+  const providerOrder = ['cursor', 'claude', 'codex', 'gemini', 'copilot', 'unassigned']
   aiServices.sort((a, b) => {
     if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
     const ai = providerOrder.indexOf(a.providerType)
@@ -174,7 +174,7 @@ export async function getDashboard(windowHours = 24) {
     warnings: [
       ...(readiness.providers.ok
         ? []
-        : ['Connect and enable at least one AI provider (Cursor, Claude, Codex, or Gemini)']),
+        : ['Connect and enable at least one AI provider (Cursor, Claude, Codex, Gemini, or Copilot)']),
       ...(readiness.connections.issue === 'none'
         ? ['Connect at least one GitHub or GitLab forge connection']
         : readiness.connections.issue === 'unhealthy'
@@ -194,6 +194,7 @@ export async function getDashboard(windowHours = 24) {
           || s.providerType === 'claude'
           || s.providerType === 'codex'
           || s.providerType === 'gemini'
+          || s.providerType === 'copilot'
         ))
         .filter((s) => s.isEnabled && !s.hasSecret)
         .map((s) => `${s.displayName} is enabled but has no credentials`),

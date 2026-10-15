@@ -23,7 +23,7 @@ export const es: Messages = {
   'layout.language': 'Idioma',
   'setup.nav.needsAttention': 'Requiere atención',
   'setup.warn.provider.title': 'Conecta un proveedor de IA',
-  'setup.warn.provider.description': 'Habilita y conecta al menos un proveedor de IA (Cursor, Claude, Codex o Gemini) antes de ejecutar tareas.',
+  'setup.warn.provider.description': 'Habilita y conecta al menos un proveedor de IA (Cursor, Claude, Codex, Gemini o Copilot) antes de ejecutar tareas.',
   'setup.warn.provider.action': 'Abrir proveedores',
   'setup.warn.connection.title': 'Conecta GitHub o GitLab',
   'setup.warn.connection.description': 'Añade al menos una conexión de forge válida y luego registra un repositorio.',
@@ -139,7 +139,7 @@ export const es: Messages = {
   'howItWorks.panel.intro':
     'Usa el panel para conectar forges y proveedores de IA, habilitar repositorios, ajustar prompts y settings, y supervisar tasks. El trabajo diario de programación sigue haciéndose con labels en GitHub o GitLab.',
   'howItWorks.panel.setup.heading': 'Orden de configuración recomendado',
-  'howItWorks.panel.setup.item1': 'Providers — conecta Cursor, Claude, Codex y/o Gemini, habilita al menos uno y define uno por defecto.',
+  'howItWorks.panel.setup.item1': 'Providers — conecta Cursor, Claude, Codex, Gemini y/o Copilot, habilita al menos uno y define uno por defecto.',
   'howItWorks.panel.setup.item2': 'Connections — conecta GitHub y/o GitLab con un token que tenga los scopes anteriores.',
   'howItWorks.panel.setup.item3':
     'Repositories — espera al descubrimiento o haz clic en Fetch, y luego habilita los repos que quieras automatizar.',
@@ -153,7 +153,7 @@ export const es: Messages = {
   'howItWorks.panel.pages.tasks':
     'Tasks — cola en vivo del forge e historial de ejecuciones de implementación, revisión y trabajos relacionados.',
   'howItWorks.panel.pages.providers':
-    'Providers — credenciales de Cursor / Claude / Codex / Gemini, habilitación, comprobaciones de estado y valor por defecto.',
+    'Providers — credenciales de Cursor / Claude / Codex / Gemini / Copilot, habilitación, comprobaciones de estado y valor por defecto.',
   'howItWorks.panel.pages.prompts': 'Prompts — plantillas globales y fragmentos que usa el worker.',
   'howItWorks.panel.pages.settings':
     'Settings — intervalo de sondeo, concurrencia, valores por defecto, retención y preferencias de la UI.',

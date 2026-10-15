@@ -16,6 +16,7 @@ const KNOWN = [
   { providerType: 'claude', displayName: 'Claude Code CLI' },
   { providerType: 'codex', displayName: 'Codex CLI' },
   { providerType: 'gemini', displayName: 'Gemini CLI' },
+  { providerType: 'copilot', displayName: 'GitHub Copilot CLI' },
 ] as const
 
 const KNOWN_TYPES = new Set(KNOWN.map((k) => k.providerType))
@@ -55,6 +56,9 @@ function envCredentialPresent(providerType: string): boolean {
   }
   if (providerType === 'gemini') {
     return Boolean(process.env.GEMINI_API_KEY)
+  }
+  if (providerType === 'copilot') {
+    return Boolean(process.env.COPILOT_GITHUB_TOKEN)
   }
   return false
 }
@@ -385,6 +389,22 @@ export async function testProvider(providerType: string) {
       } else {
         healthStatus = 'degraded'
         healthMessage = `Binary found at ${bin}. Connect a Gemini API key in Providers, or set GEMINI_API_KEY.`
+      }
+    }
+  } else if (providerType === 'copilot') {
+    const { bin, version } = await detectBinary(['copilot'])
+    detectedVersion = version
+    if (!bin) {
+      healthStatus = 'unhealthy'
+      healthMessage = 'GitHub Copilot CLI not found (expected copilot on PATH)'
+    } else {
+      const hasCred = Boolean(process.env.COPILOT_GITHUB_TOKEN || existing.secretCiphertext)
+      if (hasCred) {
+        healthStatus = 'healthy'
+        healthMessage = `Binary found at ${bin}. COPILOT_GITHUB_TOKEN is configured (not verified against the API).`
+      } else {
+        healthStatus = 'degraded'
+        healthMessage = `Binary found at ${bin}. Connect a fine-grained PAT with Copilot Requests in Providers, or set COPILOT_GITHUB_TOKEN.`
       }
     }
   } else {

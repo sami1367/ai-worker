@@ -47,6 +47,7 @@ async function save() {
             { label: 'Claude Code', value: 'claude' },
             { label: 'Codex', value: 'codex' },
             { label: 'Gemini', value: 'gemini' },
+            { label: 'GitHub Copilot', value: 'copilot' },
           ]"
         />
       </UFormField>

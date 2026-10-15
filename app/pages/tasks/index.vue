@@ -22,6 +22,9 @@ const providerItems = [
   { label: 'Any provider', value: null },
   { label: 'cursor', value: 'cursor' },
   { label: 'claude', value: 'claude' },
+  { label: 'codex', value: 'codex' },
+  { label: 'gemini', value: 'gemini' },
+  { label: 'copilot', value: 'copilot' },
 ]
 const taskTypeItems = [
   { label: 'Any type', value: null },

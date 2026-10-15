@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const settingsSchema = z.object({
   pollIntervalSeconds: z.number().int().min(15).max(3600).default(30),
-  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini']).default('cursor'),
+  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini', 'copilot']).default('cursor'),
 })
 
 describe('settings schema', () => {

@@ -18,7 +18,7 @@ export const registerDiscoveredSchema = z.object({
   /** Default false: clone only when an AI job needs the workspace. */
   clone: z.boolean().default(false),
   blockOnOpenPr: z.boolean().optional(),
-  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini']).nullable().optional(),
+  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini', 'copilot']).nullable().optional(),
 })
 
 function workerNameFromFullName(fullName: string): string {
@@ -63,7 +63,7 @@ async function registerOneDiscovered(
     enable: boolean
     clone: boolean
     blockOnOpenPr?: boolean
-    defaultAiProvider?: 'cursor' | 'claude' | 'codex' | 'gemini' | null
+    defaultAiProvider?: 'cursor' | 'claude' | 'codex' | 'gemini' | 'copilot' | null
     actor: Actor
     ipHash?: string
     settings: Awaited<ReturnType<typeof getSettings>>

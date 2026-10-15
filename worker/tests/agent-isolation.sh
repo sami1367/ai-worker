@@ -42,6 +42,7 @@ export ANTHROPIC_API_KEY="test-anthropic-key"
 export OPENAI_API_KEY="test-openai-key"
 export CODEX_API_KEY="test-openai-key"
 export GEMINI_API_KEY="test-gemini-key"
+export COPILOT_GITHUB_TOKEN="test-copilot-token"
 EOF
 cat >"$BASE/app-secrets.env" <<'EOF'
 SECRET_ENCRYPTION_KEY=deadbeef
@@ -62,6 +63,7 @@ export ANTHROPIC_API_KEY="test-anthropic-key"
 export OPENAI_API_KEY="test-openai-key"
 export CODEX_API_KEY="test-openai-key"
 export GEMINI_API_KEY="test-gemini-key"
+export COPILOT_GITHUB_TOKEN="test-copilot-token"
 export WORKER_INTERNAL_TOKEN="wit-secret"
 export SECRET_ENCRYPTION_KEY="deadbeef"
 export DATABASE_URL="postgres://aiworker:pw@db/aiworker"
@@ -96,6 +98,7 @@ report ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY-}"
 report OPENAI_API_KEY "${OPENAI_API_KEY-}"
 report CODEX_API_KEY "${CODEX_API_KEY-}"
 report GEMINI_API_KEY "${GEMINI_API_KEY-}"
+report COPILOT_GITHUB_TOKEN "${COPILOT_GITHUB_TOKEN-}"
 
 # Credential files
 forge_bytes=$(wc -c < "'"$BASE"'/forge-credentials.env" 2>/dev/null || echo missing)
@@ -184,6 +187,7 @@ fi
 [[ "$(getv OPENAI_API_KEY)" == "test-openai-key" ]] || fail "OPENAI_API_KEY not passed through"
 [[ "$(getv CODEX_API_KEY)" == "test-openai-key" ]] || fail "CODEX_API_KEY not passed through"
 [[ "$(getv GEMINI_API_KEY)" == "test-gemini-key" ]] || fail "GEMINI_API_KEY not passed through"
+[[ "$(getv COPILOT_GITHUB_TOKEN)" == "test-copilot-token" ]] || fail "COPILOT_GITHUB_TOKEN not passed through"
 pass "AI provider keys remain available to the agent"
 
 [[ "$(getv git_push_rc)" != "0" ]] || fail "git push unexpectedly succeeded inside agent"

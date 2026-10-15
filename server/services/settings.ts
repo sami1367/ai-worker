@@ -8,7 +8,7 @@ import { writeAudit } from './audit'
 export const settingsSchema = z.object({
   pollIntervalSeconds: z.number().int().min(15).max(3600).default(30),
   maxGlobalConcurrentTasks: z.number().int().min(1).max(64).default(8),
-  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini']).default('cursor'),
+  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini', 'copilot']).default('cursor'),
   defaultBlockOnOpenPr: z.boolean().default(true),
   logRetentionDays: z.number().int().min(1).max(365).default(30),
   timezone: z.string().min(1).max(64).default('UTC'),

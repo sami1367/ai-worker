@@ -172,6 +172,7 @@ onBeforeUnmount(() => stopPoll.value?.())
                 { label: 'claude', value: 'claude' },
                 { label: 'codex', value: 'codex' },
                 { label: 'gemini', value: 'gemini' },
+                { label: 'copilot', value: 'copilot' },
               ]"
             />
           </UFormField>

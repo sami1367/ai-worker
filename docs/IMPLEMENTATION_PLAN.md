@@ -108,7 +108,7 @@
 ## Remaining / next steps
 
 1. Optional: instrument Bash runners to POST `task_runs` on start/finish (API already exists).
-2. [x] Install Cursor + Claude + Codex + Gemini CLIs in image (`scripts/install-ai-clis.sh`) + Providers UI connect/disconnect + `provider-credentials.env`
+2. [x] Install Cursor + Claude + Codex + Gemini + Copilot CLIs in image (`scripts/install-ai-clis.sh`) + Providers UI connect/disconnect + `provider-credentials.env`
 3. Expand automated browser e2e when desired.
 4. Wire `CHECK_INTERVAL` from DB settings into worker env on export/reload (env override already works).
 5. Rebuild/restart running Compose `web`/`worker` images to pick up Phase I code (migration already applied to the live DB in this environment).

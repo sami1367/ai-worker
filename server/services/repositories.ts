@@ -37,7 +37,7 @@ export const createRepositorySchema = z.object({
    * When false, the worker removes `.codegraph/` and skips init until re-enabled.
    */
   codegraphEnabled: z.boolean().optional(),
-  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini']).nullable().optional(),
+  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini', 'copilot']).nullable().optional(),
   settings: repositorySettingsSchema.optional(),
   activate: z.boolean().default(false),
   localPath: z.string().max(1024).optional(),

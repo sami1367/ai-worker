@@ -133,6 +133,17 @@ Components referenced by `Dockerfile` and `docker-compose.yml` (audit only; thos
 | Covered by AI Worker Apache-2.0? | CLI source is Apache-2.0 (compatible); API usage is not relicensed by this project |
 | Publishing pre-baked public images | Lower risk than proprietary CLIs for the binary itself; still confirm Google AI API terms for operators |
 
+### 3.4c GitHub Copilot CLI (`@github/copilot`)
+
+| Item | Detail |
+|------|--------|
+| Install | `npm install -g @github/copilot` in image build (Node.js 22+) |
+| Nature | Proprietary CLI; Copilot usage billed under the operator’s GitHub Copilot subscription |
+| Governing terms | GitHub Terms of Service + GitHub Copilot / additional products terms |
+| Covered by AI Worker Apache-2.0? | No — binary stays under GitHub / Microsoft terms |
+| Publishing pre-baked public images | Unresolved — confirm whether bundling `@github/copilot` in a public pullable image is permitted |
+| Auth model | Fine-grained PAT with **Copilot Requests** via `COPILOT_GITHUB_TOKEN` (classic `ghp_` tokens unsupported) |
+
 ### 3.5 Operator credentials (AI CLIs)
 
 AI Worker is designed so forge/AI tokens are supplied by the operator (env / UI), not baked into the image. That aligns with vendor expectations that end users use their own accounts. It does **not** by itself resolve binary redistribution questions for published images.
@@ -148,7 +159,7 @@ AI Worker is designed so forge/AI tokens are supplied by the operator (env / UI)
 | NOTICE file | Not required | Supported / expected for attribution |
 | Compatibility with current npm graph | Yes | Yes |
 | Enterprise familiarity | High | High (often preferred in enterprise OSS reviews) |
-| Effect on Cursor / Claude / Codex / Gemini redistribution | None | None |
+| Effect on Cursor / Claude / Codex / Gemini / Copilot redistribution | None | None |
 
 Neither license can authorize redistribution of proprietary CLIs.
 
@@ -162,10 +173,11 @@ Do **not** treat these as approved without vendor confirmation or counsel:
 2. **Claude Code in public Docker Hub images** — Does Anthropic’s “preinstall in products” guidance cover third-party public image redistribution, or is a separate agreement / runtime-only install required?
 3. **Codex CLI in public Docker Hub images** — Confirm whether baking `@openai/codex` into a public pullable image is permitted under OpenAI’s current terms.
 4. **Gemini CLI in public Docker Hub images** — CLI is Apache-2.0; confirm Google AI API terms still fit your redistribution / operator model.
-5. **Trademark / naming** — Confirm marketing language (“Cursor CLI”, “Claude Code”, “Codex”, “Gemini”) stays within each vendor’s trademark guidelines (plain-text accurate description vs. endorsement implication).
-6. **`vaul-vue` SPDX metadata** — Confirm ongoing MIT status when upgrading; package.json still lacks a license field.
-7. **Full Debian / Alpine copyright aggregation** — For compliance-hardened commercial deliverables, generate a complete OS package copyright report from the built image (not done in this audit).
-8. **Export controls** — Cursor, Anthropic, OpenAI, and Google terms may reference export/trade controls; operators in restricted jurisdictions need their own compliance review.
+5. **GitHub Copilot CLI in public Docker Hub images** — Confirm whether baking `@github/copilot` into a public pullable image is permitted under GitHub’s current terms.
+6. **Trademark / naming** — Confirm marketing language (“Cursor CLI”, “Claude Code”, “Codex”, “Gemini”, “GitHub Copilot”) stays within each vendor’s trademark guidelines (plain-text accurate description vs. endorsement implication).
+7. **`vaul-vue` SPDX metadata** — Confirm ongoing MIT status when upgrading; package.json still lacks a license field.
+8. **Full Debian / Alpine copyright aggregation** — For compliance-hardened commercial deliverables, generate a complete OS package copyright report from the built image (not done in this audit).
+9. **Export controls** — Cursor, Anthropic, OpenAI, Google, and GitHub terms may reference export/trade controls; operators in restricted jurisdictions need their own compliance review.
 
 ---
 

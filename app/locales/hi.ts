@@ -23,7 +23,7 @@ export const hi: Messages = {
   'layout.language': 'भाषा',
   'setup.nav.needsAttention': 'ध्यान आवश्यक',
   'setup.warn.provider.title': 'एक AI प्रदाता कनेक्ट करें',
-  'setup.warn.provider.description': 'कार्य चलाने से पहले कम से कम एक AI प्रदाता (Cursor, Claude, Codex, या Gemini) सक्षम और कनेक्ट करें।',
+  'setup.warn.provider.description': 'कार्य चलाने से पहले कम से कम एक AI प्रदाता (Cursor, Claude, Codex, Gemini, या Copilot) सक्षम और कनेक्ट करें।',
   'setup.warn.provider.action': 'प्रदाता खोलें',
   'setup.warn.connection.title': 'GitHub या GitLab कनेक्ट करें',
   'setup.warn.connection.description': 'कम से कम एक काम करने वाला forge कनेक्शन जोड़ें, फिर एक रेपो पंजीकृत करें।',
@@ -137,7 +137,7 @@ export const hi: Messages = {
     'forges और AI providers कनेक्ट करने, repositories सक्षम करने, prompts और settings ट्यून करने, तथा tasks की निगरानी करने के लिए पैनल का उपयोग करें। रोज़मर्रा का कोडिंग काम अब भी GitHub या GitLab में labels से होता है।',
   'howItWorks.panel.setup.heading': 'अनुशंसित setup क्रम',
   'howItWorks.panel.setup.item1':
-    'Providers — Cursor, Claude, Codex और/या Gemini कनेक्ट करें, कम से कम एक सक्षम करें, और एक default सेट करें।',
+    'Providers — Cursor, Claude, Codex, Gemini और/या Copilot कनेक्ट करें, कम से कम एक सक्षम करें, और एक default सेट करें।',
   'howItWorks.panel.setup.item2': 'Connections — ऊपर दिए scopes वाले token के साथ GitHub और/या GitLab कनेक्ट करें।',
   'howItWorks.panel.setup.item3':
     'Repositories — discovery का इंतज़ार करें या Fetch क्लिक करें, फिर जिन repos को स्वचालित करना है उन्हें सक्षम करें।',
@@ -149,7 +149,7 @@ export const hi: Messages = {
   'howItWorks.panel.pages.repositories':
     'Repositories — पंजीकरण, सक्षम/अक्षम, clone स्थिति, target branch, वैकल्पिक force-push, प्रति-repo provider और prompts।',
   'howItWorks.panel.pages.tasks': 'Tasks — implement, review और संबंधित जॉब्स के लिए लाइव forge queue और run इतिहास।',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini credentials, सक्षमता, health checks, और default।',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini / Copilot credentials, सक्षमता, health checks, और default।',
   'howItWorks.panel.pages.prompts': 'Prompts — worker द्वारा उपयोग किए जाने वाले वैश्विक templates और snippets।',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention, और UI प्राथमिकताएँ।',
   'howItWorks.panel.pages.system': 'System — परिचालन स्वास्थ्य और प्लेटफ़ॉर्म स्थिति।',

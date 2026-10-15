@@ -92,6 +92,14 @@ The image build runs `scripts/install-ai-clis.sh`, which installs:
 - **Usage model for operators:** End users should authenticate with their own Gemini API key (`GEMINI_API_KEY`). Do not resell Gemini access under a shared account.  
 - **Redistribution:** CLI source is Apache-2.0; confirm Google AI API terms for your deployment before publishing images that bundle the CLI.
 
+### GitHub Copilot CLI (`@github/copilot`)
+
+- **Vendor:** GitHub / Microsoft  
+- **Install method:** `npm install -g @github/copilot` (requires Node.js 22+)  
+- **License:** Proprietary; use governed by the [GitHub Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service), [GitHub Copilot terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#github-copilot), and related GitHub agreements  
+- **Usage model for operators:** End users should authenticate with their own fine-grained personal access token that has the **Copilot Requests** permission (`COPILOT_GITHUB_TOKEN`). Classic `ghp_` tokens are not supported. Do not resell Copilot access under a shared account.  
+- **Redistribution:** Not covered by this project’s Apache-2.0 license. Confirm GitHub redistribution terms before publishing images that bundle the Copilot CLI.
+
 ### CodeGraph CLI (`@colbymchenry/codegraph` / standalone install)
 
 - **Vendor / project:** [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)  
@@ -103,6 +111,6 @@ The image build runs `scripts/install-ai-clis.sh`, which installs:
 ## Attribution statement
 
 AI Worker uses open-source libraries from the npm ecosystem and standard
-container base images listed above. Proprietary Cursor, Anthropic, and OpenAI
+container base images listed above. Proprietary Cursor, Anthropic, OpenAI, and GitHub Copilot
 CLIs, and Google’s Gemini CLI when present, remain the property of their
 respective owners and are subject only to those owners’ terms.

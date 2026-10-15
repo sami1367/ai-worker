@@ -32,6 +32,7 @@ export async function exportWorkerRuntimeEnv(): Promise<{
     || defaultProvider?.providerType === 'claude'
     || defaultProvider?.providerType === 'codex'
     || defaultProvider?.providerType === 'gemini'
+    || defaultProvider?.providerType === 'copilot'
   )
     ? defaultProvider.providerType
     : settings.defaultAiProvider

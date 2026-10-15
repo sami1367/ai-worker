@@ -12,7 +12,7 @@ if [[ -z "${BASE_DIR:-}" ]]; then
   fi
 fi
 
-# Active provider id after ai_init (e.g. cursor, claude, codex, gemini).
+# Active provider id after ai_init (e.g. cursor, claude, codex, gemini, copilot).
 AI_PROVIDER="${AI_PROVIDER:-cursor}"
 
 # Set by ai_init / ai_run_agent:
@@ -20,7 +20,7 @@ AI_PROVIDER_BIN=""
 AI_PROVIDER_NAME=""
 AGENT_EXIT_CODE=0
 
-AI_KNOWN_PROVIDERS=(cursor claude codex gemini)
+AI_KNOWN_PROVIDERS=(cursor claude codex gemini copilot)
 
 # Technical agent↔forge isolation (env scrub + optional bubblewrap).
 # shellcheck source=lib/ai-isolation.sh
@@ -44,6 +44,7 @@ ai_init() {
     # shellcheck source=lib/ai/claude.sh
     # shellcheck source=lib/ai/codex.sh
     # shellcheck source=lib/ai/gemini.sh
+    # shellcheck source=lib/ai/copilot.sh
     source "$provider_file"
 
     if ! declare -F "ai_${provider}_detect" >/dev/null 2>&1; then
@@ -126,7 +127,7 @@ ai_log_agent_finish() {
     echo "============================================================"
 }
 
-# Parse token usage from Cursor / Claude / Codex / Gemini agent logs.
+# Parse token usage from Cursor / Claude / Codex / Gemini / Copilot agent logs.
 # Prints a single JSON object, or nothing (exit 1) when unavailable.
 # Usage: ai_extract_token_usage <agent.ndjson>
 ai_extract_token_usage() {
