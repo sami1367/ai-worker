@@ -1,6 +1,6 @@
 # AI Worker
 
-Self-hosted AI agent platform for **GitHub** and **GitLab**. Label an issue or merge request, and AI Worker runs coding agents (Cursor CLI / Claude Code) in your environment to implement work or review changes.
+Self-hosted AI agent platform for **GitHub** and **GitLab**. Label an issue or merge request, and AI Worker runs coding agents (Cursor CLI / Claude Code / Codex CLI) in your environment to implement work or review changes.
 
 AI Worker is designed for teams that want automation **on their own infrastructure**—including companies running **GitLab Self-Managed**—without sending repositories to a third-party hosted agent service.
 
@@ -371,7 +371,7 @@ docker compose down
 - Third-party and proprietary CLI terms: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - Audit findings and unresolved vendor questions: [docs/LICENSE_AUDIT.md](docs/LICENSE_AUDIT.md)
 
-Cursor Agent CLI and Claude Code are proprietary products of their vendors. AI Worker does not relicense them. Operators must use their own provider credentials and comply with Cursor and Anthropic terms.
+Cursor Agent CLI, Claude Code, and Codex CLI are proprietary products of their vendors. AI Worker does not relicense them. Operators must use their own provider credentials and comply with Cursor, Anthropic, and OpenAI terms.
 
 ---
 

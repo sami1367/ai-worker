@@ -27,7 +27,11 @@ export async function exportWorkerRuntimeEnv(): Promise<{
     providerType: providerConfigs.providerType,
   }).from(providerConfigs).where(eq(providerConfigs.isDefault, true)).limit(1)
 
-  const aiProvider = (defaultProvider?.providerType === 'cursor' || defaultProvider?.providerType === 'claude')
+  const aiProvider = (
+    defaultProvider?.providerType === 'cursor'
+    || defaultProvider?.providerType === 'claude'
+    || defaultProvider?.providerType === 'codex'
+  )
     ? defaultProvider.providerType
     : settings.defaultAiProvider
 

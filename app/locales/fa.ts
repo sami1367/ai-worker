@@ -23,7 +23,7 @@ export const fa: Messages = {
   'layout.language': 'زبان',
   'setup.nav.needsAttention': 'نیاز به توجه',
   'setup.warn.provider.title': 'یک ارائه‌دهنده هوش مصنوعی متصل کنید',
-  'setup.warn.provider.description': 'قبل از اجرای وظایف، حداقل یک ارائه‌دهنده (Cursor یا Claude) را فعال و متصل کنید.',
+  'setup.warn.provider.description': 'قبل از اجرای وظایف، حداقل یک ارائه‌دهنده (Cursor، Claude یا Codex) را فعال و متصل کنید.',
   'setup.warn.provider.action': 'باز کردن ارائه‌دهندگان',
   'setup.warn.connection.title': 'GitHub یا GitLab را متصل کنید',
   'setup.warn.connection.description': 'حداقل یک اتصال سالم به فورج بسازید، سپس یک مخزن ثبت کنید.',
@@ -135,7 +135,7 @@ export const fa: Messages = {
     'از پنل برای اتصال فورج و ارائه‌دهندگان هوش مصنوعی، فعال‌سازی مخازن، تنظیم پرامپت‌ها و تنظیمات، و پایش tasks استفاده کنید. کار روزمرهٔ کدنویسی همچنان با برچسب‌ها در GitHub یا GitLab انجام می‌شود.',
   'howItWorks.panel.setup.heading': 'ترتیب پیشنهادی راه‌اندازی',
   'howItWorks.panel.setup.item1':
-    'Providers — Cursor و/یا Claude را متصل کنید، حداقل یکی را فعال کنید و پیش‌فرض را تنظیم کنید.',
+    'Providers — Cursor، Claude و/یا Codex را متصل کنید، حداقل یکی را فعال کنید و پیش‌فرض را تنظیم کنید.',
   'howItWorks.panel.setup.item2': 'Connections — GitHub و/یا GitLab را با توکن دارای scopeهای بالا متصل کنید.',
   'howItWorks.panel.setup.item3': 'Repositories — منتظر کشف بمانید یا Fetch را بزنید، سپس مخازن موردنظر را فعال کنید.',
   'howItWorks.panel.setup.item4':
@@ -146,7 +146,7 @@ export const fa: Messages = {
   'howItWorks.panel.pages.repositories':
     'Repositories — ثبت، فعال/غیرفعال، وضعیت کلون، شاخه هدف، force-push اختیاری، ارائه‌دهنده و پرامپت هر مخزن.',
   'howItWorks.panel.pages.tasks': 'Tasks — صف زنده فورج و تاریخچه اجرا برای پیاده‌سازی، بازبینی و کارهای مرتبط.',
-  'howItWorks.panel.pages.providers': 'Providers — اعتبارنامه Cursor / Claude، فعال‌سازی، سلامت و پیش‌فرض.',
+  'howItWorks.panel.pages.providers': 'Providers — اعتبارنامه Cursor / Claude / Codex، فعال‌سازی، سلامت و پیش‌فرض.',
   'howItWorks.panel.pages.prompts': 'Prompts — قالب‌ها و قطعه‌های سراسری مورد استفاده worker.',
   'howItWorks.panel.pages.settings': 'Settings — فاصله polling، هم‌زمانی، پیش‌فرض‌ها، نگهداری و ترجیحات UI.',
   'howItWorks.panel.pages.system': 'System — سلامت عملیاتی و وضعیت پلتفرم.',

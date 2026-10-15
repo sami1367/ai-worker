@@ -40,7 +40,14 @@ async function save() {
     <div v-if="pending && !data" class="aw-panel h-64 animate-pulse rounded-xl" />
     <form v-else-if="data" class="aw-panel space-y-4 rounded-xl p-4" @submit.prevent="save">
       <UFormField label="Default AI provider">
-        <USelect v-model="data.defaultAiProvider" :items="[{ label: 'Cursor', value: 'cursor' }, { label: 'Claude Code', value: 'claude' }]" />
+        <USelect
+          v-model="data.defaultAiProvider"
+          :items="[
+            { label: 'Cursor', value: 'cursor' },
+            { label: 'Claude Code', value: 'claude' },
+            { label: 'Codex', value: 'codex' },
+          ]"
+        />
       </UFormField>
       <UFormField label="Polling interval (seconds)" hint="Applied on the next worker poll cycle (no container restart).">
         <UInput v-model.number="data.pollIntervalSeconds" type="number" min="15" max="3600" />

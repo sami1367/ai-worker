@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Cursor Agent CLI + Claude Code CLI into the image (or host).
+# Install Cursor Agent CLI + Claude Code CLI + Codex CLI into the image (or host).
 # Intended for Docker build; also usable on a Linux host for local worker runs.
 set -Eeuo pipefail
 
@@ -18,6 +18,14 @@ if [[ -x "${HOME}/.npm-global/bin/claude" ]]; then
 fi
 command -v claude >/dev/null
 claude --version || true
+
+echo "[install-ai-clis] Installing Codex CLI (@openai/codex)…"
+npm install -g --prefix "${HOME}/.npm-global" @openai/codex
+if [[ -x "${HOME}/.npm-global/bin/codex" ]]; then
+  ln -sfn "${HOME}/.npm-global/bin/codex" "${HOME}/.local/bin/codex"
+fi
+command -v codex >/dev/null
+codex --version || true
 
 echo "[install-ai-clis] Installing Cursor Agent CLI…"
 curl https://cursor.com/install -fsS | bash
@@ -38,6 +46,9 @@ fi
 if command -v claude >/dev/null 2>&1; then
   link_into_usr_local "$(command -v claude)" claude
 fi
+if command -v codex >/dev/null 2>&1; then
+  link_into_usr_local "$(command -v codex)" codex
+fi
 
 if ! command -v agent >/dev/null 2>&1 && ! command -v cursor-agent >/dev/null 2>&1; then
   echo "[install-ai-clis] ERROR: Cursor CLI not found after install (expected agent or cursor-agent)" >&2
@@ -47,6 +58,10 @@ if ! command -v claude >/dev/null 2>&1; then
   echo "[install-ai-clis] ERROR: Claude Code CLI not found after install" >&2
   exit 1
 fi
+if ! command -v codex >/dev/null 2>&1; then
+  echo "[install-ai-clis] ERROR: Codex CLI not found after install" >&2
+  exit 1
+fi
 
 agent --version 2>/dev/null || cursor-agent --version 2>/dev/null || true
-echo "[install-ai-clis] Done. claude=$(command -v claude) agent=$(command -v agent || true) cursor-agent=$(command -v cursor-agent || true)"
+echo "[install-ai-clis] Done. claude=$(command -v claude) codex=$(command -v codex) agent=$(command -v agent || true) cursor-agent=$(command -v cursor-agent || true)"

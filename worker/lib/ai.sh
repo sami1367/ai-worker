@@ -12,7 +12,7 @@ if [[ -z "${BASE_DIR:-}" ]]; then
   fi
 fi
 
-# Active provider id after ai_init (e.g. cursor, claude).
+# Active provider id after ai_init (e.g. cursor, claude, codex).
 AI_PROVIDER="${AI_PROVIDER:-cursor}"
 
 # Set by ai_init / ai_run_agent:
@@ -20,7 +20,7 @@ AI_PROVIDER_BIN=""
 AI_PROVIDER_NAME=""
 AGENT_EXIT_CODE=0
 
-AI_KNOWN_PROVIDERS=(cursor claude)
+AI_KNOWN_PROVIDERS=(cursor claude codex)
 
 # Technical agent↔forge isolation (env scrub + optional bubblewrap).
 # shellcheck source=lib/ai-isolation.sh
@@ -42,6 +42,7 @@ ai_init() {
 
     # shellcheck source=lib/ai/cursor.sh
     # shellcheck source=lib/ai/claude.sh
+    # shellcheck source=lib/ai/codex.sh
     source "$provider_file"
 
     if ! declare -F "ai_${provider}_detect" >/dev/null 2>&1; then
@@ -114,7 +115,7 @@ ai_log_agent_finish() {
     echo "============================================================"
 }
 
-# Parse token usage from a Cursor / Claude stream-json NDJSON agent log.
+# Parse token usage from Cursor / Claude / Codex stream-json NDJSON agent logs.
 # Prints a single JSON object, or nothing (exit 1) when unavailable.
 # Usage: ai_extract_token_usage <agent.ndjson>
 ai_extract_token_usage() {
@@ -124,9 +125,15 @@ ai_extract_token_usage() {
     [[ -n "$file" && -f "$file" ]] || return 1
     command -v jq >/dev/null 2>&1 || return 1
 
-    # Prefer the last terminal result event that carries a usage object.
+    # Prefer the last terminal usage event:
+    #   Cursor/Claude → type=result
+    #   Codex exec --json → type=turn.completed
     result_line="$(
-        jq -c 'select(type == "object" and .type == "result" and (.usage | type) == "object")' "$file" 2>/dev/null \
+        jq -c 'select(
+            type == "object"
+            and (.type == "result" or .type == "turn.completed")
+            and (.usage | type) == "object"
+        )' "$file" 2>/dev/null \
             | tail -n 1
     )"
     [[ -n "$result_line" ]] || return 1
@@ -138,11 +145,11 @@ ai_extract_token_usage() {
             inputTokens: ((.inputTokens // .input_tokens // 0) | tonumber? // 0 | floor),
             outputTokens: ((.outputTokens // .output_tokens // 0) | tonumber? // 0 | floor),
             cacheReadTokens: (
-                (.cacheReadTokens // .cache_read_input_tokens // .cache_read_tokens // 0)
+                (.cacheReadTokens // .cache_read_input_tokens // .cache_read_tokens // .cached_input_tokens // 0)
                 | tonumber? // 0 | floor
             ),
             cacheWriteTokens: (
-                (.cacheWriteTokens // .cache_creation_input_tokens // .cache_write_tokens // 0)
+                (.cacheWriteTokens // .cache_creation_input_tokens // .cache_write_tokens // .cache_write_input_tokens // 0)
                 | tonumber? // 0 | floor
             )
           }

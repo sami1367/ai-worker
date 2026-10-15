@@ -23,7 +23,7 @@ export const tr: Messages = {
   'layout.language': 'Dil',
   'setup.nav.needsAttention': 'Dikkat gerekli',
   'setup.warn.provider.title': 'Bir AI sağlayıcı bağlayın',
-  'setup.warn.provider.description': 'Görevler çalışmadan önce en az bir AI sağlayıcıyı (Cursor veya Claude) etkinleştirip bağlayın.',
+  'setup.warn.provider.description': 'Görevler çalışmadan önce en az bir AI sağlayıcıyı (Cursor, Claude veya Codex) etkinleştirip bağlayın.',
   'setup.warn.provider.action': 'Sağlayıcıları aç',
   'setup.warn.connection.title': 'GitHub veya GitLab bağlayın',
   'setup.warn.connection.description': 'En az bir çalışan forge bağlantısı ekleyin, ardından bir depo kaydedin.',
@@ -135,7 +135,7 @@ export const tr: Messages = {
     'Forges ve AI providers bağlantısı kurmak, repositories etkinleştirmek, prompts ve settings ayarlamak ve tasks izlemek için paneli kullanın. Günlük kodlama işi yine GitHub veya GitLab\'daki labels ile yapılır.',
   'howItWorks.panel.setup.heading': 'Önerilen setup sırası',
   'howItWorks.panel.setup.item1':
-    'Providers — Cursor ve/veya Claude bağlayın, en az birini etkinleştirin ve bir default ayarlayın.',
+    'Providers — Cursor, Claude ve/veya Codex bağlayın, en az birini etkinleştirin ve bir default ayarlayın.',
   'howItWorks.panel.setup.item2': 'Connections — yukarıdaki scopes\'a sahip bir token ile GitHub ve/veya GitLab bağlayın.',
   'howItWorks.panel.setup.item3':
     'Repositories — discovery\'yi bekleyin veya Fetch\'e tıklayın, ardından otomatikleştirmek istediğiniz repos öğelerini etkinleştirin.',
@@ -147,7 +147,7 @@ export const tr: Messages = {
   'howItWorks.panel.pages.repositories':
     'Repositories — kayıt, etkin/devre dışı, clone durumu, hedef dal, isteğe bağlı force-push, depo başına sağlayıcı ve prompt’lar.',
   'howItWorks.panel.pages.tasks': 'Tasks — implement, review ve ilgili işler için canlı forge queue ve run geçmişi.',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, etkinleştirme, health checks ve default.',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex credentials, etkinleştirme, health checks ve default.',
   'howItWorks.panel.pages.prompts': 'Prompts — worker tarafından kullanılan global templates ve snippets.',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention ve UI tercihleri.',
   'howItWorks.panel.pages.system': 'System — operasyonel sağlık ve platform durumu.',

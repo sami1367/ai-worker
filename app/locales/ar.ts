@@ -23,7 +23,7 @@ export const ar: Messages = {
   'layout.language': 'اللغة',
   'setup.nav.needsAttention': 'يحتاج إلى انتباه',
   'setup.warn.provider.title': 'وصّل مزوّد ذكاء اصطناعي',
-  'setup.warn.provider.description': 'فعّل ووصّل مزوّد AI واحدًا على الأقل (Cursor أو Claude) قبل تشغيل المهام.',
+  'setup.warn.provider.description': 'فعّل ووصّل مزوّد AI واحدًا على الأقل (Cursor أو Claude أو Codex) قبل تشغيل المهام.',
   'setup.warn.provider.action': 'فتح المزوّدين',
   'setup.warn.connection.title': 'وصّل GitHub أو GitLab',
   'setup.warn.connection.description': 'أضف اتصال forge عاملًا واحدًا على الأقل ثم سجّل مستودعًا.',
@@ -131,7 +131,7 @@ export const ar: Messages = {
   'howItWorks.panel.intro':
     'استخدم اللوحة لربط منصات الـ forge ومزوّدي الذكاء الاصطناعي، وتفعيل المستودعات، وضبط الـ prompts والإعدادات، ومراقبة المهام. عمل البرمجة اليومي يبقى عبر التسميات في GitHub أو GitLab.',
   'howItWorks.panel.setup.heading': 'ترتيب الإعداد الموصى به',
-  'howItWorks.panel.setup.item1': 'Providers — اربط Cursor و/أو Claude، فعّل واحدًا على الأقل، وعيّن الافتراضي.',
+  'howItWorks.panel.setup.item1': 'Providers — اربط Cursor و Claude و/أو Codex، فعّل واحدًا على الأقل، وعيّن الافتراضي.',
   'howItWorks.panel.setup.item2': 'Connections — اربط GitHub و/أو GitLab برمز يمتلك النطاقات أعلاه.',
   'howItWorks.panel.setup.item3': 'Repositories — انتظر الاكتشاف أو انقر Fetch، ثم فعّل المستودعات التي تريد أتمتتها.',
   'howItWorks.panel.setup.item4': 'اختياري — Setup labels و Setup webhooks لإيقاظ أسرع عندما يكون APP_BASE_URL قابلاً للوصول.',
@@ -141,7 +141,7 @@ export const ar: Messages = {
   'howItWorks.panel.pages.repositories':
     'Repositories — التسجيل والتفعيل/التعطيل وحالة الاستنساخ وفرع الهدف والدفع القسري الاختياري والمزوّد والـ prompts لكل مستودع.',
   'howItWorks.panel.pages.tasks': 'Tasks — قائمة انتظار الـ forge المباشرة وسجل التشغيل لمهام التنفيذ والمراجعة وما يتصل بها.',
-  'howItWorks.panel.pages.providers': 'Providers — بيانات اعتماد Cursor / Claude والتفعيل وفحوصات الصحة والافتراضي.',
+  'howItWorks.panel.pages.providers': 'Providers — بيانات اعتماد Cursor / Claude / Codex والتفعيل وفحوصات الصحة والافتراضي.',
   'howItWorks.panel.pages.prompts': 'Prompts — القوالب والمقتطفات العامة التي يستخدمها الـ worker.',
   'howItWorks.panel.pages.settings': 'Settings — فترة الاستطلاع والتوازي والقيم الافتراضية والاحتفاظ وتفضيلات الواجهة.',
   'howItWorks.panel.pages.system': 'System — الصحة التشغيلية وحالة المنصة.',

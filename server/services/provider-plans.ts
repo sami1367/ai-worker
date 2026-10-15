@@ -8,7 +8,7 @@ import type { ClaudeCredentialType } from './provider-credentials'
 const execFileAsync = promisify(execFile)
 
 export type ProviderPlanSnapshot = {
-  providerType: 'cursor' | 'claude'
+  providerType: 'cursor' | 'claude' | 'codex'
   displayName: string
   plan: string | null
   email: string | null
@@ -27,6 +27,7 @@ type ResolvedSecrets = {
   cursorApiKey: string
   anthropicApiKey: string
   claudeOauthToken: string
+  openaiApiKey: string
 }
 
 async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
@@ -37,9 +38,11 @@ async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
   let cursorApiKey = process.env.CURSOR_API_KEY || ''
   let anthropicApiKey = process.env.ANTHROPIC_API_KEY || ''
   let claudeOauthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN || ''
+  let openaiApiKey = process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY || ''
 
   const cursor = rows.find((r) => r.providerType === 'cursor')
   const claude = rows.find((r) => r.providerType === 'claude')
+  const codex = rows.find((r) => r.providerType === 'codex')
 
   if (cursor?.secretCiphertext && key) {
     try {
@@ -64,7 +67,15 @@ async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
     }
   }
 
-  return { cursorApiKey, anthropicApiKey, claudeOauthToken }
+  if (codex?.secretCiphertext && key) {
+    try {
+      openaiApiKey = decryptSecret(codex.secretCiphertext, key)
+    } catch {
+      // keep env
+    }
+  }
+
+  return { cursorApiKey, anthropicApiKey, claudeOauthToken, openaiApiKey }
 }
 
 async function detectBin(commands: string[]): Promise<string | null> {
@@ -259,12 +270,67 @@ async function fetchClaudePlan(secrets: ResolvedSecrets): Promise<ProviderPlanSn
   }
 }
 
+async function fetchCodexPlan(secrets: ResolvedSecrets): Promise<ProviderPlanSnapshot> {
+  const fetchedAt = new Date().toISOString()
+  const base: ProviderPlanSnapshot = {
+    providerType: 'codex',
+    displayName: 'Codex CLI',
+    plan: null,
+    email: null,
+    model: null,
+    cliVersion: null,
+    authenticated: null,
+    authMethod: secrets.openaiApiKey ? 'api_key' : null,
+    apiKeyName: null,
+    accountLabel: null,
+    source: 'none',
+    fetchedAt,
+    error: null,
+  }
+
+  if (!secrets.openaiApiKey) {
+    base.error = 'No OpenAI/Codex API key configured'
+    return base
+  }
+
+  const bin = await detectBin(['codex'])
+  if (!bin) {
+    base.error = 'Codex CLI not found on PATH'
+    return base
+  }
+
+  try {
+    const version = await execFileAsync(bin, ['--version'], {
+      timeout: 8000,
+      env: childEnv({
+        OPENAI_API_KEY: secrets.openaiApiKey,
+        CODEX_API_KEY: secrets.openaiApiKey,
+      }),
+    })
+    base.cliVersion = (version.stdout || version.stderr).trim().split('\n')[0]?.slice(0, 80) || null
+    base.source = 'cli'
+    base.authenticated = true
+    base.plan = 'API usage'
+    base.accountLabel = 'OpenAI API key'
+    base.error = null
+    return base
+  } catch (err) {
+    base.error = err instanceof Error ? err.message.slice(0, 200) : 'Failed to read Codex CLI version'
+    // Key is present even if --version failed for unrelated reasons.
+    base.authenticated = true
+    base.plan = 'API usage'
+    base.accountLabel = 'OpenAI API key'
+    return base
+  }
+}
+
 /** Best-effort plan / account snapshots for each AI provider (parallel, timed). */
 export async function getProviderPlanSnapshots(): Promise<ProviderPlanSnapshot[]> {
   const secrets = await resolveProviderSecrets()
-  const [cursor, claude] = await Promise.all([
+  const [cursor, claude, codex] = await Promise.all([
     fetchCursorPlan(secrets),
     fetchClaudePlan(secrets),
+    fetchCodexPlan(secrets),
   ])
-  return [cursor, claude]
+  return [cursor, claude, codex]
 }

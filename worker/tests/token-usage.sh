@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercises ai_extract_token_usage against Cursor / Claude stream-json samples.
+# Exercises ai_extract_token_usage against Cursor / Claude / Codex stream-json samples.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,6 +11,7 @@ source "$ROOT/lib/ai.sh"
 
 CURSOR_LOG="$TMP/cursor.agent.ndjson"
 CLAUDE_LOG="$TMP/claude.agent.ndjson"
+CODEX_LOG="$TMP/codex.agent.ndjson"
 
 cat > "$CURSOR_LOG" <<'EOF'
 {"type":"system","subtype":"init"}
@@ -24,8 +25,15 @@ cat > "$CLAUDE_LOG" <<'EOF'
 {"type":"result","subtype":"success","is_error":false,"result":"ok","total_cost_usd":0.0042,"usage":{"input_tokens":1500,"output_tokens":420,"cache_read_input_tokens":800,"cache_creation_input_tokens":10}}
 EOF
 
+cat > "$CODEX_LOG" <<'EOF'
+{"type":"thread.started","thread_id":"0199a213-81c0-7800-8aa1-bbab2a035a53"}
+{"type":"turn.started"}
+{"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"cache_write_input_tokens":12,"output_tokens":122,"reasoning_output_tokens":0}}
+EOF
+
 cursor_usage="$(ai_extract_token_usage "$CURSOR_LOG")"
 claude_usage="$(ai_extract_token_usage "$CLAUDE_LOG")"
+codex_usage="$(ai_extract_token_usage "$CODEX_LOG")"
 
 echo "$cursor_usage" | jq -e '
   .inputTokens == 5749
@@ -42,6 +50,14 @@ echo "$claude_usage" | jq -e '
   and .cacheWriteTokens == 10
   and .totalTokens == 1920
   and .totalCostUsd == 0.0042
+' >/dev/null
+
+echo "$codex_usage" | jq -e '
+  .inputTokens == 24763
+  and .outputTokens == 122
+  and .cacheReadTokens == 24448
+  and .cacheWriteTokens == 12
+  and .totalTokens == 24885
 ' >/dev/null
 
 if ai_extract_token_usage "$TMP/missing.ndjson" 2>/dev/null; then

@@ -163,7 +163,11 @@ onBeforeUnmount(() => stopPoll.value?.())
           <UFormField label="Default AI provider">
             <USelect
               v-model="data.defaultAiProvider"
-              :items="[{ label: 'cursor', value: 'cursor' }, { label: 'claude', value: 'claude' }]"
+              :items="[
+                { label: 'cursor', value: 'cursor' },
+                { label: 'claude', value: 'claude' },
+                { label: 'codex', value: 'codex' },
+              ]"
             />
           </UFormField>
           <UCheckbox v-model="data.blockOnOpenPr" label="Block new issues while an AI-labeled PR/MR is open" />

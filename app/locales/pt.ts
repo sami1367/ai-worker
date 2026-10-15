@@ -23,7 +23,7 @@ export const pt: Messages = {
   'layout.language': 'Idioma',
   'setup.nav.needsAttention': 'Precisa de atenção',
   'setup.warn.provider.title': 'Conecte um provedor de IA',
-  'setup.warn.provider.description': 'Ative e conecte pelo menos um provedor de IA (Cursor ou Claude) antes de executar tarefas.',
+  'setup.warn.provider.description': 'Ative e conecte pelo menos um provedor de IA (Cursor, Claude ou Codex) antes de executar tarefas.',
   'setup.warn.provider.action': 'Abrir provedores',
   'setup.warn.connection.title': 'Conecte GitHub ou GitLab',
   'setup.warn.connection.description': 'Adicione pelo menos uma conexão forge funcional e depois registre um repositório.',
@@ -136,7 +136,7 @@ export const pt: Messages = {
   'howItWorks.panel.intro':
     'Use o painel para conectar forges e provedores de IA, habilitar repositórios, ajustar prompts e configurações e monitorar tasks. O trabalho de código do dia a dia continua com labels no GitHub ou GitLab.',
   'howItWorks.panel.setup.heading': 'Ordem recomendada de configuração',
-  'howItWorks.panel.setup.item1': 'Providers — conecte Cursor e/ou Claude, habilite pelo menos um e defina um padrão.',
+  'howItWorks.panel.setup.item1': 'Providers — conecte Cursor, Claude e/ou Codex, habilite pelo menos um e defina um padrão.',
   'howItWorks.panel.setup.item2': 'Connections — conecte GitHub e/ou GitLab com um token que tenha os escopos acima.',
   'howItWorks.panel.setup.item3':
     'Repositories — aguarde a descoberta ou clique em Fetch e habilite os repos que deseja automatizar.',
@@ -149,7 +149,7 @@ export const pt: Messages = {
     'Repositories — registrar, ativar/desativar, status do clone, branch de destino, force-push opcional, provedor e prompts por repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — fila ao vivo do forge e histórico de execução para implementação, revisão e jobs relacionados.',
-  'howItWorks.panel.pages.providers': 'Providers — credenciais Cursor / Claude, habilitação, health checks e padrão.',
+  'howItWorks.panel.pages.providers': 'Providers — credenciais Cursor / Claude / Codex, habilitação, health checks e padrão.',
   'howItWorks.panel.pages.prompts': 'Prompts — templates e trechos globais usados pelo worker.',
   'howItWorks.panel.pages.settings': 'Settings — intervalo de polling, concorrência, padrões, retenção e preferências de UI.',
   'howItWorks.panel.pages.system': 'System — saúde operacional e status da plataforma.',

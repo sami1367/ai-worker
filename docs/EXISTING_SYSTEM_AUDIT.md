@@ -38,6 +38,7 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 7. **GitLab MR AI review** — same pattern
 8. **Cursor CLI provider** — `agent` / `cursor-agent` (`lib/ai/cursor.sh`)
 9. **Claude Code CLI provider** — `claude` (`lib/ai/claude.sh`)
+9b. **Codex CLI provider** — `codex` (`lib/ai/codex.sh`)
 10. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`
 11. **One task per repository** — in-memory PID map + `state/slots/<key>.lock` via `flock`
 12. **Cross-repository concurrency** — multiple repo agents in parallel
@@ -102,6 +103,7 @@ From `.env.example` and code:
 | `AI_PROVIDER` | `cursor` (default) or `claude` |
 | `AI_CURSOR_MODEL`, `AI_CURSOR_EXTRA_ARGS` | Cursor options |
 | `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` | Claude auth |
+| `OPENAI_API_KEY` / `CODEX_API_KEY` | Codex auth |
 | `AI_CLAUDE_MODEL`, `AI_CLAUDE_*` | Claude headless options |
 | `AI_RELATED_TASKS_DRY_RUN` | Test-only related-task dry run |
 
@@ -117,6 +119,7 @@ GitHub auth is **not** in `.env`; it uses `gh auth login` (host keyring / `GH_TO
 | **GitLab** | `GITLAB_TOKEN` + `GITLAB_HOST` → `curl` REST API in `lib/gitlab.sh` |
 | **Cursor** | CLI binary on PATH; auth is Cursor’s own login / account (not in worker `.env`) |
 | **Claude Code** | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in environment |
+| **Codex** | `OPENAI_API_KEY` or `CODEX_API_KEY` in environment |
 
 ---
 

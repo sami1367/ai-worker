@@ -76,9 +76,17 @@ The image build runs `scripts/install-ai-clis.sh`, which installs:
 - **Product guidance:** Anthropic documents conditions for preinstalling/running Claude Code in products (unmodified binary; each end user authenticates and is billed under their own credentials). See [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance).  
 - **Redistribution:** Whether publishing a pre-baked public Docker image that contains the Claude Code binary is fully permitted without further Anthropic agreement remains an **unresolved** compliance question — see `docs/LICENSE_AUDIT.md`.
 
+### Codex CLI (`@openai/codex`)
+
+- **Vendor:** OpenAI  
+- **Install method:** `npm install -g @openai/codex`  
+- **License:** Proprietary; use governed by OpenAI’s terms and Codex product documentation  
+- **Usage model for operators:** End users should authenticate with their own OpenAI API key (`OPENAI_API_KEY` / `CODEX_API_KEY`). Do not resell OpenAI access under a shared account.  
+- **Redistribution:** Not covered by this project’s Apache-2.0 license. Confirm OpenAI redistribution terms before publishing images that bundle the Codex CLI.
+
 ## Attribution statement
 
 AI Worker uses open-source libraries from the npm ecosystem and standard
-container base images listed above. Proprietary Cursor and Anthropic CLIs, when
-present, remain the property of their respective owners and are subject only to
-those owners’ terms.
+container base images listed above. Proprietary Cursor, Anthropic, and OpenAI
+CLIs, when present, remain the property of their respective owners and are
+subject only to those owners’ terms.

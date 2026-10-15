@@ -23,7 +23,7 @@ export const fr: Messages = {
   'layout.language': 'Langue',
   'setup.nav.needsAttention': 'Attention requise',
   'setup.warn.provider.title': 'Connectez un fournisseur IA',
-  'setup.warn.provider.description': 'Activez et connectez au moins un fournisseur IA (Cursor ou Claude) avant d’exécuter des tâches.',
+  'setup.warn.provider.description': 'Activez et connectez au moins un fournisseur IA (Cursor, Claude ou Codex) avant d’exécuter des tâches.',
   'setup.warn.provider.action': 'Ouvrir les fournisseurs',
   'setup.warn.connection.title': 'Connectez GitHub ou GitLab',
   'setup.warn.connection.description': 'Ajoutez au moins une connexion forge fonctionnelle, puis enregistrez un dépôt.',
@@ -138,7 +138,7 @@ export const fr: Messages = {
     'Utilisez le panneau pour connecter les forges et les fournisseurs d\'IA, activer des dépôts, ajuster les prompts et les settings, et suivre les tasks. Le travail de développement au quotidien se fait toujours avec des labels dans GitHub ou GitLab.',
   'howItWorks.panel.setup.heading': 'Ordre de configuration recommandé',
   'howItWorks.panel.setup.item1':
-    'Providers — connectez Cursor et/ou Claude, activez-en au moins un, et définissez une valeur par défaut.',
+    'Providers — connectez Cursor, Claude et/ou Codex, activez-en au moins un, et définissez une valeur par défaut.',
   'howItWorks.panel.setup.item2': 'Connections — connectez GitHub et/ou GitLab avec un jeton ayant les scopes ci-dessus.',
   'howItWorks.panel.setup.item3':
     'Repositories — attendez la découverte ou cliquez sur Fetch, puis activez les dépôts à automatiser.',
@@ -152,7 +152,7 @@ export const fr: Messages = {
   'howItWorks.panel.pages.tasks':
     'Tasks — file forge en direct et historique des exécutions pour l\'implémentation, la revue et les tâches associées.',
   'howItWorks.panel.pages.providers':
-    'Providers — identifiants Cursor / Claude, activation, contrôles de santé et valeur par défaut.',
+    'Providers — identifiants Cursor / Claude / Codex, activation, contrôles de santé et valeur par défaut.',
   'howItWorks.panel.pages.prompts': 'Prompts — modèles globaux et extraits utilisés par le worker.',
   'howItWorks.panel.pages.settings':
     'Settings — intervalle de sondage, concurrence, valeurs par défaut, rétention et préférences d\'interface.',

@@ -14,7 +14,14 @@ const execFileAsync = promisify(execFile)
 const KNOWN = [
   { providerType: 'cursor', displayName: 'Cursor CLI' },
   { providerType: 'claude', displayName: 'Claude Code CLI' },
+  { providerType: 'codex', displayName: 'Codex CLI' },
 ] as const
+
+const KNOWN_TYPES = new Set(KNOWN.map((k) => k.providerType))
+
+function isKnownProviderType(providerType: string): providerType is typeof KNOWN[number]['providerType'] {
+  return KNOWN_TYPES.has(providerType as typeof KNOWN[number]['providerType'])
+}
 
 export async function ensureProviderRows() {
   const db = getDb()
@@ -41,6 +48,9 @@ function envCredentialPresent(providerType: string): boolean {
   if (providerType === 'cursor') return Boolean(process.env.CURSOR_API_KEY)
   if (providerType === 'claude') {
     return Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN)
+  }
+  if (providerType === 'codex') {
+    return Boolean(process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY)
   }
   return false
 }
@@ -76,7 +86,7 @@ async function syncDefaultAiProviderSetting(
   actor: { id: string, username: string },
   ipHash?: string,
 ) {
-  if (providerType !== 'cursor' && providerType !== 'claude') return
+  if (!isKnownProviderType(providerType)) return
   try {
     const current = await getSettings()
     if (current.defaultAiProvider !== providerType) {
@@ -235,7 +245,7 @@ export async function updateProvider(
   }
 
   // Keep Settings.defaultAiProvider aligned with the resolved default provider.
-  if (reconciled && (reconciled.providerType === 'cursor' || reconciled.providerType === 'claude')) {
+  if (reconciled && isKnownProviderType(reconciled.providerType)) {
     await syncDefaultAiProviderSetting(reconciled.providerType, actor, ipHash)
   }
 
@@ -335,6 +345,26 @@ export async function testProvider(providerType: string) {
       } else {
         healthStatus = 'degraded'
         healthMessage = `Binary found at ${bin}. Connect credentials in Providers, or set ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN.`
+      }
+    }
+  } else if (providerType === 'codex') {
+    const { bin, version } = await detectBinary(['codex'])
+    detectedVersion = version
+    if (!bin) {
+      healthStatus = 'unhealthy'
+      healthMessage = 'Codex CLI not found (expected codex on PATH)'
+    } else {
+      const hasCred = Boolean(
+        process.env.OPENAI_API_KEY
+        || process.env.CODEX_API_KEY
+        || existing.secretCiphertext,
+      )
+      if (hasCred) {
+        healthStatus = 'healthy'
+        healthMessage = `Binary found at ${bin}. OpenAI/Codex API key is configured (not verified against the API).`
+      } else {
+        healthStatus = 'degraded'
+        healthMessage = `Binary found at ${bin}. Connect an OpenAI API key in Providers, or set OPENAI_API_KEY / CODEX_API_KEY.`
       }
     }
   } else {
