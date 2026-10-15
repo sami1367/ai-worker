@@ -3,6 +3,13 @@ const route = useRoute()
 const colorMode = useColorMode()
 const { api } = useApi()
 const { t } = useI18n()
+const {
+  readiness,
+  showProviderWarning,
+  showConnectionWarning,
+  showRepositoryWarning,
+  navNeedsAttention,
+} = useSetupReadiness()
 
 const links = [
   { to: '/', labelKey: 'nav.dashboard', icon: 'i-lucide-layout-dashboard' },
@@ -23,6 +30,24 @@ async function logout() {
 }
 
 const mobileOpen = ref(false)
+
+const connectionWarningTitle = computed(() => (
+  readiness.value?.connections.issue === 'unhealthy'
+    ? t('setup.warn.connection.unhealthyTitle')
+    : t('setup.warn.connection.title')
+))
+
+const connectionWarningDescription = computed(() => (
+  readiness.value?.connections.issue === 'unhealthy'
+    ? t('setup.warn.connection.unhealthyDescription')
+    : t('setup.warn.connection.description')
+))
+
+const repositoryWarningDescription = computed(() => (
+  readiness.value?.repositories.issue === 'none_enabled'
+    ? t('setup.warn.repository.noneEnabledDescription')
+    : t('setup.warn.repository.description')
+))
 </script>
 
 <template>
@@ -41,8 +66,14 @@ const mobileOpen = ref(false)
             class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
             :class="route.path === link.to || (link.to !== '/' && route.path.startsWith(link.to)) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
           >
-            <UIcon :name="link.icon" class="size-4" aria-hidden="true" />
-            {{ t(link.labelKey) }}
+            <UIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
+            <span class="min-w-0 flex-1 truncate">{{ t(link.labelKey) }}</span>
+            <span
+              v-if="navNeedsAttention(link.to)"
+              class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
+              :title="t('setup.nav.needsAttention')"
+              :aria-label="t('setup.nav.needsAttention')"
+            />
           </NuxtLink>
         </nav>
         <div class="mt-4 space-y-2">
@@ -88,13 +119,66 @@ const mobileOpen = ref(false)
             v-for="link in links"
             :key="link.to"
             :to="link.to"
-            class="rounded-lg px-3 py-2 text-sm"
+            class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
             @click="mobileOpen = false"
           >
-            {{ t(link.labelKey) }}
+            <span class="min-w-0 flex-1">{{ t(link.labelKey) }}</span>
+            <span
+              v-if="navNeedsAttention(link.to)"
+              class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
+              :title="t('setup.nav.needsAttention')"
+              :aria-label="t('setup.nav.needsAttention')"
+            />
           </NuxtLink>
         </nav>
         <main class="flex-1 p-4 md:p-8">
+          <div
+            v-if="showProviderWarning || showConnectionWarning || showRepositoryWarning"
+            class="mb-4 space-y-2"
+          >
+            <UAlert
+              v-if="showProviderWarning"
+              color="warning"
+              variant="subtle"
+              icon="i-lucide-bot"
+              :title="t('setup.warn.provider.title')"
+              :description="t('setup.warn.provider.description')"
+              :actions="[{
+                label: t('setup.warn.provider.action'),
+                to: '/providers',
+                color: 'warning',
+                variant: 'soft',
+              }]"
+            />
+            <UAlert
+              v-if="showConnectionWarning"
+              color="warning"
+              variant="subtle"
+              icon="i-lucide-link"
+              :title="connectionWarningTitle"
+              :description="connectionWarningDescription"
+              :actions="[{
+                label: t('setup.warn.connection.action'),
+                to: '/connections',
+                color: 'warning',
+                variant: 'soft',
+              }]"
+            />
+            <UAlert
+              v-if="showRepositoryWarning"
+              color="warning"
+              variant="subtle"
+              icon="i-lucide-git-branch"
+              :title="t('setup.warn.repository.title')"
+              :description="repositoryWarningDescription"
+              :actions="[{
+                label: t('setup.warn.repository.action'),
+                to: '/repositories',
+                color: 'warning',
+                variant: 'soft',
+              }]"
+            />
+          </div>
           <slot />
         </main>
         <AppFooter />

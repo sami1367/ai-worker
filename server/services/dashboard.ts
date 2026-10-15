@@ -7,6 +7,7 @@ import { getProviderPlanSnapshots } from './provider-plans'
 import { getWorkerStatus, listRecentWorkerEvents } from './worker'
 import { getSettings } from './settings'
 import { listFinishedTaskRuns, taskMetrics, type ProviderUsageStats } from './tasks'
+import { getSetupReadiness } from './setup-readiness'
 
 async function queuePhaseCounts() {
   const db = getDb()
@@ -64,6 +65,7 @@ export async function getDashboard(windowHours = 24) {
     plans,
     queue,
     settings,
+    readiness,
   ] = await Promise.all([
     repositoryCounts(),
     taskMetrics(windowHours),
@@ -76,6 +78,7 @@ export async function getDashboard(windowHours = 24) {
     getProviderPlanSnapshots(),
     queuePhaseCounts(),
     getSettings(),
+    getSetupReadiness(),
   ])
 
   const latestFailures = recentRuns.filter((r) => r.status === 'failed').slice(0, 5)
@@ -167,7 +170,21 @@ export async function getDashboard(windowHours = 24) {
     recentEvents: events,
     latestFailures,
     database: dbHealth,
+    readiness,
     warnings: [
+      ...(readiness.providers.ok
+        ? []
+        : ['Connect and enable at least one AI provider (Cursor or Claude)']),
+      ...(readiness.connections.issue === 'none'
+        ? ['Connect at least one GitHub or GitLab forge connection']
+        : readiness.connections.issue === 'unhealthy'
+          ? ['All forge connections have errors or are disconnected']
+          : []),
+      ...(readiness.connections.ok && readiness.repositories.issue === 'none'
+        ? ['Register and enable at least one repository']
+        : readiness.connections.ok && readiness.repositories.issue === 'none_enabled'
+          ? ['Enable at least one registered repository']
+          : []),
       ...(repos.unhealthy > 0 ? [`${repos.unhealthy} repositor${repos.unhealthy === 1 ? 'y has' : 'ies have'} unhealthy status`] : []),
       ...(worker.heartbeatStale ? ['Worker heartbeat is stale or unavailable'] : []),
       ...(!dbHealth.ok ? ['Database connectivity issue'] : []),

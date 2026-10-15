@@ -26,7 +26,7 @@ async function action(path: string, label: string, body?: Record<string, unknown
   try {
     await api(`/api/v1/repositories/${id.value}/${path}`, { method: 'POST', body })
     message.value = `${label} completed`
-    await Promise.all([refresh(), refreshOps()])
+    await Promise.all([refresh(), refreshOps(), refreshNuxtData('setup-readiness')])
   } catch (e: any) {
     message.value = e?.data?.message || e?.statusMessage || `${label} failed`
     messageError.value = true

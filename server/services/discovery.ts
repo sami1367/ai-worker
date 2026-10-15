@@ -63,7 +63,7 @@ export function publicDiscovered(
 
 export async function syncConnectionRepositories(
   connectionId: string,
-  opts?: { actorUserId?: string, actorUsername?: string },
+  opts?: { actorUserId?: string, actorUsername?: string, enableRepositories?: boolean },
 ) {
   const { token, row: connection } = await getConnectionAccessToken(connectionId)
   if (connection.status === 'disconnected') {
@@ -215,10 +215,15 @@ export async function syncConnectionRepositories(
     updatedAt: now,
   }).where(eq(forgeConnections.id, connectionId))
 
-  // System default: auto-register every discovered repo (no clone until first AI job)
-  const registration = await autoRegisterDiscoveredForConnection(connectionId, opts?.actorUserId
-    ? { id: opts.actorUserId, username: opts.actorUsername || 'user' }
-    : undefined)
+  // Auto-register every discovered repo (no clone until first AI job).
+  // enableRepositories defaults to true; connect UI can opt out.
+  const registration = await autoRegisterDiscoveredForConnection(
+    connectionId,
+    opts?.actorUserId
+      ? { id: opts.actorUserId, username: opts.actorUsername || 'user' }
+      : undefined,
+    { enable: opts?.enableRepositories !== false },
+  )
 
   // Fast path: ensure AI labels on newly discovered repos first so they are
   // ready within seconds of "Fetch repos" / connect — before the full backfill.

@@ -22,8 +22,9 @@ export async function ensureProviderRows() {
     await db.insert(providerConfigs).values({
       providerType: p.providerType,
       displayName: p.displayName,
-      isEnabled: true,
-      isDefault: p.providerType === 'cursor',
+      // Providers stay off until the admin explicitly enables (and connects) them.
+      isEnabled: false,
+      isDefault: false,
       config: {},
     }).onConflictDoNothing({ target: providerConfigs.providerType })
   }
@@ -42,6 +43,10 @@ function envCredentialPresent(providerType: string): boolean {
     return Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN)
   }
   return false
+}
+
+function rowIsConnected(row: { providerType: string, secretCiphertext: string | null }) {
+  return Boolean(row.secretCiphertext) || envCredentialPresent(row.providerType)
 }
 
 function publicProvider(row: typeof providerConfigs.$inferSelect) {
@@ -64,6 +69,59 @@ function publicProvider(row: typeof providerConfigs.$inferSelect) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+async function syncDefaultAiProviderSetting(
+  providerType: string,
+  actor: { id: string, username: string },
+  ipHash?: string,
+) {
+  if (providerType !== 'cursor' && providerType !== 'claude') return
+  try {
+    const current = await getSettings()
+    if (current.defaultAiProvider !== providerType) {
+      await updateSettings({ defaultAiProvider: providerType }, actor, ipHash)
+    }
+  } catch (err) {
+    console.warn(
+      '[providers] Failed to sync defaultAiProvider setting:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
+
+/**
+ * After any provider mutation: if at least one enabled+connected provider exists,
+ * exactly one of them must be the default. Otherwise clear all defaults.
+ */
+async function reconcileDefaultProvider(
+  preferType?: string,
+): Promise<typeof providerConfigs.$inferSelect | null> {
+  const db = getDb()
+  const rows = await db.select().from(providerConfigs)
+  const candidates = rows.filter((r) => r.isEnabled && rowIsConnected(r))
+
+  if (candidates.length === 0) {
+    if (rows.some((r) => r.isDefault)) {
+      await db.update(providerConfigs).set({ isDefault: false, updatedAt: new Date() })
+    }
+    return null
+  }
+
+  const defaults = candidates.filter((r) => r.isDefault)
+  if (defaults.length === 1) return defaults[0]!
+
+  const preferred = (preferType && candidates.find((r) => r.providerType === preferType))
+    || candidates.find((r) => r.providerType === 'cursor')
+    || candidates[0]!
+
+  await db.update(providerConfigs).set({ isDefault: false, updatedAt: new Date() })
+  const [promoted] = await db.update(providerConfigs).set({
+    isDefault: true,
+    updatedAt: new Date(),
+  }).where(eq(providerConfigs.providerType, preferred.providerType)).returning()
+
+  return promoted ?? null
 }
 
 export async function updateProvider(
@@ -96,18 +154,74 @@ export async function updateProvider(
     secretCiphertext = encryptSecret(input.secret, encryptionKey)
   }
 
-  if (input.isDefault) {
+  const nextEnabled = input.isEnabled ?? existing.isEnabled
+  const willBeConnected = Boolean(secretCiphertext) || envCredentialPresent(providerType)
+  let nextDefault = input.isDefault ?? existing.isDefault
+
+  // Disabled or disconnected providers cannot be the default.
+  if (!nextEnabled || !willBeConnected) nextDefault = false
+
+  // Becoming default requires enabled + connected.
+  if (input.isDefault === true && (!nextEnabled || !willBeConnected)) {
+    throw new AppError(
+      400,
+      'Enable and connect the provider before making it the default',
+      'validation_error',
+    )
+  }
+
+  const allRows = await db.select().from(providerConfigs)
+  const otherCandidates = allRows.filter((r) => (
+    r.providerType !== providerType
+    && r.isEnabled
+    && rowIsConnected(r)
+  ))
+
+  // Unchecking the sole default is not allowed once a connected provider exists.
+  if (existing.isDefault && input.isDefault === false && nextEnabled && willBeConnected) {
+    if (otherCandidates.length === 0) {
+      throw new AppError(
+        400,
+        'At least one connected provider must remain the default. Enable and select another provider first.',
+        'validation_error',
+      )
+    }
+    // Allow uncheck when another candidate can take over — reconcile will promote one.
+    nextDefault = false
+  }
+
+  // First successful connect (or re-enable of the only connected provider) becomes default.
+  if (nextEnabled && willBeConnected && !nextDefault && otherCandidates.every((r) => !r.isDefault)) {
+    nextDefault = true
+  }
+
+  if (nextDefault) {
     await db.update(providerConfigs).set({ isDefault: false })
   }
 
   const nextConfig = input.config ?? existing.config
-  const [row] = await db.update(providerConfigs).set({
-    isEnabled: input.isEnabled ?? existing.isEnabled,
-    isDefault: input.isDefault ?? existing.isDefault,
+  const [updated] = await db.update(providerConfigs).set({
+    isEnabled: nextEnabled,
+    isDefault: nextDefault,
     config: nextConfig,
     secretCiphertext,
     updatedAt: new Date(),
   }).where(eq(providerConfigs.providerType, providerType)).returning()
+  if (!updated) throw new AppError(500, 'Failed to update provider', 'internal')
+
+  // Enforce exactly-one default among enabled+connected providers.
+  const prefer = nextDefault || (typeof input.secret === 'string' && input.secret.length > 0)
+    ? providerType
+    : (input.isDefault === false ? otherCandidates[0]?.providerType : undefined)
+  const reconciled = await reconcileDefaultProvider(prefer)
+  let row = updated
+  if (reconciled && reconciled.providerType === providerType) {
+    row = reconciled
+  } else {
+    const [fresh] = await db.select().from(providerConfigs)
+      .where(eq(providerConfigs.providerType, providerType)).limit(1)
+    if (fresh) row = fresh
+  }
 
   if (input.secret !== undefined) {
     try {
@@ -120,22 +234,12 @@ export async function updateProvider(
     }
   }
 
-  // Keep Settings.defaultAiProvider aligned when Providers UI marks a default.
-  if (input.isDefault && (providerType === 'cursor' || providerType === 'claude')) {
-    try {
-      const current = await getSettings()
-      if (current.defaultAiProvider !== providerType) {
-        await updateSettings({ defaultAiProvider: providerType }, actor, ipHash)
-      }
-    } catch (err) {
-      console.warn(
-        '[providers] Failed to sync defaultAiProvider setting:',
-        err instanceof Error ? err.message : err,
-      )
-    }
+  // Keep Settings.defaultAiProvider aligned with the resolved default provider.
+  if (reconciled && (reconciled.providerType === 'cursor' || reconciled.providerType === 'claude')) {
+    await syncDefaultAiProviderSetting(reconciled.providerType, actor, ipHash)
   }
 
-  if (input.secret !== undefined || input.isDefault || input.isEnabled !== undefined) {
+  if (input.secret !== undefined || input.isDefault !== undefined || input.isEnabled !== undefined) {
     try {
       const { applyWorkerRuntimeChange } = await import('./worker-runtime')
       await applyWorkerRuntimeChange('provider.update', {

@@ -38,12 +38,14 @@ async function copySshPublicKey() {
 const githubForm = reactive({
   token: '',
   displayName: '',
+  enableRepositories: true,
 })
 
 const gitlabForm = reactive({
   instanceUrl: 'https://gitlab.com',
   token: '',
   displayName: '',
+  enableRepositories: true,
 })
 
 watchEffect(() => {
@@ -79,18 +81,24 @@ async function connectGitHubToken() {
   message.value = ''
   messageError.value = false
   try {
+    const enableRepositories = githubForm.enableRepositories
     const connection = await api<any>('/api/v1/connections/github/token', {
       method: 'POST',
       body: {
         token: githubForm.token,
         displayName: githubForm.displayName || undefined,
+        enableRepositories,
       },
     })
     showGitHub.value = false
     githubForm.token = ''
-    message.value = `GitHub connected as ${connection.accountLogin}. Repos will register automatically…`
+    githubForm.enableRepositories = true
+    message.value = enableRepositories
+      ? `GitHub connected as ${connection.accountLogin}. Repos registered and enabled.`
+      : `GitHub connected as ${connection.accountLogin}. Repos registered (disabled until you enable them).`
     messageError.value = false
     await refresh()
+    await refreshNuxtData('setup-readiness')
     if (connection.id) await navigateTo(`/connections/${connection.id}`)
   } catch (e: any) {
     message.value = e?.data?.message || e?.statusMessage || 'GitHub token connection failed'
@@ -105,19 +113,25 @@ async function connectGitLabToken() {
   message.value = ''
   messageError.value = false
   try {
+    const enableRepositories = gitlabForm.enableRepositories
     const connection = await api<any>('/api/v1/connections/gitlab/token', {
       method: 'POST',
       body: {
         instanceUrl: gitlabForm.instanceUrl,
         token: gitlabForm.token,
         displayName: gitlabForm.displayName || undefined,
+        enableRepositories,
       },
     })
     showGitLab.value = false
     gitlabForm.token = ''
-    message.value = `GitLab connected as ${connection.accountLogin}. Repos will register automatically…`
+    gitlabForm.enableRepositories = true
+    message.value = enableRepositories
+      ? `GitLab connected as ${connection.accountLogin}. Repos registered and enabled.`
+      : `GitLab connected as ${connection.accountLogin}. Repos registered (disabled until you enable them).`
     messageError.value = false
     await refresh()
+    await refreshNuxtData('setup-readiness')
     if (connection.id) await navigateTo(`/connections/${connection.id}`)
   } catch (e: any) {
     message.value = e?.data?.message || e?.statusMessage || 'GitLab connection failed'
@@ -134,6 +148,7 @@ async function testConnection(id: string) {
     message.value = res.test?.message || 'Connection validated'
     messageError.value = !res.test?.ok
     await refresh()
+    await refreshNuxtData('setup-readiness')
   } catch (e: any) {
     message.value = e?.data?.message || 'Test failed'
     messageError.value = true
@@ -167,6 +182,7 @@ async function disconnect(id: string) {
     message.value = 'Connection disconnected'
     messageError.value = false
     await refresh()
+    await refreshNuxtData('setup-readiness')
   } catch (e: any) {
     message.value = e?.data?.message || 'Disconnect failed'
     messageError.value = true
@@ -332,6 +348,11 @@ function formatTime(v: string | null | undefined) {
             <UFormField label="Connection name (optional)">
               <UInput v-model="githubForm.displayName" class="w-full" placeholder="Personal GitHub" />
             </UFormField>
+            <UCheckbox
+              v-model="githubForm.enableRepositories"
+              label="Enable all discovered repositories"
+              description="When off, repos are registered but stay disabled until you enable them on Repositories."
+            />
             <p class="text-xs opacity-60">
               Recommended: GitHub → Settings → Developer settings →
               <strong>Personal access tokens (classic)</strong> → enable the full <code>repo</code> scope.
@@ -379,6 +400,11 @@ function formatTime(v: string | null | undefined) {
           <UFormField label="Connection name (optional)">
             <UInput v-model="gitlabForm.displayName" class="w-full" placeholder="Work GitLab" />
           </UFormField>
+          <UCheckbox
+            v-model="gitlabForm.enableRepositories"
+            label="Enable all discovered repositories"
+            description="When off, repos are registered but stay disabled until you enable them on Repositories."
+          />
           <p class="text-xs opacity-60">
             Create a token in GitLab → Preferences → Access Tokens with the <code>api</code> scope
             (<code>read_api</code> alone can list private projects, but worker ops need <code>api</code>).
