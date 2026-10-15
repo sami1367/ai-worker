@@ -11,6 +11,7 @@ export const fr: Messages = {
   'nav.settings': 'Paramètres',
   'nav.system': 'Système',
   'nav.audit': 'Audit',
+  'nav.howItWorks': 'Comment ça marche',
   'nav.about': 'À propos',
   'nav.logout': 'Déconnexion',
 
@@ -34,10 +35,96 @@ export const fr: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'Des dépôts sont enregistrés mais aucun n’est activé. Activez-en au moins un.',
   'setup.warn.repository.action': 'Ouvrir les dépôts',
 
+  'footer.howItWorks': 'Comment ça marche',
   'footer.about': 'À propos',
   'footer.repository': 'Dépôt',
   'footer.license': 'Licence',
   'footer.contact': 'Contact',
+
+  'howItWorks.title': 'Comment ça marche',
+  'howItWorks.subtitle': 'Tutoriel pour GitHub, GitLab et ce panneau',
+  'howItWorks.intro.heading': 'Présentation',
+  'howItWorks.intro.p1':
+    'AI Worker est un assistant de développement auto-hébergé pour GitHub et GitLab. Le travail au quotidien est piloté par des labels sur les issues et les pull/merge requests. Ce panneau sert à la configuration, au suivi et aux réglages.',
+  'howItWorks.intro.p2':
+    'Commencez par connecter ici votre forge et vos fournisseurs d\'IA, activez des dépôts, puis utilisez des labels dans GitHub ou GitLab pour mettre en file des tâches d\'implémentation, de Q&R ou de revue.',
+  'howItWorks.forge.heading': 'Travailler dans GitHub et GitLab',
+  'howItWorks.forge.intro':
+    'Une fois un dépôt connecté et activé, vous n\'avez pas besoin d\'un terminal sur l\'hôte AI Worker pour les tâches habituelles. Ouvrez une issue ou une PR/MR, ajoutez les bons labels, et observez les labels de statut se mettre à jour pendant que le worker s\'exécute.',
+  'howItWorks.forge.tokens.heading': 'Jetons et accès',
+  'howItWorks.forge.tokens.github':
+    'GitHub : utilisez un PAT classique avec le scope repo (workflow facultatif), ou un jeton à granularité fine avec Metadata en lecture plus Contents, Issues et Pull requests en lecture/écriture. Collez-le sous Connections → Connect GitHub.',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com ou auto-hébergé) : créez un personal access token avec le scope api, puis sous Connections → Connect GitLab indiquez l\'URL du serveur et collez le jeton. read_api seul ne suffit pas pour toutes les opérations du worker.',
+  'howItWorks.forge.tokens.git':
+    'Le clone et le push Git utilisent HTTPS avec votre jeton par défaut. Si GitLab bloque git en HTTP(S), activez Both ou HTTP dans les protocoles d\'accès Git de l\'admin GitLab, ou ajoutez la clé publique SSH de la plateforme affichée sur Connections.',
+  'howItWorks.workflows.heading': 'Flux de travail courants sur la forge',
+  'howItWorks.workflows.implement.heading': 'Implémenter un changement',
+  'howItWorks.workflows.implement.step1': 'Ouvrez une issue (ou une PR/MR ouverte) avec un titre et une description clairs.',
+  'howItWorks.workflows.implement.step2': 'Ajoutez le label ai.',
+  'howItWorks.workflows.implement.step3': 'Observez l\'évolution des labels : ai → ai-working → ai-pr (ou ai-failed).',
+  'howItWorks.workflows.implement.step4':
+    'Examinez la branche et la PR/MR ouverte ou mise à jour par le worker, puis fusionnez comme d\'habitude.',
+  'howItWorks.workflows.qa.heading': 'Poser une question (sans modifier le code)',
+  'howItWorks.workflows.qa.step1': 'Ouvrez une issue avec votre question.',
+  'howItWorks.workflows.qa.step2': 'Ajoutez à la fois ai et no-change.',
+  'howItWorks.workflows.qa.step3': 'Attendez un commentaire sur l\'issue. Labels finaux : ai-answered + no-change.',
+  'howItWorks.workflows.qa.step4':
+    'Pour poser une nouvelle question : conservez no-change, retirez ai-answered, puis ajoutez à nouveau ai.',
+  'howItWorks.workflows.review.heading': 'Réviser une pull ou merge request',
+  'howItWorks.workflows.review.step1': 'Ouvrez une PR sur GitHub ou une MR sur GitLab.',
+  'howItWorks.workflows.review.step2': 'Ajoutez le label ai-review.',
+  'howItWorks.workflows.review.step3': 'Observez les labels : ai-review → ai-reviewing → ai-reviewed (ou ai-review-failed).',
+  'howItWorks.workflows.review.step4': 'Lisez le commentaire de revue sur la PR/MR.',
+  'howItWorks.labels.heading': 'Référence des labels',
+  'howItWorks.labels.intro':
+    'En pratique, vous n\'ajoutez que ai, ai + no-change, ou ai-review. Le worker gère les labels de statut.',
+  'howItWorks.labels.youAdd': 'Vous ajoutez',
+  'howItWorks.labels.workerAdds': 'Le worker ajoute',
+  'howItWorks.labels.ai': 'Met en file une implémentation, ou une Q&R si combiné avec no-change',
+  'howItWorks.labels.noChange': 'Avec ai : réponse seule — pas de branche ni de PR/MR',
+  'howItWorks.labels.aiWorking': 'Implémentation ou Q&R en cours',
+  'howItWorks.labels.aiPr': 'Implémentation terminée ; PR/MR créée ou mise à jour',
+  'howItWorks.labels.aiAnswered': 'Q&R terminée ; réponse publiée en commentaire',
+  'howItWorks.labels.aiFailed': 'Échec de l\'implémentation ou de la Q&R — consultez tasks ou les logs',
+  'howItWorks.labels.aiReview': 'Met en file une revue IA sur une PR/MR ouverte',
+  'howItWorks.labels.aiReviewing': 'Revue en cours',
+  'howItWorks.labels.aiReviewed': 'Commentaire de revue publié',
+  'howItWorks.labels.aiReviewFailed': 'Échec de la revue — consultez tasks ou les logs',
+  'howItWorks.tips.heading': 'Conseils pour la forge',
+  'howItWorks.tips.item1': 'Laissez l\'issue ou la PR/MR ouverte pendant que le worker s\'exécute.',
+  'howItWorks.tips.item2':
+    'Rédigez un titre et un corps clairs ; les commentaires plus récents prévalent en cas de conflit.',
+  'howItWorks.tips.item3':
+    'Pour réessayer après un échec, corrigez l\'issue si besoin, puis ajoutez à nouveau ai ou ai-review.',
+  'howItWorks.tips.item4':
+    'Les labels sont créés automatiquement à l\'enregistrement d\'un dépôt ; vous pouvez aussi lancer Setup labels sur la page du dépôt.',
+  'howItWorks.panel.heading': 'Travailler dans ce panneau',
+  'howItWorks.panel.intro':
+    'Utilisez le panneau pour connecter les forges et les fournisseurs d\'IA, activer des dépôts, ajuster les prompts et les settings, et suivre les tasks. Le travail de développement au quotidien se fait toujours avec des labels dans GitHub ou GitLab.',
+  'howItWorks.panel.setup.heading': 'Ordre de configuration recommandé',
+  'howItWorks.panel.setup.item1':
+    'Providers — connectez Cursor et/ou Claude, activez-en au moins un, et définissez une valeur par défaut.',
+  'howItWorks.panel.setup.item2': 'Connections — connectez GitHub et/ou GitLab avec un jeton ayant les scopes ci-dessus.',
+  'howItWorks.panel.setup.item3':
+    'Repositories — attendez la découverte ou cliquez sur Fetch, puis activez les dépôts à automatiser.',
+  'howItWorks.panel.setup.item4':
+    'Facultatif — Setup labels et Setup webhooks pour des réveils plus rapides lorsque APP_BASE_URL est accessible.',
+  'howItWorks.panel.pages.heading': 'Rôle de chaque page',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — usage de l\'IA, métriques du worker et exécutions récentes.',
+  'howItWorks.panel.pages.connections': 'Connections — jetons de forge, découverte, webhooks et clé publique SSH facultative.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — enregistrement, activation/désactivation, état du clone, fournisseur et prompts par dépôt.',
+  'howItWorks.panel.pages.tasks':
+    'Tasks — file forge en direct et historique des exécutions pour l\'implémentation, la revue et les tâches associées.',
+  'howItWorks.panel.pages.providers':
+    'Providers — identifiants Cursor / Claude, activation, contrôles de santé et valeur par défaut.',
+  'howItWorks.panel.pages.prompts': 'Prompts — modèles globaux et extraits utilisés par le worker.',
+  'howItWorks.panel.pages.settings':
+    'Settings — intervalle de sondage, concurrence, valeurs par défaut, rétention et préférences d\'interface.',
+  'howItWorks.panel.pages.system': 'System — santé opérationnelle et état de la plateforme.',
+  'howItWorks.panel.pages.audit': 'Audit — actions liées à la sécurité enregistrées par l\'application.',
+
 
   'about.title': 'À propos d’AI Worker',
   'about.subtitle': 'Présentation du produit, services, contact et licence',

@@ -11,6 +11,7 @@ export const es: Messages = {
   'nav.settings': 'Ajustes',
   'nav.system': 'Sistema',
   'nav.audit': 'Auditoría',
+  'nav.howItWorks': 'Cómo funciona',
   'nav.about': 'Acerca de',
   'nav.logout': 'Cerrar sesión',
 
@@ -34,10 +35,94 @@ export const es: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'Hay repositorios registrados, pero ninguno está habilitado. Habilita al menos uno.',
   'setup.warn.repository.action': 'Abrir repositorios',
 
+  'footer.howItWorks': 'Cómo funciona',
   'footer.about': 'Acerca de',
   'footer.repository': 'Repositorio',
   'footer.license': 'Licencia',
   'footer.contact': 'Contacto',
+
+  'howItWorks.title': 'Cómo funciona',
+  'howItWorks.subtitle': 'Tutorial para GitHub, GitLab y este panel',
+  'howItWorks.intro.heading': 'Resumen',
+  'howItWorks.intro.p1':
+    'AI Worker es un asistente de programación autoalojado para GitHub y GitLab. El trabajo diario se controla con labels en issues y pull/merge requests. Este panel sirve para la configuración, la supervisión y los ajustes.',
+  'howItWorks.intro.p2':
+    'Empieza conectando aquí tu forge y los proveedores de IA, habilita repositorios y luego usa labels en GitHub o GitLab para encolar trabajos de implementación, preguntas y respuestas, o revisión.',
+  'howItWorks.forge.heading': 'Trabajar en GitHub y GitLab',
+  'howItWorks.forge.intro':
+    'Cuando un repositorio está conectado y habilitado, no necesitas un terminal en el host de AI Worker para las tareas habituales. Abre un issue o PR/MR, añade las labels adecuadas y observa cómo se actualizan las labels de estado mientras corre el worker.',
+  'howItWorks.forge.tokens.heading': 'Tokens y acceso',
+  'howItWorks.forge.tokens.github':
+    'GitHub: usa un PAT clásico con el scope repo (workflow opcional), o un token de granularidad fina con Metadata en lectura más Contents, Issues y Pull requests en lectura/escritura. Pégalo en Connections → Connect GitHub.',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com o autogestionado): crea un personal access token con el scope api; luego en Connections → Connect GitLab indica la URL del servidor y pega el token. Solo read_api no basta para el funcionamiento completo del worker.',
+  'howItWorks.forge.tokens.git':
+    'El clone y el push de Git usan HTTPS con tu token por defecto. Si GitLab bloquea git por HTTP(S), habilita Both o HTTP en los protocolos de acceso Git de la administración de GitLab, o añade la clave pública SSH de la plataforma que se muestra en Connections.',
+  'howItWorks.workflows.heading': 'Flujos habituales en el forge',
+  'howItWorks.workflows.implement.heading': 'Implementar un cambio',
+  'howItWorks.workflows.implement.step1': 'Abre un issue (o un PR/MR abierto) con un título y una descripción claros.',
+  'howItWorks.workflows.implement.step2': 'Añade la label ai.',
+  'howItWorks.workflows.implement.step3': 'Observa el cambio de labels: ai → ai-working → ai-pr (o ai-failed).',
+  'howItWorks.workflows.implement.step4':
+    'Revisa la rama y el PR/MR que el worker abrió o actualizó, y luego haz merge como de costumbre.',
+  'howItWorks.workflows.qa.heading': 'Hacer una pregunta (sin cambios de código)',
+  'howItWorks.workflows.qa.step1': 'Abre un issue con tu pregunta.',
+  'howItWorks.workflows.qa.step2': 'Añade ai y no-change.',
+  'howItWorks.workflows.qa.step3': 'Espera un comentario en el issue. Labels finales: ai-answered + no-change.',
+  'howItWorks.workflows.qa.step4': 'Para preguntar de nuevo: mantén no-change, quita ai-answered y vuelve a añadir ai.',
+  'howItWorks.workflows.review.heading': 'Revisar un pull o merge request',
+  'howItWorks.workflows.review.step1': 'Abre un PR en GitHub o un MR en GitLab.',
+  'howItWorks.workflows.review.step2': 'Añade la label ai-review.',
+  'howItWorks.workflows.review.step3': 'Observa las labels: ai-review → ai-reviewing → ai-reviewed (o ai-review-failed).',
+  'howItWorks.workflows.review.step4': 'Lee el comentario de revisión en el PR/MR.',
+  'howItWorks.labels.heading': 'Referencia de labels',
+  'howItWorks.labels.intro':
+    'Normalmente solo añades ai, ai + no-change, o ai-review. El worker gestiona las labels de estado.',
+  'howItWorks.labels.youAdd': 'Tú añades',
+  'howItWorks.labels.workerAdds': 'El worker añade',
+  'howItWorks.labels.ai': 'Encola implementación, o preguntas y respuestas si se combina con no-change',
+  'howItWorks.labels.noChange': 'Con ai: solo responde — sin rama ni PR/MR',
+  'howItWorks.labels.aiWorking': 'Implementación o preguntas y respuestas en curso',
+  'howItWorks.labels.aiPr': 'Implementación terminada; PR/MR creado o actualizado',
+  'howItWorks.labels.aiAnswered': 'Preguntas y respuestas terminadas; respuesta publicada como comentario',
+  'howItWorks.labels.aiFailed': 'Falló la implementación o las preguntas y respuestas — revisa tasks o los logs',
+  'howItWorks.labels.aiReview': 'Encola una revisión con IA en un PR/MR abierto',
+  'howItWorks.labels.aiReviewing': 'Revisión en curso',
+  'howItWorks.labels.aiReviewed': 'Comentario de revisión publicado',
+  'howItWorks.labels.aiReviewFailed': 'Falló la revisión — revisa tasks o los logs',
+  'howItWorks.tips.heading': 'Consejos para el forge',
+  'howItWorks.tips.item1': 'Mantén el issue o PR/MR abierto mientras corre el worker.',
+  'howItWorks.tips.item2':
+    'Escribe un título y un cuerpo claros; los comentarios más recientes prevalecen sobre los antiguos si hay conflicto.',
+  'howItWorks.tips.item3':
+    'Para reintentar tras un fallo, corrige el issue si hace falta y vuelve a añadir ai o ai-review.',
+  'howItWorks.tips.item4':
+    'Las labels se crean automáticamente al registrar un repo; también puedes ejecutar Setup labels en la página del repositorio.',
+  'howItWorks.panel.heading': 'Trabajar en este panel',
+  'howItWorks.panel.intro':
+    'Usa el panel para conectar forges y proveedores de IA, habilitar repositorios, ajustar prompts y settings, y supervisar tasks. El trabajo diario de programación sigue haciéndose con labels en GitHub o GitLab.',
+  'howItWorks.panel.setup.heading': 'Orden de configuración recomendado',
+  'howItWorks.panel.setup.item1': 'Providers — conecta Cursor y/o Claude, habilita al menos uno y define uno por defecto.',
+  'howItWorks.panel.setup.item2': 'Connections — conecta GitHub y/o GitLab con un token que tenga los scopes anteriores.',
+  'howItWorks.panel.setup.item3':
+    'Repositories — espera al descubrimiento o haz clic en Fetch, y luego habilita los repos que quieras automatizar.',
+  'howItWorks.panel.setup.item4':
+    'Opcional — Setup labels y Setup webhooks para despertar antes cuando APP_BASE_URL sea accesible.',
+  'howItWorks.panel.pages.heading': 'Para qué sirve cada página',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — uso de IA, métricas del worker y ejecuciones recientes.',
+  'howItWorks.panel.pages.connections': 'Connections — tokens del forge, descubrimiento, webhooks y la clave pública SSH opcional.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — registrar, habilitar/deshabilitar, estado del clone, proveedor y prompts por repo.',
+  'howItWorks.panel.pages.tasks':
+    'Tasks — cola en vivo del forge e historial de ejecuciones de implementación, revisión y trabajos relacionados.',
+  'howItWorks.panel.pages.providers':
+    'Providers — credenciales de Cursor / Claude, habilitación, comprobaciones de estado y valor por defecto.',
+  'howItWorks.panel.pages.prompts': 'Prompts — plantillas globales y fragmentos que usa el worker.',
+  'howItWorks.panel.pages.settings':
+    'Settings — intervalo de sondeo, concurrencia, valores por defecto, retención y preferencias de la UI.',
+  'howItWorks.panel.pages.system': 'System — salud operativa y estado de la plataforma.',
+  'howItWorks.panel.pages.audit': 'Audit — acciones relevantes para la seguridad registradas por la aplicación.',
+
 
   'about.title': 'Acerca de AI Worker',
   'about.subtitle': 'Descripción del producto, servicios, contacto y licencia',

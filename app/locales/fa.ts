@@ -11,6 +11,7 @@ export const fa: Messages = {
   'nav.settings': 'تنظیمات',
   'nav.system': 'سیستم',
   'nav.audit': 'ممیزی',
+  'nav.howItWorks': 'نحوه کار',
   'nav.about': 'درباره',
   'nav.logout': 'خروج',
 
@@ -34,10 +35,89 @@ export const fa: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'مخازن ثبت شده‌اند اما هیچ‌کدام فعال نیست. حداقل یکی را فعال کنید.',
   'setup.warn.repository.action': 'باز کردن مخازن',
 
+  'footer.howItWorks': 'نحوه کار',
   'footer.about': 'درباره',
   'footer.repository': 'مخزن',
   'footer.license': 'مجوز',
   'footer.contact': 'تماس',
+
+  'howItWorks.title': 'نحوه کار',
+  'howItWorks.subtitle': 'آموزش کار با GitHub، GitLab و این پنل',
+  'howItWorks.intro.heading': 'نمای کلی',
+  'howItWorks.intro.p1':
+    'AI Worker یک دستیار کدنویسی خودمیزبان برای GitHub و GitLab است. کار روزمره با برچسب‌های issue و pull/merge request هدایت می‌شود. این پنل برای راه‌اندازی، پایش و پیکربندی است.',
+  'howItWorks.intro.p2':
+    'ابتدا فورج و ارائه‌دهندگان هوش مصنوعی را اینجا متصل کنید، مخازن را فعال کنید، سپس در GitHub یا GitLab با برچسب‌ها کارهای پیاده‌سازی، پرسش‌وپاسخ یا بازبینی را صف کنید.',
+  'howItWorks.forge.heading': 'کار در GitHub و GitLab',
+  'howItWorks.forge.intro':
+    'پس از اتصال و فعال‌سازی مخزن، برای کارهای عادی به ترمینال روی میزبان AI Worker نیاز ندارید. یک issue یا PR/MR باز کنید، برچسب درست را بزنید و وضعیت برچسب‌ها را هنگام اجرای worker دنبال کنید.',
+  'howItWorks.forge.tokens.heading': 'توکن و دسترسی',
+  'howItWorks.forge.tokens.github':
+    'GitHub: از PAT کلاسیک با scope مربوط به repo استفاده کنید (workflow اختیاری)، یا توکن fine-grained با Metadata خواندنی و Contents، Issues و Pull requests خواندنی/نوشتنی. آن را در Connections → Connect GitHub بچسبانید.',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com یا self-managed): یک personal access token با scope مربوط به api بسازید، سپس در Connections → Connect GitLab آدرس سرور را بگذارید و توکن را بچسبانید. فقط read_api برای عملیات کامل worker کافی نیست.',
+  'howItWorks.forge.tokens.git':
+    'کلون و push به‌طور پیش‌فرض با HTTPS و توکن شما انجام می‌شود. اگر GitLab گیت HTTP(S) را مسدود کند، در تنظیمات ادمین GitLab دسترسی Both یا HTTP را فعال کنید، یا کلید عمومی SSH پلتفرم را از صفحه Connections اضافه کنید.',
+  'howItWorks.workflows.heading': 'گردش‌کارهای رایج در فورج',
+  'howItWorks.workflows.implement.heading': 'پیاده‌سازی یک تغییر',
+  'howItWorks.workflows.implement.step1': 'یک issue (یا PR/MR باز) با عنوان و توضیح واضح باز کنید.',
+  'howItWorks.workflows.implement.step2': 'برچسب ai را اضافه کنید.',
+  'howItWorks.workflows.implement.step3': 'برچسب‌ها را دنبال کنید: ai → ai-working → ai-pr (یا ai-failed).',
+  'howItWorks.workflows.implement.step4': 'شاخه و PR/MR ساخته یا به‌روزشده را بررسی کنید، سپس مثل همیشه merge کنید.',
+  'howItWorks.workflows.qa.heading': 'پرسیدن سؤال (بدون تغییر کد)',
+  'howItWorks.workflows.qa.step1': 'یک issue با سؤال خود باز کنید.',
+  'howItWorks.workflows.qa.step2': 'هر دو برچسب ai و no-change را اضافه کنید.',
+  'howItWorks.workflows.qa.step3': 'منتظر کامنت روی issue بمانید. برچسب‌های نهایی: ai-answered + no-change.',
+  'howItWorks.workflows.qa.step4':
+    'برای سؤال دوباره: no-change را نگه دارید، ai-answered را بردارید و دوباره ai را اضافه کنید.',
+  'howItWorks.workflows.review.heading': 'بازبینی pull یا merge request',
+  'howItWorks.workflows.review.step1': 'یک PR در GitHub یا MR در GitLab باز کنید.',
+  'howItWorks.workflows.review.step2': 'برچسب ai-review را اضافه کنید.',
+  'howItWorks.workflows.review.step3': 'برچسب‌ها را دنبال کنید: ai-review → ai-reviewing → ai-reviewed (یا ai-review-failed).',
+  'howItWorks.workflows.review.step4': 'کامنت بازبینی را روی PR/MR بخوانید.',
+  'howItWorks.labels.heading': 'مرجع برچسب‌ها',
+  'howItWorks.labels.intro':
+    'معمولاً فقط ai، ai + no-change یا ai-review را اضافه می‌کنید. worker برچسب‌های وضعیت را مدیریت می‌کند.',
+  'howItWorks.labels.youAdd': 'شما اضافه می‌کنید',
+  'howItWorks.labels.workerAdds': 'worker اضافه می‌کند',
+  'howItWorks.labels.ai': 'صف پیاده‌سازی، یا پرسش‌وپاسخ وقتی با no-change همراه باشد',
+  'howItWorks.labels.noChange': 'همراه ai: فقط پاسخ — بدون شاخه و بدون PR/MR',
+  'howItWorks.labels.aiWorking': 'پیاده‌سازی یا پرسش‌وپاسخ در حال انجام است',
+  'howItWorks.labels.aiPr': 'پیاده‌سازی تمام شد؛ PR/MR ساخته یا به‌روز شد',
+  'howItWorks.labels.aiAnswered': 'پرسش‌وپاسخ تمام شد؛ پاسخ به‌صورت کامنت ثبت شد',
+  'howItWorks.labels.aiFailed': 'پیاده‌سازی یا پرسش‌وپاسخ شکست خورد — tasks یا لاگ‌ها را بررسی کنید',
+  'howItWorks.labels.aiReview': 'صف بازبینی هوش مصنوعی روی PR/MR باز',
+  'howItWorks.labels.aiReviewing': 'بازبینی در حال انجام است',
+  'howItWorks.labels.aiReviewed': 'کامنت بازبینی ثبت شد',
+  'howItWorks.labels.aiReviewFailed': 'بازبینی شکست خورد — tasks یا لاگ‌ها را بررسی کنید',
+  'howItWorks.tips.heading': 'نکات فورج',
+  'howItWorks.tips.item1': 'تا وقتی worker اجرا می‌شود، issue یا PR/MR را باز نگه دارید.',
+  'howItWorks.tips.item2': 'عنوان و متن واضح بنویسید؛ در صورت تعارض، کامنت‌های جدیدتر بر قدیمی‌ترها اولویت دارند.',
+  'howItWorks.tips.item3':
+    'برای تلاش مجدد پس از خطا، در صورت نیاز مشکل را رفع کنید و دوباره ai یا ai-review را اضافه کنید.',
+  'howItWorks.tips.item4':
+    'برچسب‌ها هنگام ثبت مخزن به‌صورت خودکار ساخته می‌شوند؛ می‌توانید Setup labels را هم در صفحه مخزن اجرا کنید.',
+  'howItWorks.panel.heading': 'کار در این پنل',
+  'howItWorks.panel.intro':
+    'از پنل برای اتصال فورج و ارائه‌دهندگان هوش مصنوعی، فعال‌سازی مخازن، تنظیم پرامپت‌ها و تنظیمات، و پایش tasks استفاده کنید. کار روزمرهٔ کدنویسی همچنان با برچسب‌ها در GitHub یا GitLab انجام می‌شود.',
+  'howItWorks.panel.setup.heading': 'ترتیب پیشنهادی راه‌اندازی',
+  'howItWorks.panel.setup.item1':
+    'Providers — Cursor و/یا Claude را متصل کنید، حداقل یکی را فعال کنید و پیش‌فرض را تنظیم کنید.',
+  'howItWorks.panel.setup.item2': 'Connections — GitHub و/یا GitLab را با توکن دارای scopeهای بالا متصل کنید.',
+  'howItWorks.panel.setup.item3': 'Repositories — منتظر کشف بمانید یا Fetch را بزنید، سپس مخازن موردنظر را فعال کنید.',
+  'howItWorks.panel.setup.item4':
+    'اختیاری — Setup labels و Setup webhooks برای بیدار شدن سریع‌تر وقتی APP_BASE_URL در دسترس است.',
+  'howItWorks.panel.pages.heading': 'کاربرد هر صفحه',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — مصرف هوش مصنوعی، معیارهای worker و اجراهای اخیر.',
+  'howItWorks.panel.pages.connections': 'Connections — توکن فورج، کشف، webhookها و کلید عمومی SSH اختیاری.',
+  'howItWorks.panel.pages.repositories': 'Repositories — ثبت، فعال/غیرفعال، وضعیت کلون، ارائه‌دهنده و پرامپت هر مخزن.',
+  'howItWorks.panel.pages.tasks': 'Tasks — صف زنده فورج و تاریخچه اجرا برای پیاده‌سازی، بازبینی و کارهای مرتبط.',
+  'howItWorks.panel.pages.providers': 'Providers — اعتبارنامه Cursor / Claude، فعال‌سازی، سلامت و پیش‌فرض.',
+  'howItWorks.panel.pages.prompts': 'Prompts — قالب‌ها و قطعه‌های سراسری مورد استفاده worker.',
+  'howItWorks.panel.pages.settings': 'Settings — فاصله polling، هم‌زمانی، پیش‌فرض‌ها، نگهداری و ترجیحات UI.',
+  'howItWorks.panel.pages.system': 'System — سلامت عملیاتی و وضعیت پلتفرم.',
+  'howItWorks.panel.pages.audit': 'Audit — اقدامات امنیتی ثبت‌شده توسط برنامه.',
+
 
   'about.title': 'درباره AI Worker',
   'about.subtitle': 'معرفی محصول، خدمات، تماس و مجوز',

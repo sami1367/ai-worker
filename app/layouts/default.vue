@@ -21,6 +21,7 @@ const links = [
   { to: '/settings', labelKey: 'nav.settings', icon: 'i-lucide-settings' },
   { to: '/system', labelKey: 'nav.system', icon: 'i-lucide-activity' },
   { to: '/audit', labelKey: 'nav.audit', icon: 'i-lucide-shield' },
+  { to: '/how-it-works', labelKey: 'nav.howItWorks', icon: 'i-lucide-book-open' },
   { to: '/about', labelKey: 'nav.about', icon: 'i-lucide-info' },
 ]
 

@@ -11,6 +11,7 @@ export const ru: Messages = {
   'nav.settings': 'Настройки',
   'nav.system': 'Система',
   'nav.audit': 'Аудит',
+  'nav.howItWorks': 'Как это работает',
   'nav.about': 'О продукте',
   'nav.logout': 'Выйти',
 
@@ -34,10 +35,91 @@ export const ru: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'Репозитории зарегистрированы, но ни один не включён. Включите хотя бы один.',
   'setup.warn.repository.action': 'Открыть репозитории',
 
+  'footer.howItWorks': 'Как это работает',
   'footer.about': 'О продукте',
   'footer.repository': 'Репозиторий',
   'footer.license': 'Лицензия',
   'footer.contact': 'Контакт',
+
+  'howItWorks.title': 'Как это работает',
+  'howItWorks.subtitle': 'Руководство по GitHub, GitLab и этой панели',
+  'howItWorks.intro.heading': 'Обзор',
+  'howItWorks.intro.p1':
+    'AI Worker — это self-hosted помощник для написания кода для GitHub и GitLab. Повседневная работа управляется labels на issues и pull/merge requests. Эта панель нужна для setup, мониторинга и конфигурации.',
+  'howItWorks.intro.p2':
+    'Сначала подключите forge и AI providers здесь, включите repositories, затем используйте labels в GitHub или GitLab, чтобы ставить в очередь задания implement, Q&A или review.',
+  'howItWorks.forge.heading': 'Работа в GitHub и GitLab',
+  'howItWorks.forge.intro':
+    'После подключения и включения repository для обычных задач terminal на хосте AI Worker не нужен. Откройте issue или PR/MR, добавьте нужные labels и следите, как status labels обновляются, пока работает worker.',
+  'howItWorks.forge.tokens.heading': 'Tokens и доступ',
+  'howItWorks.forge.tokens.github':
+    'GitHub: используйте classic PAT с scope repo (workflow по желанию) или fine-grained token с Metadata read плюс Contents, Issues и Pull requests read/write. Вставьте его в Connections → Connect GitHub.',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com или self-managed): создайте personal access token с scope api, затем в Connections → Connect GitLab укажите URL сервера и вставьте token. Одного read_api недостаточно для полной работы worker.',
+  'howItWorks.forge.tokens.git':
+    'Git clone и push по умолчанию используют HTTPS с вашим token. Если GitLab блокирует HTTP(S) git, включите Both или HTTP в Git access protocols в админке GitLab или добавьте platform SSH public key, показанный на Connections.',
+  'howItWorks.workflows.heading': 'Типичные forge workflows',
+  'howItWorks.workflows.implement.heading': 'Внести изменение',
+  'howItWorks.workflows.implement.step1': 'Откройте issue (или открытый PR/MR) с понятным title и description.',
+  'howItWorks.workflows.implement.step2': 'Добавьте label ai.',
+  'howItWorks.workflows.implement.step3': 'Следите за labels: ai → ai-working → ai-pr (или ai-failed).',
+  'howItWorks.workflows.implement.step4':
+    'Проверьте branch и PR/MR, которые worker открыл или обновил, затем выполните merge как обычно.',
+  'howItWorks.workflows.qa.heading': 'Задать вопрос (без изменений кода)',
+  'howItWorks.workflows.qa.step1': 'Откройте issue с вашим вопросом.',
+  'howItWorks.workflows.qa.step2': 'Добавьте и ai, и no-change.',
+  'howItWorks.workflows.qa.step3': 'Дождитесь комментария к issue. Итоговые labels: ai-answered + no-change.',
+  'howItWorks.workflows.qa.step4': 'Чтобы спросить снова: оставьте no-change, удалите ai-answered и снова добавьте ai.',
+  'howItWorks.workflows.review.heading': 'Проверить pull или merge request',
+  'howItWorks.workflows.review.step1': 'Откройте PR на GitHub или MR на GitLab.',
+  'howItWorks.workflows.review.step2': 'Добавьте label ai-review.',
+  'howItWorks.workflows.review.step3': 'Следите за labels: ai-review → ai-reviewing → ai-reviewed (или ai-review-failed).',
+  'howItWorks.workflows.review.step4': 'Прочитайте review comment в PR/MR.',
+  'howItWorks.labels.heading': 'Справочник labels',
+  'howItWorks.labels.intro':
+    'Обычно вы добавляете только ai, ai + no-change или ai-review. Status labels управляет worker.',
+  'howItWorks.labels.youAdd': 'Вы добавляете',
+  'howItWorks.labels.workerAdds': 'Worker добавляет',
+  'howItWorks.labels.ai': 'Поставить в очередь implement или Q&A вместе с no-change',
+  'howItWorks.labels.noChange': 'С ai: только ответ — без branch и без PR/MR',
+  'howItWorks.labels.aiWorking': 'Implement или Q&A выполняется',
+  'howItWorks.labels.aiPr': 'Implement завершён; PR/MR создан или обновлён',
+  'howItWorks.labels.aiAnswered': 'Q&A завершён; ответ опубликован комментарием',
+  'howItWorks.labels.aiFailed': 'Implement или Q&A завершились с ошибкой — проверьте tasks или logs',
+  'howItWorks.labels.aiReview': 'Поставить в очередь AI review для открытого PR/MR',
+  'howItWorks.labels.aiReviewing': 'Review выполняется',
+  'howItWorks.labels.aiReviewed': 'Review comment опубликован',
+  'howItWorks.labels.aiReviewFailed': 'Review завершился с ошибкой — проверьте tasks или logs',
+  'howItWorks.tips.heading': 'Советы по forge',
+  'howItWorks.tips.item1': 'Оставляйте issue или PR/MR открытыми, пока работает worker.',
+  'howItWorks.tips.item2':
+    'Пишите понятные title и body; при конфликте более новые comments имеют приоритет над старыми.',
+  'howItWorks.tips.item3':
+    'Чтобы повторить после сбоя, при необходимости исправьте issue, затем снова добавьте ai или ai-review.',
+  'howItWorks.tips.item4':
+    'Labels создаются автоматически при регистрации repo; также можно запустить Setup labels на странице repository.',
+  'howItWorks.panel.heading': 'Работа в этой панели',
+  'howItWorks.panel.intro':
+    'Используйте панель, чтобы подключать forges и AI providers, включать repositories, настраивать prompts и settings и отслеживать tasks. Повседневная работа с кодом по-прежнему идёт через labels в GitHub или GitLab.',
+  'howItWorks.panel.setup.heading': 'Рекомендуемый порядок setup',
+  'howItWorks.panel.setup.item1': 'Providers — подключите Cursor и/или Claude, включите хотя бы один и задайте default.',
+  'howItWorks.panel.setup.item2': 'Connections — подключите GitHub и/или GitLab с token, у которого есть scopes выше.',
+  'howItWorks.panel.setup.item3':
+    'Repositories — дождитесь discovery или нажмите Fetch, затем включите repos, которые хотите автоматизировать.',
+  'howItWorks.panel.setup.item4':
+    'Необязательно — Setup labels и Setup webhooks для более быстрого пробуждения, когда APP_BASE_URL доступен.',
+  'howItWorks.panel.pages.heading': 'Для чего нужна каждая страница',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — использование AI, метрики worker и недавние runs.',
+  'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks и необязательный SSH public key.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — регистрация, включение/отключение, статус clone, provider и prompts для каждого repo.',
+  'howItWorks.panel.pages.tasks': 'Tasks — живая forge queue и история runs для implement, review и связанных заданий.',
+  'howItWorks.panel.pages.providers': 'Providers — учётные данные Cursor / Claude, включение, health checks и default.',
+  'howItWorks.panel.pages.prompts': 'Prompts — глобальные templates и snippets, которые использует worker.',
+  'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention и настройки UI.',
+  'howItWorks.panel.pages.system': 'System — операционное состояние и статус платформы.',
+  'howItWorks.panel.pages.audit': 'Audit — действия, важные для безопасности, которые фиксирует приложение.',
+
 
   'about.title': 'О AI Worker',
   'about.subtitle': 'Обзор продукта, услуги, контакты и лицензия',

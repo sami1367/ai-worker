@@ -11,6 +11,7 @@ export const de: Messages = {
   'nav.settings': 'Einstellungen',
   'nav.system': 'System',
   'nav.audit': 'Audit',
+  'nav.howItWorks': 'So funktioniert\'s',
   'nav.about': 'Über',
   'nav.logout': 'Abmelden',
 
@@ -34,10 +35,95 @@ export const de: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'Repositories sind registriert, aber keines ist aktiviert. Aktivieren Sie mindestens eines.',
   'setup.warn.repository.action': 'Repositories öffnen',
 
+  'footer.howItWorks': 'So funktioniert\'s',
   'footer.about': 'Über',
   'footer.repository': 'Repository',
   'footer.license': 'Lizenz',
   'footer.contact': 'Kontakt',
+
+  'howItWorks.title': 'So funktioniert\'s',
+  'howItWorks.subtitle': 'Tutorial für GitHub, GitLab und dieses Panel',
+  'howItWorks.intro.heading': 'Überblick',
+  'howItWorks.intro.p1':
+    'AI Worker ist ein selbst gehosteter Coding-Assistent für GitHub und GitLab. Die tägliche Arbeit wird über Labels an Issues und Pull-/Merge-Requests gesteuert. Dieses Panel dient der Einrichtung, Überwachung und Konfiguration.',
+  'howItWorks.intro.p2':
+    'Verbinden Sie hier zuerst Ihre Forge und KI-Anbieter, aktivieren Sie Repositories und nutzen Sie anschließend Labels in GitHub oder GitLab, um Implementierungs-, Frage-/Antwort- oder Review-Jobs einzureihen.',
+  'howItWorks.forge.heading': 'Arbeiten in GitHub und GitLab',
+  'howItWorks.forge.intro':
+    'Sobald ein Repository verbunden und aktiviert ist, brauchen Sie für normale Aufgaben kein Terminal auf dem AI-Worker-Host. Öffnen Sie ein Issue oder eine PR/MR, fügen Sie die passenden Labels hinzu und beobachten Sie, wie Status-Labels aktualisiert werden, während der Worker läuft.',
+  'howItWorks.forge.tokens.heading': 'Tokens und Zugriff',
+  'howItWorks.forge.tokens.github':
+    'GitHub: Verwenden Sie einen klassischen PAT mit dem Scope repo (workflow optional) oder ein Fine-Grained-Token mit Metadata lesen sowie Contents, Issues und Pull requests lesen/schreiben. Fügen Sie ihn unter Connections → Connect GitHub ein.',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com oder selbst verwaltet): Erstellen Sie ein Personal Access Token mit dem Scope api und setzen Sie unter Connections → Connect GitLab die Server-URL und das Token. read_api allein reicht für den vollen Worker-Betrieb nicht aus.',
+  'howItWorks.forge.tokens.git':
+    'Git-Clone und -Push nutzen standardmäßig HTTPS mit Ihrem Token. Wenn GitLab HTTP(S)-Git blockiert, aktivieren Sie Both oder HTTP in den Git-Zugriffsprotokollen der GitLab-Administration, oder fügen Sie den auf Connections angezeigten SSH-Public-Key der Plattform hinzu.',
+  'howItWorks.workflows.heading': 'Übliche Forge-Workflows',
+  'howItWorks.workflows.implement.heading': 'Eine Änderung implementieren',
+  'howItWorks.workflows.implement.step1': 'Öffnen Sie ein Issue (oder eine offene PR/MR) mit klarem Titel und Beschreibung.',
+  'howItWorks.workflows.implement.step2': 'Fügen Sie das Label ai hinzu.',
+  'howItWorks.workflows.implement.step3': 'Beobachten Sie die Labels: ai → ai-working → ai-pr (oder ai-failed).',
+  'howItWorks.workflows.implement.step4':
+    'Prüfen Sie den Branch und die vom Worker geöffnete oder aktualisierte PR/MR und mergen Sie wie gewohnt.',
+  'howItWorks.workflows.qa.heading': 'Eine Frage stellen (ohne Codeänderungen)',
+  'howItWorks.workflows.qa.step1': 'Öffnen Sie ein Issue mit Ihrer Frage.',
+  'howItWorks.workflows.qa.step2': 'Fügen Sie sowohl ai als auch no-change hinzu.',
+  'howItWorks.workflows.qa.step3': 'Warten Sie auf einen Issue-Kommentar. Endgültige Labels: ai-answered + no-change.',
+  'howItWorks.workflows.qa.step4':
+    'Für eine weitere Frage: no-change behalten, ai-answered entfernen und ai erneut hinzufügen.',
+  'howItWorks.workflows.review.heading': 'Einen Pull- oder Merge-Request reviewen',
+  'howItWorks.workflows.review.step1': 'Öffnen Sie eine PR auf GitHub oder eine MR auf GitLab.',
+  'howItWorks.workflows.review.step2': 'Fügen Sie das Label ai-review hinzu.',
+  'howItWorks.workflows.review.step3': 'Beobachten Sie die Labels: ai-review → ai-reviewing → ai-reviewed (oder ai-review-failed).',
+  'howItWorks.workflows.review.step4': 'Lesen Sie den Review-Kommentar an der PR/MR.',
+  'howItWorks.labels.heading': 'Label-Referenz',
+  'howItWorks.labels.intro':
+    'Normalerweise fügen Sie nur ai, ai + no-change oder ai-review hinzu. Der Worker verwaltet die Status-Labels.',
+  'howItWorks.labels.youAdd': 'Sie fügen hinzu',
+  'howItWorks.labels.workerAdds': 'Worker fügt hinzu',
+  'howItWorks.labels.ai': 'Implementierung einreihen, oder Q&A in Kombination mit no-change',
+  'howItWorks.labels.noChange': 'Mit ai: nur antworten — kein Branch und keine PR/MR',
+  'howItWorks.labels.aiWorking': 'Implementierung oder Q&A läuft',
+  'howItWorks.labels.aiPr': 'Implementierung abgeschlossen; PR/MR erstellt oder aktualisiert',
+  'howItWorks.labels.aiAnswered': 'Q&A abgeschlossen; Antwort als Kommentar veröffentlicht',
+  'howItWorks.labels.aiFailed': 'Implementierung oder Q&A fehlgeschlagen — Tasks oder Logs prüfen',
+  'howItWorks.labels.aiReview': 'KI-Review für eine offene PR/MR einreihen',
+  'howItWorks.labels.aiReviewing': 'Review läuft',
+  'howItWorks.labels.aiReviewed': 'Review-Kommentar veröffentlicht',
+  'howItWorks.labels.aiReviewFailed': 'Review fehlgeschlagen — Tasks oder Logs prüfen',
+  'howItWorks.tips.heading': 'Forge-Tipps',
+  'howItWorks.tips.item1': 'Lassen Sie das Issue oder die PR/MR offen, während der Worker läuft.',
+  'howItWorks.tips.item2':
+    'Schreiben Sie einen klaren Titel und Text; neuere Kommentare haben bei Konflikten Vorrang vor älteren.',
+  'howItWorks.tips.item3':
+    'Zum erneuten Versuch nach einem Fehler beheben Sie bei Bedarf das Issue und fügen Sie ai oder ai-review erneut hinzu.',
+  'howItWorks.tips.item4':
+    'Labels werden automatisch erstellt, wenn ein Repo registriert wird; Sie können auch Setup labels auf der Repository-Seite ausführen.',
+  'howItWorks.panel.heading': 'Arbeiten in diesem Panel',
+  'howItWorks.panel.intro':
+    'Nutzen Sie das Panel, um Forges und KI-Anbieter zu verbinden, Repositories zu aktivieren, Prompts und Settings anzupassen und Tasks zu überwachen. Die tägliche Coding-Arbeit läuft weiterhin über Labels in GitHub oder GitLab.',
+  'howItWorks.panel.setup.heading': 'Empfohlene Einrichtungsreihenfolge',
+  'howItWorks.panel.setup.item1':
+    'Providers — verbinden Sie Cursor und/oder Claude, aktivieren Sie mindestens einen und legen Sie einen Standard fest.',
+  'howItWorks.panel.setup.item2':
+    'Connections — verbinden Sie GitHub und/oder GitLab mit einem Token, das die oben genannten Scopes hat.',
+  'howItWorks.panel.setup.item3':
+    'Repositories — warten Sie auf die Erkennung oder klicken Sie auf Fetch, und aktivieren Sie dann die gewünschten Repos.',
+  'howItWorks.panel.setup.item4':
+    'Optional — Setup labels und Setup webhooks für schnellere Aufwachzeiten, wenn APP_BASE_URL erreichbar ist.',
+  'howItWorks.panel.pages.heading': 'Wofür jede Seite gedacht ist',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — KI-Nutzung, Worker-Metriken und aktuelle Läufe.',
+  'howItWorks.panel.pages.connections': 'Connections — Forge-Tokens, Erkennung, Webhooks und optionaler SSH-Public-Key.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — registrieren, aktivieren/deaktivieren, Clone-Status, Anbieter und Prompts pro Repo.',
+  'howItWorks.panel.pages.tasks':
+    'Tasks — Live-Forge-Warteschlange und Laufhistorie für Implementierung, Review und verwandte Jobs.',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor-/Claude-Zugangsdaten, Aktivierung, Health-Checks und Standard.',
+  'howItWorks.panel.pages.prompts': 'Prompts — globale Vorlagen und Snippets, die der Worker verwendet.',
+  'howItWorks.panel.pages.settings': 'Settings — Abfrageintervall, Parallelität, Standards, Aufbewahrung und UI-Einstellungen.',
+  'howItWorks.panel.pages.system': 'System — Betriebszustand und Plattformstatus.',
+  'howItWorks.panel.pages.audit': 'Audit — sicherheitsrelevante Aktionen, die die App protokolliert.',
+
 
   'about.title': 'Über AI Worker',
   'about.subtitle': 'Produktübersicht, Services, Kontakt und Lizenz',

@@ -11,6 +11,7 @@ export const tr: Messages = {
   'nav.settings': 'Ayarlar',
   'nav.system': 'Sistem',
   'nav.audit': 'Denetim',
+  'nav.howItWorks': 'Nasıl çalışır',
   'nav.about': 'Hakkında',
   'nav.logout': 'Çıkış',
 
@@ -34,10 +35,91 @@ export const tr: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'Depolar kayıtlı ama hiçbiri etkin değil. En az birini etkinleştirin.',
   'setup.warn.repository.action': 'Depoları aç',
 
+  'footer.howItWorks': 'Nasıl çalışır',
   'footer.about': 'Hakkında',
   'footer.repository': 'Depo',
   'footer.license': 'Lisans',
   'footer.contact': 'İletişim',
+
+  'howItWorks.title': 'Nasıl çalışır',
+  'howItWorks.subtitle': 'GitHub, GitLab ve bu panel için eğitim',
+  'howItWorks.intro.heading': 'Genel bakış',
+  'howItWorks.intro.p1':
+    'AI Worker, GitHub ve GitLab için self-hosted bir kodlama asistanıdır. Günlük iş, issues ve pull/merge requests üzerindeki labels ile yürütülür. Bu panel setup, izleme ve yapılandırma içindir.',
+  'howItWorks.intro.p2':
+    'Önce burada forge ve AI providers bağlantısını kurun, repositories öğelerini etkinleştirin, ardından implement, Q&A veya review işlerini kuyruğa almak için GitHub veya GitLab\'da labels kullanın.',
+  'howItWorks.forge.heading': 'GitHub ve GitLab\'da çalışma',
+  'howItWorks.forge.intro':
+    'Bir repository bağlanıp etkinleştirildikten sonra, normal görevler için AI Worker host üzerinde terminal gerekmez. Bir issue veya PR/MR açın, doğru labels ekleyin ve worker çalışırken status labels güncellemelerini izleyin.',
+  'howItWorks.forge.tokens.heading': 'Tokens ve erişim',
+  'howItWorks.forge.tokens.github':
+    'GitHub: repo scope\'lu classic PAT kullanın (workflow isteğe bağlı) veya Metadata read ile Contents, Issues ve Pull requests read/write içeren fine-grained token kullanın. Connections → Connect GitHub altına yapıştırın.',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com veya self-managed): api scope\'lu bir personal access token oluşturun, ardından Connections → Connect GitLab altında sunucu URL\'sini ayarlayıp token\'ı yapıştırın. Tam worker işlemleri için yalnızca read_api yeterli değildir.',
+  'howItWorks.forge.tokens.git':
+    'Git clone ve push varsayılan olarak token\'ınızla HTTPS kullanır. GitLab HTTP(S) git\'i engellerse, GitLab admin Git access protocols bölümünde Both veya HTTP\'yi etkinleştirin ya da Connections\'ta gösterilen platform SSH public key\'i ekleyin.',
+  'howItWorks.workflows.heading': 'Yaygın forge workflows',
+  'howItWorks.workflows.implement.heading': 'Bir değişiklik uygula',
+  'howItWorks.workflows.implement.step1': 'Net bir title ve description ile bir issue (veya açık bir PR/MR) açın.',
+  'howItWorks.workflows.implement.step2': 'ai label ekleyin.',
+  'howItWorks.workflows.implement.step3': 'Labels geçişini izleyin: ai → ai-working → ai-pr (veya ai-failed).',
+  'howItWorks.workflows.implement.step4':
+    'Worker\'ın açtığı veya güncellediği branch ve PR/MR\'yi inceleyin, ardından her zamanki gibi merge edin.',
+  'howItWorks.workflows.qa.heading': 'Soru sorun (kod değişikliği yok)',
+  'howItWorks.workflows.qa.step1': 'Sorunuzla bir issue açın.',
+  'howItWorks.workflows.qa.step2': 'Hem ai hem no-change ekleyin.',
+  'howItWorks.workflows.qa.step3': 'Bir issue comment bekleyin. Son labels: ai-answered + no-change.',
+  'howItWorks.workflows.qa.step4': 'Tekrar sormak için: no-change kalsın, ai-answered kaldırın ve yeniden ai ekleyin.',
+  'howItWorks.workflows.review.heading': 'Bir pull veya merge request inceleyin',
+  'howItWorks.workflows.review.step1': 'GitHub\'da bir PR veya GitLab\'da bir MR açın.',
+  'howItWorks.workflows.review.step2': 'ai-review label ekleyin.',
+  'howItWorks.workflows.review.step3': 'Labels: ai-review → ai-reviewing → ai-reviewed (veya ai-review-failed).',
+  'howItWorks.workflows.review.step4': 'PR/MR üzerindeki review comment\'i okuyun.',
+  'howItWorks.labels.heading': 'Label başvurusu',
+  'howItWorks.labels.intro':
+    'Normalde yalnızca ai, ai + no-change veya ai-review eklersiniz. Status labels öğelerini worker yönetir.',
+  'howItWorks.labels.youAdd': 'Siz eklersiniz',
+  'howItWorks.labels.workerAdds': 'Worker ekler',
+  'howItWorks.labels.ai': 'Implement kuyruğa alın; no-change ile birlikteyse Q&A',
+  'howItWorks.labels.noChange': 'ai ile: yalnızca yanıt — branch ve PR/MR yok',
+  'howItWorks.labels.aiWorking': 'Implement veya Q&A devam ediyor',
+  'howItWorks.labels.aiPr': 'Implement bitti; PR/MR oluşturuldu veya güncellendi',
+  'howItWorks.labels.aiAnswered': 'Q&A bitti; yanıt comment olarak yayınlandı',
+  'howItWorks.labels.aiFailed': 'Implement veya Q&A başarısız — tasks veya logs kontrol edin',
+  'howItWorks.labels.aiReview': 'Açık bir PR/MR üzerinde AI review kuyruğa alın',
+  'howItWorks.labels.aiReviewing': 'Review devam ediyor',
+  'howItWorks.labels.aiReviewed': 'Review comment yayınlandı',
+  'howItWorks.labels.aiReviewFailed': 'Review başarısız — tasks veya logs kontrol edin',
+  'howItWorks.tips.heading': 'Forge ipuçları',
+  'howItWorks.tips.item1': 'Worker çalışırken issue veya PR/MR açık kalsın.',
+  'howItWorks.tips.item2': 'Net bir title ve body yazın; çakışmada yeni comments eskilerin üzerine geçer.',
+  'howItWorks.tips.item3':
+    'Başarısızlıktan sonra yeniden denemek için gerekirse issue\'yu düzeltin, ardından yeniden ai veya ai-review ekleyin.',
+  'howItWorks.tips.item4':
+    'Labels, bir repo kaydedildiğinde otomatik oluşturulur; repository sayfasında Setup labels da çalıştırabilirsiniz.',
+  'howItWorks.panel.heading': 'Bu panelde çalışma',
+  'howItWorks.panel.intro':
+    'Forges ve AI providers bağlantısı kurmak, repositories etkinleştirmek, prompts ve settings ayarlamak ve tasks izlemek için paneli kullanın. Günlük kodlama işi yine GitHub veya GitLab\'daki labels ile yapılır.',
+  'howItWorks.panel.setup.heading': 'Önerilen setup sırası',
+  'howItWorks.panel.setup.item1':
+    'Providers — Cursor ve/veya Claude bağlayın, en az birini etkinleştirin ve bir default ayarlayın.',
+  'howItWorks.panel.setup.item2': 'Connections — yukarıdaki scopes\'a sahip bir token ile GitHub ve/veya GitLab bağlayın.',
+  'howItWorks.panel.setup.item3':
+    'Repositories — discovery\'yi bekleyin veya Fetch\'e tıklayın, ardından otomatikleştirmek istediğiniz repos öğelerini etkinleştirin.',
+  'howItWorks.panel.setup.item4':
+    'İsteğe bağlı — APP_BASE_URL erişilebilirken daha hızlı wake-ups için Setup labels ve Setup webhooks.',
+  'howItWorks.panel.pages.heading': 'Her sayfanın amacı',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — AI kullanımı, worker metrikleri ve son runs.',
+  'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks ve isteğe bağlı SSH public key.',
+  'howItWorks.panel.pages.repositories':
+    'Repositories — kayıt, etkinleştir/devre dışı bırak, clone durumu, repo başına provider ve prompts.',
+  'howItWorks.panel.pages.tasks': 'Tasks — implement, review ve ilgili işler için canlı forge queue ve run geçmişi.',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, etkinleştirme, health checks ve default.',
+  'howItWorks.panel.pages.prompts': 'Prompts — worker tarafından kullanılan global templates ve snippets.',
+  'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention ve UI tercihleri.',
+  'howItWorks.panel.pages.system': 'System — operasyonel sağlık ve platform durumu.',
+  'howItWorks.panel.pages.audit': 'Audit — uygulamanın kaydettiği güvenlikle ilgili eylemler.',
+
 
   'about.title': 'AI Worker hakkında',
   'about.subtitle': 'Ürün özeti, hizmetler, iletişim ve lisans',

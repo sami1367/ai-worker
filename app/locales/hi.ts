@@ -11,6 +11,7 @@ export const hi: Messages = {
   'nav.settings': 'सेटिंग्स',
   'nav.system': 'सिस्टम',
   'nav.audit': 'ऑडिट',
+  'nav.howItWorks': 'यह कैसे काम करता है',
   'nav.about': 'परिचय',
   'nav.logout': 'लॉग आउट',
 
@@ -34,10 +35,90 @@ export const hi: Messages = {
   'setup.warn.repository.noneEnabledDescription': 'रिपॉजिटरी पंजीकृत हैं लेकिन कोई सक्षम नहीं है। कम से कम एक सक्षम करें।',
   'setup.warn.repository.action': 'रिपॉजिटरी खोलें',
 
+  'footer.howItWorks': 'यह कैसे काम करता है',
   'footer.about': 'परिचय',
   'footer.repository': 'रिपॉज़िटरी',
   'footer.license': 'लाइसेंस',
   'footer.contact': 'संपर्क',
+
+  'howItWorks.title': 'यह कैसे काम करता है',
+  'howItWorks.subtitle': 'GitHub, GitLab और इस पैनल के लिए ट्यूटोरियल',
+  'howItWorks.intro.heading': 'अवलोकन',
+  'howItWorks.intro.p1':
+    'AI Worker, GitHub और GitLab के लिए एक self-hosted कोडिंग सहायक है। रोज़मर्रा का काम issues और pull/merge requests पर labels से चलता है। यह पैनल setup, निगरानी और कॉन्फ़िगरेशन के लिए है।',
+  'howItWorks.intro.p2':
+    'पहले यहाँ अपना forge और AI providers कनेक्ट करें, repositories सक्षम करें, फिर implement, Q&A या review जॉब्स कतार में लगाने के लिए GitHub या GitLab में labels का उपयोग करें।',
+  'howItWorks.forge.heading': 'GitHub और GitLab में काम करना',
+  'howItWorks.forge.intro':
+    'repository कनेक्ट और सक्षम होने के बाद, सामान्य कार्यों के लिए AI Worker होस्ट पर terminal की ज़रूरत नहीं होती। कोई issue या PR/MR खोलें, सही labels जोड़ें, और worker चलते समय status labels अपडेट होते देखें।',
+  'howItWorks.forge.tokens.heading': 'Tokens और पहुँच',
+  'howItWorks.forge.tokens.github':
+    'GitHub: repo scope वाला classic PAT उपयोग करें (workflow वैकल्पिक), या Metadata read के साथ Contents, Issues और Pull requests read/write वाला fine-grained token। इसे Connections → Connect GitHub के अंतर्गत पेस्ट करें।',
+  'howItWorks.forge.tokens.gitlab':
+    'GitLab (gitlab.com या self-managed): api scope वाला personal access token बनाएँ, फिर Connections → Connect GitLab के अंतर्गत server URL सेट करें और token पेस्ट करें। पूर्ण worker संचालन के लिए अकेले read_api पर्याप्त नहीं है।',
+  'howItWorks.forge.tokens.git':
+    'Git clone और push डिफ़ॉल्ट रूप से आपके token के साथ HTTPS उपयोग करते हैं। यदि GitLab HTTP(S) git को ब्लॉक करता है, तो GitLab admin में Git access protocols पर Both या HTTP सक्षम करें, या Connections पर दिखाया गया platform SSH public key जोड़ें।',
+  'howItWorks.workflows.heading': 'सामान्य forge workflows',
+  'howItWorks.workflows.implement.heading': 'कोई बदलाव लागू करें',
+  'howItWorks.workflows.implement.step1': 'स्पष्ट title और description के साथ कोई issue (या खुला PR/MR) खोलें।',
+  'howItWorks.workflows.implement.step2': 'ai label जोड़ें।',
+  'howItWorks.workflows.implement.step3': 'labels का क्रम देखें: ai → ai-working → ai-pr (या ai-failed)।',
+  'howItWorks.workflows.implement.step4':
+    'worker द्वारा खोली या अपडेट की गई branch और PR/MR की समीक्षा करें, फिर सामान्य रूप से merge करें।',
+  'howItWorks.workflows.qa.heading': 'प्रश्न पूछें (कोड में कोई बदलाव नहीं)',
+  'howItWorks.workflows.qa.step1': 'अपने प्रश्न के साथ कोई issue खोलें।',
+  'howItWorks.workflows.qa.step2': 'ai और no-change दोनों जोड़ें।',
+  'howItWorks.workflows.qa.step3': 'issue comment का इंतज़ार करें। अंतिम labels: ai-answered + no-change।',
+  'howItWorks.workflows.qa.step4': 'फिर से पूछने के लिए: no-change रखें, ai-answered हटाएँ, और फिर से ai जोड़ें।',
+  'howItWorks.workflows.review.heading': 'किसी pull या merge request की समीक्षा करें',
+  'howItWorks.workflows.review.step1': 'GitHub पर कोई PR या GitLab पर कोई MR खोलें।',
+  'howItWorks.workflows.review.step2': 'ai-review label जोड़ें।',
+  'howItWorks.workflows.review.step3': 'labels देखें: ai-review → ai-reviewing → ai-reviewed (या ai-review-failed)।',
+  'howItWorks.workflows.review.step4': 'PR/MR पर review comment पढ़ें।',
+  'howItWorks.labels.heading': 'Label संदर्भ',
+  'howItWorks.labels.intro':
+    'आमतौर पर आप केवल ai, ai + no-change, या ai-review जोड़ते हैं। status labels worker संभालता है।',
+  'howItWorks.labels.youAdd': 'आप जोड़ते हैं',
+  'howItWorks.labels.workerAdds': 'Worker जोड़ता है',
+  'howItWorks.labels.ai': 'implement कतार में लगाएँ, या no-change के साथ मिलाने पर Q&A',
+  'howItWorks.labels.noChange': 'ai के साथ: केवल उत्तर — कोई branch और कोई PR/MR नहीं',
+  'howItWorks.labels.aiWorking': 'Implement या Q&A प्रगति में है',
+  'howItWorks.labels.aiPr': 'Implement पूरा; PR/MR बनाया या अपडेट किया गया',
+  'howItWorks.labels.aiAnswered': 'Q&A पूरा; उत्तर comment के रूप में पोस्ट किया गया',
+  'howItWorks.labels.aiFailed': 'Implement या Q&A विफल — tasks या logs जाँचें',
+  'howItWorks.labels.aiReview': 'खुले PR/MR पर AI review कतार में लगाएँ',
+  'howItWorks.labels.aiReviewing': 'Review प्रगति में है',
+  'howItWorks.labels.aiReviewed': 'Review comment पोस्ट किया गया',
+  'howItWorks.labels.aiReviewFailed': 'Review विफल — tasks या logs जाँचें',
+  'howItWorks.tips.heading': 'Forge सुझाव',
+  'howItWorks.tips.item1': 'worker चलते समय issue या PR/MR खुला रखें।',
+  'howItWorks.tips.item2': 'स्पष्ट title और body लिखें; संघर्ष होने पर नए comments पुराने को ओवरराइड करते हैं।',
+  'howItWorks.tips.item3':
+    'विफलता के बाद पुनः प्रयास के लिए, ज़रूरत हो तो issue ठीक करें, फिर फिर से ai या ai-review जोड़ें।',
+  'howItWorks.tips.item4':
+    'repo पंजीकृत होने पर labels स्वचालित रूप से बनते हैं; आप repository पृष्ठ पर Setup labels भी चला सकते हैं।',
+  'howItWorks.panel.heading': 'इस पैनल में काम करना',
+  'howItWorks.panel.intro':
+    'forges और AI providers कनेक्ट करने, repositories सक्षम करने, prompts और settings ट्यून करने, तथा tasks की निगरानी करने के लिए पैनल का उपयोग करें। रोज़मर्रा का कोडिंग काम अब भी GitHub या GitLab में labels से होता है।',
+  'howItWorks.panel.setup.heading': 'अनुशंसित setup क्रम',
+  'howItWorks.panel.setup.item1':
+    'Providers — Cursor और/या Claude कनेक्ट करें, कम से कम एक सक्षम करें, और एक default सेट करें।',
+  'howItWorks.panel.setup.item2': 'Connections — ऊपर दिए scopes वाले token के साथ GitHub और/या GitLab कनेक्ट करें।',
+  'howItWorks.panel.setup.item3':
+    'Repositories — discovery का इंतज़ार करें या Fetch क्लिक करें, फिर जिन repos को स्वचालित करना है उन्हें सक्षम करें।',
+  'howItWorks.panel.setup.item4':
+    'वैकल्पिक — जब APP_BASE_URL पहुँच योग्य हो, तेज़ wake-ups के लिए Setup labels और Setup webhooks।',
+  'howItWorks.panel.pages.heading': 'प्रत्येक पृष्ठ किस लिए है',
+  'howItWorks.panel.pages.dashboard': 'Dashboard — AI उपयोग, worker मेट्रिक्स, और हाल के runs।',
+  'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks, और वैकल्पिक SSH public key।',
+  'howItWorks.panel.pages.repositories': 'Repositories — पंजीकरण, सक्षम/अक्षम, clone स्थिति, प्रति-repo provider और prompts।',
+  'howItWorks.panel.pages.tasks': 'Tasks — implement, review और संबंधित जॉब्स के लिए लाइव forge queue और run इतिहास।',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, सक्षमता, health checks, और default।',
+  'howItWorks.panel.pages.prompts': 'Prompts — worker द्वारा उपयोग किए जाने वाले वैश्विक templates और snippets।',
+  'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention, और UI प्राथमिकताएँ।',
+  'howItWorks.panel.pages.system': 'System — परिचालन स्वास्थ्य और प्लेटफ़ॉर्म स्थिति।',
+  'howItWorks.panel.pages.audit': 'Audit — ऐप द्वारा दर्ज सुरक्षा-संबंधी क्रियाएँ।',
+
 
   'about.title': 'AI Worker के बारे में',
   'about.subtitle': 'उत्पाद अवलोकन, सेवाएँ, संपर्क और लाइसेंस',

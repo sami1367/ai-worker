@@ -16,6 +16,12 @@ const contact = CONTACT_LINKS.find((l) => l.id === 'email')
       </p>
       <nav class="flex flex-wrap items-center gap-x-4 gap-y-1" :aria-label="t('layout.footerNav')">
         <NuxtLink
+          to="/how-it-works"
+          class="underline-offset-2 hover:underline hover:opacity-100"
+        >
+          {{ t('footer.howItWorks') }}
+        </NuxtLink>
+        <NuxtLink
           to="/about"
           class="underline-offset-2 hover:underline hover:opacity-100"
         >
