@@ -2,8 +2,7 @@
 const route = useRoute()
 const colorMode = useColorMode()
 const { api } = useApi()
-const { $i18n } = useNuxtApp()
-const t = (key: string) => $i18n?.t?.(key) ?? key
+const { t } = useI18n()
 
 const links = [
   { to: '/', labelKey: 'nav.dashboard', icon: 'i-lucide-layout-dashboard' },
@@ -29,12 +28,12 @@ const mobileOpen = ref(false)
 <template>
   <div class="min-h-screen">
     <div class="mx-auto flex min-h-screen max-w-[1400px]">
-      <aside class="aw-panel sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-y-0 border-l-0 p-4 md:flex">
+      <aside class="aw-panel sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-y-0 border-s-0 p-4 md:flex">
         <div class="mb-8 aw-fade-in">
           <p class="font-display text-2xl tracking-tight">AI Worker</p>
-          <p class="text-sm opacity-70">Platform</p>
+          <p class="text-sm opacity-70">{{ t('layout.platform') }}</p>
         </div>
-        <nav class="flex flex-1 flex-col gap-1" aria-label="Main">
+        <nav class="flex flex-1 flex-col gap-1" :aria-label="t('layout.mainNav')">
           <NuxtLink
             v-for="link in links"
             :key="link.to"
@@ -46,18 +45,21 @@ const mobileOpen = ref(false)
             {{ t(link.labelKey) }}
           </NuxtLink>
         </nav>
-        <div class="mt-4 flex items-center gap-2">
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
-            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
-            @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
-          />
-          <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-log-out" @click="logout">
-            {{ t('nav.logout') }}
-          </UButton>
+        <div class="mt-4 space-y-2">
+          <LanguageSwitcher />
+          <div class="flex items-center gap-2">
+            <UButton
+              size="sm"
+              color="neutral"
+              variant="ghost"
+              :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+              :aria-label="colorMode.value === 'dark' ? t('layout.lightMode') : t('layout.darkMode')"
+              @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
+            />
+            <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-log-out" @click="logout">
+              {{ t('nav.logout') }}
+            </UButton>
+          </div>
         </div>
       </aside>
 
@@ -67,16 +69,21 @@ const mobileOpen = ref(false)
             <UIcon name="i-lucide-menu" class="size-5" aria-hidden="true" />
             <span class="font-display text-lg">AI Worker</span>
           </button>
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
-            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
-            @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
-          />
+          <div class="flex items-center gap-2">
+            <UButton
+              size="sm"
+              color="neutral"
+              variant="ghost"
+              :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+              :aria-label="colorMode.value === 'dark' ? t('layout.lightMode') : t('layout.darkMode')"
+              @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
+            />
+          </div>
         </header>
-        <nav v-if="mobileOpen" id="mobile-nav" class="aw-panel mx-3 mt-2 flex flex-col gap-1 p-2 md:hidden" aria-label="Main">
+        <nav v-if="mobileOpen" id="mobile-nav" class="aw-panel mx-3 mt-2 flex flex-col gap-1 p-2 md:hidden" :aria-label="t('layout.mainNav')">
+          <div class="mb-2 px-1">
+            <LanguageSwitcher />
+          </div>
           <NuxtLink
             v-for="link in links"
             :key="link.to"
