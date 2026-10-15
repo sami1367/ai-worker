@@ -69,6 +69,7 @@ ai_require_cmds git curl jq tee || exit 1
 PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
 PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
 DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
+FORCE_PUSH_TO_DEFAULT="$(ai_project_entry_bool "${PROJECT_ENTRY:-}" "force_push_to_default" 0)"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"
@@ -201,6 +202,7 @@ echo "Host:          $GITLAB_HOST"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
 echo "Default branch: $DEFAULT_BRANCH"
+echo "Force-push:    $([[ "$FORCE_PUSH_TO_DEFAULT" == "1" ]] && echo enabled || echo disabled)"
 echo "Project dir:   $PROJECT_DIR"
 echo "Main log:      $LOG_FILE"
 echo "============================================================"
@@ -226,30 +228,9 @@ echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 # Fresh environment: clean checkout of up-to-date default branch
 # ============================================================
 
-echo
-echo "Preparing fresh workspace from origin/$DEFAULT_BRANCH..."
-git -C "$PROJECT_DIR" fetch --prune origin
-
 # Drop leftover task branches / dirty state from prior runs so every issue
-# starts from a clean, current default branch.
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
-    echo "Discarding leftover local changes before starting..."
-    git -C "$PROJECT_DIR" status --short || true
-    git -C "$PROJECT_DIR" reset --hard HEAD || true
-    git -C "$PROJECT_DIR" clean -fd || true
-fi
-
-git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH"
-git -C "$PROJECT_DIR" reset --hard "origin/$DEFAULT_BRANCH"
-
-if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
-    echo
-    echo "ERROR: $DEFAULT_BRANCH is not clean after fresh prepare."
-    git -C "$PROJECT_DIR" status --short
-    exit 12
-fi
-
-echo "Fresh workspace ready on $DEFAULT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
+# starts from a clean, current default branch (explicit fetch + hard reset).
+ai_prepare_fresh_branch "$PROJECT_DIR" "$DEFAULT_BRANCH" || exit $?
 
 # ============================================================
 # Read GitLab issue
@@ -541,7 +522,11 @@ if [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
         DECLINED_NO_CHANGES=1
         echo
         echo "Agent declined the issue (no product-file changes)."
-        echo "Opening an empty-commit merge request with the explanation."
+        if [[ "$FORCE_PUSH_TO_DEFAULT" == "1" ]]; then
+            echo "Force-push mode: skipping empty commit; posting explanation on the issue."
+        else
+            echo "Opening an empty-commit merge request with the explanation."
+        fi
     else
         echo
         echo "ERROR: Cursor completed but made no changes."
@@ -590,42 +575,101 @@ if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
 fi
 
 # ============================================================
-# Commit
+# Commit / publish (MR or force-push to default branch)
 # ============================================================
 
-echo
-echo "Creating commit..."
-if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
-    git -C "$PROJECT_DIR" commit \
-        --allow-empty \
-        -m "chore: no code changes for issue #${ISSUE_NUMBER}"
+MR_URL=""
+MR_IID=""
+NOTES_COMMENT_URL=""
+COMMIT_SHA=""
+
+if [[ "$FORCE_PUSH_TO_DEFAULT" == "1" && "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+    echo
+    echo "Force-push mode: no product changes; not updating origin/$DEFAULT_BRANCH."
+    COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
 else
-    git -C "$PROJECT_DIR" commit \
-        -m "fix: resolve issue #${ISSUE_NUMBER}"
+    echo
+    echo "Creating commit..."
+    if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+        git -C "$PROJECT_DIR" commit \
+            --allow-empty \
+            -m "chore: no code changes for issue #${ISSUE_NUMBER}"
+    else
+        git -C "$PROJECT_DIR" commit \
+            -m "fix: resolve issue #${ISSUE_NUMBER}"
+    fi
+
+    COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+
+    echo
+    echo "Commit:"
+    echo "$COMMIT_SHA"
 fi
 
-COMMIT_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+if [[ "$FORCE_PUSH_TO_DEFAULT" == "1" ]]; then
+    if [[ "$DECLINED_NO_CHANGES" -eq 0 ]]; then
+        echo
+        echo "Force-pushing commit to origin/$DEFAULT_BRANCH (skipping merge request)..."
+        git -C "$PROJECT_DIR" push --force origin "HEAD:refs/heads/${DEFAULT_BRANCH}"
 
-echo
-echo "Commit:"
-echo "$COMMIT_SHA"
+        git -C "$PROJECT_DIR" fetch origin "$DEFAULT_BRANCH" || true
+        git -C "$PROJECT_DIR" checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+        git -C "$PROJECT_DIR" reset --hard "origin/$DEFAULT_BRANCH"
+        BRANCH="$DEFAULT_BRANCH"
+        printf 'branch=%s\n' "$BRANCH" >> "$STATE_FILE"
+    fi
 
-# ============================================================
-# Push
-# ============================================================
+    ISSUE_COMMENT_FILE="$STATE_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}-force-push-comment.md"
+    if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+        cat > "$ISSUE_COMMENT_FILE" <<EOF
+## Not implemented (force-push mode)
 
-echo
-echo "Pushing branch..."
-git -C "$PROJECT_DIR" push -u origin "$BRANCH"
+No product-file changes were made, and \`origin/${DEFAULT_BRANCH}\` was **not** updated.
 
-# ============================================================
-# Create MR body
-# ============================================================
+**Commit (local):** \`$COMMIT_SHA\`
 
-MR_BODY_FILE="$STATE_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}-mr.md"
+### Why this was not implemented
 
-if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
-    cat > "$MR_BODY_FILE" <<EOF
+$(cat "$NOTES_SAVED" 2>/dev/null || echo "_No notes file._")
+EOF
+    else
+        cat > "$ISSUE_COMMENT_FILE" <<EOF
+## Automated implementation (force-push)
+
+Changes were force-pushed directly to \`${DEFAULT_BRANCH}\` (merge request skipped for this repository).
+
+**Branch:** \`${DEFAULT_BRANCH}\`
+
+**Commit:** \`$COMMIT_SHA\`
+
+Closes #${ISSUE_NUMBER}
+EOF
+        if [[ -f "$NOTES_SAVED" ]]; then
+            {
+                echo
+                echo "### Implement notes"
+                echo
+                cat "$NOTES_SAVED"
+            } >> "$ISSUE_COMMENT_FILE"
+        fi
+    fi
+
+    echo
+    echo "Posting result comment on issue #$ISSUE_NUMBER..."
+    NOTE_JSON="$(gitlab_create_issue_note "$REPO_PATH" "$ISSUE_NUMBER" "$(cat "$ISSUE_COMMENT_FILE")" || true)"
+    NOTES_COMMENT_URL="$(jq -r '.web_url // empty' <<<"${NOTE_JSON:-}" 2>/dev/null || true)"
+    if [[ -z "$NOTES_COMMENT_URL" ]]; then
+        echo "WARNING: Issue comment was not posted."
+    fi
+else
+    echo
+    echo "Pushing branch..."
+    git -C "$PROJECT_DIR" push -u origin "$BRANCH"
+
+    MR_BODY_FILE="$STATE_DIR/${PROJECT}-gitlab-issue-${ISSUE_NUMBER}-${TIMESTAMP}-mr.md"
+
+    if [[ "$DECLINED_NO_CHANGES" -eq 1 ]]; then
+        cat > "$MR_BODY_FILE" <<EOF
 ## Not implemented
 
 This merge request contains **no product-file changes**. The agent judged the issue unrelated to this repository, not acceptable, or not useful to implement.
@@ -644,9 +688,9 @@ $(cat "$NOTES_SAVED")
 
 The automation never merges merge requests automatically.
 EOF
-    MR_TITLE="No changes for #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
-else
-    cat > "$MR_BODY_FILE" <<EOF
+        MR_TITLE="No changes for #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+    else
+        cat > "$MR_BODY_FILE" <<EOF
 ## Automated implementation
 
 This merge request was created automatically by the server-side Cursor issue worker.
@@ -665,56 +709,48 @@ Please review the implementation and CI results before merging.
 
 The automation never merges merge requests automatically.
 EOF
-    MR_TITLE="Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
-fi
-
-# ============================================================
-# Create Merge Request
-# ============================================================
-
-echo
-echo "Creating merge request..."
-
-MR_JSON="$(
-    gitlab_create_mr \
-        "$REPO_PATH" \
-        "$BRANCH" \
-        "$DEFAULT_BRANCH" \
-        "$MR_TITLE" \
-        "$(cat "$MR_BODY_FILE")" \
-        "ai-pr"
-)"
-
-MR_URL="$(jq -r '.web_url // empty' <<<"$MR_JSON")"
-MR_IID="$(jq -r '.iid // empty' <<<"$MR_JSON")"
-
-if [[ -z "$MR_URL" || -z "$MR_IID" ]]; then
-    echo
-    echo "ERROR: Merge request creation could not be verified."
-    echo "$MR_JSON"
-    exit 40
-fi
-
-# Ensure ai-pr even if create omitted/ignored labels (label must already exist).
-echo
-echo "Ensuring merge request has label ai-pr..."
-if ! gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" --add "ai-pr"; then
-    echo "WARNING: Could not add ai-pr label to merge request !$MR_IID."
-fi
-
-# ============================================================
-# Post implement notes as an MR comment
-# ============================================================
-
-if [[ -f "$NOTES_SAVED" ]]; then
-    if NOTES_COMMENT_URL="$(ai_post_gitlab_mr_notes "$REPO_PATH" "$MR_IID" "$NOTES_SAVED")"; then
-        :
-    else
-        NOTES_COMMENT_URL=""
-        echo "WARNING: Implement notes comment was not posted."
+        MR_TITLE="Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
     fi
-else
-    echo "WARNING: No implement notes file to post as an MR comment."
+
+    echo
+    echo "Creating merge request..."
+
+    MR_JSON="$(
+        gitlab_create_mr \
+            "$REPO_PATH" \
+            "$BRANCH" \
+            "$DEFAULT_BRANCH" \
+            "$MR_TITLE" \
+            "$(cat "$MR_BODY_FILE")" \
+            "ai-pr"
+    )"
+
+    MR_URL="$(jq -r '.web_url // empty' <<<"$MR_JSON")"
+    MR_IID="$(jq -r '.iid // empty' <<<"$MR_JSON")"
+
+    if [[ -z "$MR_URL" || -z "$MR_IID" ]]; then
+        echo
+        echo "ERROR: Merge request creation could not be verified."
+        echo "$MR_JSON"
+        exit 40
+    fi
+
+    echo
+    echo "Ensuring merge request has label ai-pr..."
+    if ! gitlab_edit_mr_labels "$REPO_PATH" "$MR_IID" --add "ai-pr"; then
+        echo "WARNING: Could not add ai-pr label to merge request !$MR_IID."
+    fi
+
+    if [[ -f "$NOTES_SAVED" ]]; then
+        if NOTES_COMMENT_URL="$(ai_post_gitlab_mr_notes "$REPO_PATH" "$MR_IID" "$NOTES_SAVED")"; then
+            :
+        else
+            NOTES_COMMENT_URL=""
+            echo "WARNING: Implement notes comment was not posted."
+        fi
+    else
+        echo "WARNING: No implement notes file to post as an MR comment."
+    fi
 fi
 
 # ============================================================
@@ -729,6 +765,7 @@ issue=$ISSUE_NUMBER
 issue_url=$ISSUE_URL
 branch=$BRANCH
 commit=$COMMIT_SHA
+force_push_to_default=$FORCE_PUSH_TO_DEFAULT
 merge_request=$MR_URL
 merge_request_iid=$MR_IID
 notes_file=$NOTES_SAVED
@@ -746,7 +783,11 @@ echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
 echo "Branch:        $BRANCH"
 echo "Commit:        $COMMIT_SHA"
-echo "Merge request: $MR_URL"
+if [[ "$FORCE_PUSH_TO_DEFAULT" == "1" ]]; then
+    echo "Published:     force-push to origin/$DEFAULT_BRANCH"
+else
+    echo "Merge request: $MR_URL"
+fi
 if [[ -n "$NOTES_COMMENT_URL" ]]; then
     echo "Notes comment: $NOTES_COMMENT_URL"
 fi

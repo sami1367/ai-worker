@@ -42,6 +42,9 @@ watch(() => data.value, (repo) => {
   } else if (typeof repo.settings.customPrompt !== 'string') {
     repo.settings.customPrompt = ''
   }
+  if (typeof repo.forcePushToDefault !== 'boolean') {
+    repo.forcePushToDefault = false
+  }
 }, { immediate: true })
 
 async function save() {
@@ -54,6 +57,7 @@ async function save() {
         remoteUrl: data.value.remoteUrl,
         defaultBranch: data.value.defaultBranch,
         blockOnOpenPr: data.value.blockOnOpenPr,
+        forcePushToDefault: data.value.forcePushToDefault,
         defaultAiProvider: data.value.defaultAiProvider,
         settings: {
           customPrompt: data.value.settings?.customPrompt ?? '',
@@ -147,7 +151,7 @@ onBeforeUnmount(() => stopPoll.value?.())
           </UFormField>
           <UFormField
             label="PR / MR target branch"
-            hint="Branch that new pull requests and merge requests target (for example main, master, or develop). Also used when preparing the workspace checkout."
+            hint="Branch that new pull requests and merge requests target (for example main, master, or develop). When force-push is enabled, changes are pushed directly to this branch instead. Also used when preparing the workspace checkout."
           >
             <UInput
               v-model="data.defaultBranch"
@@ -163,6 +167,13 @@ onBeforeUnmount(() => stopPoll.value?.())
             />
           </UFormField>
           <UCheckbox v-model="data.blockOnOpenPr" label="Block new issues while an AI-labeled PR/MR is open" />
+          <UCheckbox
+            v-model="data.forcePushToDefault"
+            label="Force-push to target branch (skip PR/MR)"
+          />
+          <p class="text-xs opacity-60">
+            Off by default. When enabled, issue implement force-pushes commits onto the target branch above instead of opening a pull request or merge request. Overwrites that branch on the remote.
+          </p>
           <UFormField
             label="Repository prompt"
             hint="Optional. Appended to every AI task for this repo only. Global prompts still apply. Leave empty for none."

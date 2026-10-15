@@ -29,6 +29,8 @@ export const createRepositorySchema = z.object({
   canonicalProjectIdentifier: z.string().max(256).optional(),
   defaultBranch: z.string().min(1).max(128).default('main'),
   blockOnOpenPr: z.boolean().optional(),
+  /** When true, force-push to defaultBranch instead of opening a PR/MR. Default false. */
+  forcePushToDefault: z.boolean().optional(),
   defaultAiProvider: z.enum(['cursor', 'claude']).nullable().optional(),
   settings: repositorySettingsSchema.optional(),
   activate: z.boolean().default(false),
@@ -98,6 +100,7 @@ export function publicRepo(row: typeof repositories.$inferSelect) {
     isEnabled: row.isEnabled,
     isArchived: row.isArchived,
     blockOnOpenPr: row.blockOnOpenPr,
+    forcePushToDefault: row.forcePushToDefault,
     defaultAiProvider: row.defaultAiProvider,
     settings: row.settings,
     connectionId: row.connectionId,
@@ -157,6 +160,7 @@ export async function createRepository(
       defaultBranch: parsed.defaultBranch,
       isEnabled: parsed.activate,
       blockOnOpenPr: parsed.blockOnOpenPr ?? settings.defaultBlockOnOpenPr,
+      forcePushToDefault: parsed.forcePushToDefault ?? false,
       defaultAiProvider: parsed.defaultAiProvider ?? settings.defaultAiProvider,
     }).returning()
 
@@ -214,6 +218,7 @@ export async function updateRepository(
     canonicalProjectIdentifier: parsed.canonicalProjectIdentifier ?? existing.canonicalProjectIdentifier,
     defaultBranch: parsed.defaultBranch ?? existing.defaultBranch,
     blockOnOpenPr: parsed.blockOnOpenPr ?? existing.blockOnOpenPr,
+    forcePushToDefault: parsed.forcePushToDefault ?? existing.forcePushToDefault,
     defaultAiProvider: parsed.defaultAiProvider === undefined
       ? existing.defaultAiProvider
       : parsed.defaultAiProvider,

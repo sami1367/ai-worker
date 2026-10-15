@@ -176,6 +176,8 @@ export const repositories = pgTable('repositories', {
   isEnabled: boolean('is_enabled').notNull().default(false),
   isArchived: boolean('is_archived').notNull().default(false),
   blockOnOpenPr: boolean('block_on_open_pr').notNull().default(true),
+  /** When true, issue implement force-pushes to defaultBranch instead of opening a PR/MR. */
+  forcePushToDefault: boolean('force_push_to_default').notNull().default(false),
   defaultAiProvider: varchar('default_ai_provider', { length: 32 }),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   connectionId: uuid('connection_id').references(() => forgeConnections.id, { onDelete: 'set null' }),

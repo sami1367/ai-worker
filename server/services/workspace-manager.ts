@@ -565,6 +565,20 @@ async function fetchWorkspace(
     throw new Error(`Fetch failed: ${redactSecrets(fetch.stderr || 'unknown error')}`)
   }
 
+  // Explicit refspec: --single-branch clones only track the original clone branch.
+  // After the UI default branch changes (e.g. main → test), origin/<branch> must
+  // be fetched before checkout/reset can succeed.
+  const refFetch = await runGit(
+    ['fetch', 'origin', `+refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`],
+    { cwd: path, timeoutMs: 180_000, env: gitEnv },
+  )
+  logs.push(redactSecrets(refFetch.stderr || refFetch.stdout || `fetched origin/${defaultBranch}`))
+  if (refFetch.code !== 0) {
+    throw new Error(
+      `Could not fetch origin/${defaultBranch}: ${redactSecrets(refFetch.stderr || 'unknown error')}`,
+    )
+  }
+
   // Restore credential-free HTTPS remote for storage (SSH key stays on the host)
   const clean = /^git@/.test(authUrl)
     ? `${authUrl.replace(/^git@([^:]+):/, 'https://$1/').replace(/\.git$/i, '')}.git`
@@ -577,23 +591,39 @@ async function fetchWorkspace(
     timeoutMs: 10_000,
   })
 
-  // Do not reset hard or discard local changes — only ff-only when clean
+  // Managed worker workspaces must match origin/<defaultBranch> exactly so the
+  // next run starts clean (discard local dirt / divergent commits).
   const dirty = await runGit(['status', '--porcelain'], { cwd: path, timeoutMs: 15_000 })
   if (dirty.stdout.trim()) {
-    logs.push('Local changes present; skipped checkout/pull (safe sync)')
-    return
+    logs.push('Discarding local changes before reset to origin/' + defaultBranch)
+    await runGit(['reset', '--hard', 'HEAD'], { cwd: path, timeoutMs: 30_000 })
+    await runGit(['clean', '-fd'], { cwd: path, timeoutMs: 30_000 })
   }
 
-  await runGit(['checkout', defaultBranch], { cwd: path, timeoutMs: 30_000 })
-  const pull = await runGit(['pull', '--ff-only', 'origin', defaultBranch], {
-    cwd: path,
-    timeoutMs: 120_000,
-    env: gitEnv,
-  })
-  logs.push(redactSecrets(pull.stderr || pull.stdout || 'pull complete'))
-  if (pull.code !== 0) {
-    logs.push('Fast-forward pull unavailable; fetch succeeded and local branch left unchanged')
+  const checkout = await runGit(
+    ['checkout', '-B', defaultBranch, `origin/${defaultBranch}`],
+    { cwd: path, timeoutMs: 30_000 },
+  )
+  logs.push(redactSecrets(checkout.stderr || checkout.stdout || `checked out ${defaultBranch}`))
+  if (checkout.code !== 0) {
+    throw new Error(
+      `Checkout of ${defaultBranch} failed: ${redactSecrets(checkout.stderr || 'unknown error')}`,
+    )
   }
+
+  const reset = await runGit(['reset', '--hard', `origin/${defaultBranch}`], {
+    cwd: path,
+    timeoutMs: 30_000,
+  })
+  logs.push(redactSecrets(reset.stderr || reset.stdout || `reset to origin/${defaultBranch}`))
+  if (reset.code !== 0) {
+    throw new Error(
+      `Hard reset to origin/${defaultBranch} failed: ${redactSecrets(reset.stderr || 'unknown error')}`,
+    )
+  }
+
+  await runGit(['clean', '-fd'], { cwd: path, timeoutMs: 30_000 })
+  logs.push(`Workspace synced to origin/${defaultBranch}`)
 }
 
 async function stripRemoteCredentials(path: string, remoteUrl: string, logs: string[]) {

@@ -17,6 +17,11 @@ export interface ExportedProject {
   block_on_open_pr: boolean
   /** Forge default branch (main, master, develop, …). Used as PR/MR base. */
   default_branch: string
+  /**
+   * When true, issue implement force-pushes commits onto default_branch
+   * instead of opening a pull/merge request. Default false.
+   */
+  force_push_to_default: boolean
   /** Forge identity for polling without a local clone (lazy workspace). */
   full_name: string
   remote_url: string
@@ -79,6 +84,7 @@ export async function exportWorkerConfig(
       path: row.localPath,
       block_on_open_pr: row.blockOnOpenPr,
       default_branch: row.defaultBranch || 'main',
+      force_push_to_default: row.forcePushToDefault === true,
       full_name: fullName,
       remote_url: row.remoteUrl,
       forge: row.forgeType,
