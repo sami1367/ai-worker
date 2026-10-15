@@ -1,7 +1,9 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const config = useRuntimeConfig()
 
 const contact = CONTACT_LINKS.find((l) => l.id === 'email')
+const appVersion = computed(() => String(config.public.appVersion || '').trim())
 </script>
 
 <template>
@@ -12,6 +14,9 @@ const contact = CONTACT_LINKS.find((l) => l.id === 'email')
     <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <p>
         <span class="font-medium opacity-90">{{ SITE.name }}</span>
+        <template v-if="appVersion">
+          · v{{ appVersion }}
+        </template>
         · © {{ SITE.copyrightYear }} {{ SITE.copyrightHolder }}
       </p>
       <nav class="flex flex-wrap items-center gap-x-4 gap-y-1" :aria-label="t('layout.footerNav')">

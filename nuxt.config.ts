@@ -38,10 +38,11 @@ export default defineNuxtConfig({
     gitlabOauthClientSecret: process.env.GITLAB_OAUTH_CLIENT_SECRET || '',
     gitlabTrustedHosts: process.env.GITLAB_TRUSTED_HOSTS || '',
     gitlabAllowHttp: process.env.GITLAB_ALLOW_HTTP || 'false',
-    appVersion: process.env.APP_VERSION || '1.0.0',
     public: {
       appBaseUrl: process.env.APP_BASE_URL || 'http://127.0.0.1:8080',
       appName: 'AI Worker Platform',
+      // Baked into the Docker image via APP_VERSION / NUXT_PUBLIC_APP_VERSION (image tag)
+      appVersion: process.env.NUXT_PUBLIC_APP_VERSION || process.env.APP_VERSION || '1.0.0',
     },
   },
 

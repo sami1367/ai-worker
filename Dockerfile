@@ -7,14 +7,17 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 FROM node:22-bookworm AS build
+ARG APP_VERSION=1.0.0
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NUXT_TELEMETRY_DISABLED=1
+ENV NUXT_TELEMETRY_DISABLED=1 \
+    APP_VERSION=${APP_VERSION}
 RUN pnpm run build
 
 FROM node:22-bookworm-slim AS runner
+ARG APP_VERSION=1.0.0
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -47,6 +50,8 @@ RUN bash /app/scripts/install-ai-clis.sh \
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
+    APP_VERSION=${APP_VERSION} \
+    NUXT_PUBLIC_APP_VERSION=${APP_VERSION} \
     AI_WORKER_BASE_DIR=/data/config \
     WORKSPACE_ROOT=/data/workspaces \
     LOGS_DIR=/data/logs \

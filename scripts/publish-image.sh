@@ -13,9 +13,11 @@ IMAGE="${AI_WORKER_IMAGE:-sami1367/ai-worker}"
 # Strip tag if caller passed image:tag as AI_WORKER_IMAGE
 IMAGE="${IMAGE%%:*}"
 VERSION="${1:-latest}"
+# Bake a real semver into the image even when tagging :latest
+APP_VERSION="${1:-$(node -p "require('./package.json').version")}"
 
-echo "Building ${IMAGE}:${VERSION} (and :latest if version != latest)"
-docker build -t "${IMAGE}:${VERSION}" .
+echo "Building ${IMAGE}:${VERSION} (APP_VERSION=${APP_VERSION}; also :latest if version != latest)"
+docker build --build-arg "APP_VERSION=${APP_VERSION}" -t "${IMAGE}:${VERSION}" .
 
 if [[ "$VERSION" != "latest" ]]; then
   docker tag "${IMAGE}:${VERSION}" "${IMAGE}:latest"
