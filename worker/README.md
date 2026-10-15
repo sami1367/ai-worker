@@ -31,6 +31,19 @@ Configuration templates: `github-projects.conf.example`, `gitlab-projects.conf.e
 
 In Docker Compose, `scripts/worker-entrypoint.sh` syncs this tree into `/data/config` and sets `AI_WORKER_BASE_DIR` there. PostgreSQL (via the web app) is the authoritative source for repository settings; conf files are an atomic export for the Bash parser.
 
+## AI providers
+
+Runners select an agent via `AI_PROVIDER` (`cursor`, `claude`, `codex`, `gemini`, `copilot`). Implementations live under `lib/ai/*.sh` and are invoked from `lib/ai.sh`. Credentials come from the platform (`provider-credentials.env` / compose env), not from project conf.
+
+## CodeGraph
+
+Before each agent run, `lib/ai.sh` calls `ai_codegraph_prepare` when available:
+
+- `CODEGRAPH_ENABLED=1` (default from conf `codegraph_enabled`) — keep or `codegraph init` workspace `.codegraph/`
+- `CODEGRAPH_ENABLED=0` — remove `.codegraph/` for that workspace
+
+The index is unstaged before publish so it is never committed. Image install and MCP wiring: `scripts/lib/codegraph.sh` / worker entrypoint.
+
 ## AI agent isolation
 
 Agents run under `lib/ai-isolation.sh` (wired from `lib/ai.sh` / provider runners):
@@ -46,6 +59,7 @@ See `docs/SECURITY.md` for the threat model, `AI_ISOLATION_MODE`, and limitation
 ```bash
 bash tests/related-tasks.sh
 bash tests/agent-isolation.sh
+bash tests/codegraph-prepare.sh
 # or from repo root:
 pnpm test:worker
 ```

@@ -19,7 +19,7 @@ This audit supports open-source publication of **AI Worker source code**. It doe
 | Open-source distribution of AI Worker | npm graph is overwhelmingly permissive (MIT/ISC/BSD/Apache); no AGPL/SSPL/BUSL copyleft blockers found | Apache-2.0 is compatible with redistributing those dependencies alongside project source |
 | Attract international / enterprise customers for paid install & customization | Commercial services are allowed under both MIT and Apache-2.0 | Apache-2.0 adds an **express patent grant** and clearer contributor patent termination — useful when selling services to companies |
 | Clarity vs MIT | MIT is shorter and also fine for this dependency mix | Apache-2.0’s NOTICE mechanism matches the need to document third-party and proprietary CLI boundaries |
-| Docker-bundled proprietary CLIs | Cursor CLI and Claude Code are **not** open source; redistribution of binaries in a public image is incompletely verified | Project license must cover **only this repository’s code**; proprietary CLIs stay under vendor terms (documented in `THIRD_PARTY_NOTICES.md`) |
+| Docker-bundled proprietary CLIs | Cursor, Claude Code, Codex, and GitHub Copilot CLIs are **not** open source; redistribution of binaries in a public image is incompletely verified (Gemini CLI is Apache-2.0; CodeGraph is MIT) | Project license must cover **only this repository’s code**; proprietary CLIs stay under vendor terms (documented in `THIRD_PARTY_NOTICES.md`) |
 
 **MIT alternative:** Acceptable if simplicity is preferred. It would not fix proprietary CLI redistribution questions. Prefer Apache-2.0 unless stakeholders explicitly want MIT.
 
@@ -113,7 +113,48 @@ Components referenced by `Dockerfile` and `docker-compose.yml` (audit only; thos
 | Covered by AI Worker Apache-2.0? | **No** |
 | Publishing pre-baked public images | **Unresolved / elevated risk** — Anthropic’s docs address preinstall in customer products; community projects have questioned whether redistributing the binary in a **public pullable image** is “duplication/redistribution” beyond the use grant. Seek Anthropic confirmation before relying on Hub distribution of a baked-in CLI. |
 
-### 3.4 Operator credentials (both CLIs)
+### 3.4 Codex CLI (`@openai/codex`)
+
+| Item | Detail |
+|------|--------|
+| Install | `npm install -g @openai/codex` in image build |
+| Nature | Proprietary OpenAI software |
+| Governing terms | OpenAI terms / Codex product documentation |
+| Covered by AI Worker Apache-2.0? | **No** |
+| Publishing pre-baked public images | **Unresolved** — confirm OpenAI redistribution terms before relying on Hub distribution of a baked-in CLI. |
+
+### 3.4b Gemini CLI (`@google/gemini-cli`)
+
+| Item | Detail |
+|------|--------|
+| Install | `npm install -g @google/gemini-cli` in image build |
+| Nature | Open-source CLI (Apache-2.0 upstream); Gemini API usage subject to Google AI terms |
+| Governing terms | [gemini-cli LICENSE](https://github.com/google-gemini/gemini-cli) + Google AI / Gemini API terms |
+| Covered by AI Worker Apache-2.0? | CLI source is Apache-2.0 (compatible); API usage is not relicensed by this project |
+| Publishing pre-baked public images | Lower risk than proprietary CLIs for the binary itself; still confirm Google AI API terms for operators |
+
+### 3.4c GitHub Copilot CLI (`@github/copilot`)
+
+| Item | Detail |
+|------|--------|
+| Install | `npm install -g @github/copilot` in image build (Node.js 22+) |
+| Nature | Proprietary CLI; Copilot usage billed under the operator’s GitHub Copilot subscription |
+| Governing terms | GitHub Terms of Service + GitHub Copilot / additional products terms |
+| Covered by AI Worker Apache-2.0? | No — binary stays under GitHub / Microsoft terms |
+| Publishing pre-baked public images | Unresolved — confirm whether bundling `@github/copilot` in a public pullable image is permitted |
+| Auth model | Fine-grained PAT with **Copilot Requests** via `COPILOT_GITHUB_TOKEN` (classic `ghp_` tokens unsupported) |
+
+### 3.4d CodeGraph CLI
+
+| Item | Detail |
+|------|--------|
+| Install | Upstream install script via `scripts/install-ai-clis.sh` / `scripts/lib/codegraph.sh` |
+| Nature | Open-source CLI (MIT); optional Pro waitlist signup uses admin email at bootstrap |
+| Governing terms | [codegraph LICENSE](https://github.com/colbymchenry/codegraph) (MIT) |
+| Covered by AI Worker Apache-2.0? | Upstream is MIT (compatible); retain notices when redistributing the CLI |
+| Publishing pre-baked public images | Permissive for the MIT CLI binary; retain upstream attribution |
+
+### 3.5 Operator credentials (AI CLIs)
 
 AI Worker is designed so forge/AI tokens are supplied by the operator (env / UI), not baked into the image. That aligns with vendor expectations that end users use their own accounts. It does **not** by itself resolve binary redistribution questions for published images.
 
@@ -128,7 +169,7 @@ AI Worker is designed so forge/AI tokens are supplied by the operator (env / UI)
 | NOTICE file | Not required | Supported / expected for attribution |
 | Compatibility with current npm graph | Yes | Yes |
 | Enterprise familiarity | High | High (often preferred in enterprise OSS reviews) |
-| Effect on Cursor / Claude redistribution | None | None |
+| Effect on Cursor / Claude / Codex / Gemini / Copilot redistribution | None | None |
 
 Neither license can authorize redistribution of proprietary CLIs.
 
@@ -140,10 +181,13 @@ Do **not** treat these as approved without vendor confirmation or counsel:
 
 1. **Cursor Agent CLI in public Docker Hub images** — Is baking the CLI into `sami1367/ai-worker` and publishing for anonymous `docker pull` permitted under Cursor’s current Terms, or must end users install the CLI themselves (runtime install / local build)?
 2. **Claude Code in public Docker Hub images** — Does Anthropic’s “preinstall in products” guidance cover third-party public image redistribution, or is a separate agreement / runtime-only install required?
-3. **Trademark / naming** — Confirm marketing language (“Cursor CLI”, “Claude Code”) stays within each vendor’s trademark guidelines (plain-text accurate description vs. endorsement implication).
-4. **`vaul-vue` SPDX metadata** — Confirm ongoing MIT status when upgrading; package.json still lacks a license field.
-5. **Full Debian / Alpine copyright aggregation** — For compliance-hardened commercial deliverables, generate a complete OS package copyright report from the built image (not done in this audit).
-6. **Export controls** — Cursor and Anthropic terms reference export/trade controls; operators in restricted jurisdictions need their own compliance review.
+3. **Codex CLI in public Docker Hub images** — Confirm whether baking `@openai/codex` into a public pullable image is permitted under OpenAI’s current terms.
+4. **Gemini CLI in public Docker Hub images** — CLI is Apache-2.0; confirm Google AI API terms still fit your redistribution / operator model.
+5. **GitHub Copilot CLI in public Docker Hub images** — Confirm whether baking `@github/copilot` into a public pullable image is permitted under GitHub’s current terms.
+6. **Trademark / naming** — Confirm marketing language (“Cursor CLI”, “Claude Code”, “Codex”, “Gemini”, “GitHub Copilot”) stays within each vendor’s trademark guidelines (plain-text accurate description vs. endorsement implication).
+7. **`vaul-vue` SPDX metadata** — Confirm ongoing MIT status when upgrading; package.json still lacks a license field.
+8. **Full Debian / Alpine copyright aggregation** — For compliance-hardened commercial deliverables, generate a complete OS package copyright report from the built image (not done in this audit).
+9. **Export controls** — Cursor, Anthropic, OpenAI, Google, and GitHub terms may reference export/trade controls; operators in restricted jurisdictions need their own compliance review.
 
 ---
 

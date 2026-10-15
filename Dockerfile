@@ -42,8 +42,9 @@ COPY --from=build --chown=appuser:appuser /app/node_modules ./node_modules
 RUN chmod +x /app/worker/*.sh /app/scripts/*.sh /app/scripts/lib/*.sh 2>/dev/null || true \
     && ln -sf /app/worker /data/config/worker-src
 
-# Install Cursor Agent + Claude Code CLIs into the image (required for worker + health checks).
-# Auth secrets are NOT baked in — connect keys from the Providers UI (or env vars).
+# Install Cursor Agent + Claude Code + Codex + Gemini + Copilot + CodeGraph CLIs into the image
+# (required for worker + health checks). Auth secrets are NOT baked in — connect keys
+# from the Providers UI (or env vars). CodeGraph agent MCP wiring runs at worker start.
 ENV AI_CLI_HOME=/home/appuser
 RUN bash /app/scripts/install-ai-clis.sh \
     && chown -R appuser:appuser /home/appuser

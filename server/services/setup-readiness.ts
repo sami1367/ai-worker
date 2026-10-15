@@ -24,7 +24,13 @@ export async function getSetupReadiness() {
       ? null
       : 'unhealthy'
 
-  const knownProviders = providers.filter((p) => p.providerType === 'cursor' || p.providerType === 'claude')
+  const knownProviders = providers.filter((p) => (
+    p.providerType === 'cursor'
+    || p.providerType === 'claude'
+    || p.providerType === 'codex'
+    || p.providerType === 'gemini'
+    || p.providerType === 'copilot'
+  ))
   const activeProviders = knownProviders.filter((p) => p.isEnabled && p.hasSecret)
   const hasActiveProvider = activeProviders.length > 0
   const providerIssue: SetupIssue = hasActiveProvider ? null : 'none'

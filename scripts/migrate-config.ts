@@ -41,6 +41,7 @@ interface ConfEntry {
   path: string
   block_on_open_pr?: boolean
   force_push_to_default?: boolean
+  codegraph_enabled?: boolean
 }
 
 async function parseConf(path: string): Promise<ConfEntry[]> {
@@ -57,6 +58,7 @@ async function parseConf(path: string): Promise<ConfEntry[]> {
       path: localPath,
       block_on_open_pr: (row as any).block_on_open_pr !== false,
       force_push_to_default: (row as any).force_push_to_default === true,
+      codegraph_enabled: (row as any).codegraph_enabled !== false,
     }
   })
 }
@@ -132,6 +134,7 @@ async function main() {
         localPath: entry.path,
         blockOnOpenPr: entry.block_on_open_pr !== false,
         forcePushToDefault: entry.force_push_to_default === true,
+        codegraphEnabled: entry.codegraph_enabled !== false,
         isEnabled: false,
         healthStatus: 'unknown',
         healthMessage: 'Imported from conf; set real remote URL and test before enabling',

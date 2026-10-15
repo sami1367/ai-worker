@@ -14,7 +14,16 @@ const execFileAsync = promisify(execFile)
 const KNOWN = [
   { providerType: 'cursor', displayName: 'Cursor CLI' },
   { providerType: 'claude', displayName: 'Claude Code CLI' },
+  { providerType: 'codex', displayName: 'Codex CLI' },
+  { providerType: 'gemini', displayName: 'Gemini CLI' },
+  { providerType: 'copilot', displayName: 'GitHub Copilot CLI' },
 ] as const
+
+const KNOWN_TYPES = new Set(KNOWN.map((k) => k.providerType))
+
+function isKnownProviderType(providerType: string): providerType is typeof KNOWN[number]['providerType'] {
+  return KNOWN_TYPES.has(providerType as typeof KNOWN[number]['providerType'])
+}
 
 export async function ensureProviderRows() {
   const db = getDb()
@@ -41,6 +50,15 @@ function envCredentialPresent(providerType: string): boolean {
   if (providerType === 'cursor') return Boolean(process.env.CURSOR_API_KEY)
   if (providerType === 'claude') {
     return Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN)
+  }
+  if (providerType === 'codex') {
+    return Boolean(process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY)
+  }
+  if (providerType === 'gemini') {
+    return Boolean(process.env.GEMINI_API_KEY)
+  }
+  if (providerType === 'copilot') {
+    return Boolean(process.env.COPILOT_GITHUB_TOKEN)
   }
   return false
 }
@@ -76,7 +94,7 @@ async function syncDefaultAiProviderSetting(
   actor: { id: string, username: string },
   ipHash?: string,
 ) {
-  if (providerType !== 'cursor' && providerType !== 'claude') return
+  if (!isKnownProviderType(providerType)) return
   try {
     const current = await getSettings()
     if (current.defaultAiProvider !== providerType) {
@@ -235,7 +253,7 @@ export async function updateProvider(
   }
 
   // Keep Settings.defaultAiProvider aligned with the resolved default provider.
-  if (reconciled && (reconciled.providerType === 'cursor' || reconciled.providerType === 'claude')) {
+  if (reconciled && isKnownProviderType(reconciled.providerType)) {
     await syncDefaultAiProviderSetting(reconciled.providerType, actor, ipHash)
   }
 
@@ -335,6 +353,58 @@ export async function testProvider(providerType: string) {
       } else {
         healthStatus = 'degraded'
         healthMessage = `Binary found at ${bin}. Connect credentials in Providers, or set ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN.`
+      }
+    }
+  } else if (providerType === 'codex') {
+    const { bin, version } = await detectBinary(['codex'])
+    detectedVersion = version
+    if (!bin) {
+      healthStatus = 'unhealthy'
+      healthMessage = 'Codex CLI not found (expected codex on PATH)'
+    } else {
+      const hasCred = Boolean(
+        process.env.OPENAI_API_KEY
+        || process.env.CODEX_API_KEY
+        || existing.secretCiphertext,
+      )
+      if (hasCred) {
+        healthStatus = 'healthy'
+        healthMessage = `Binary found at ${bin}. OpenAI/Codex API key is configured (not verified against the API).`
+      } else {
+        healthStatus = 'degraded'
+        healthMessage = `Binary found at ${bin}. Connect an OpenAI API key in Providers, or set OPENAI_API_KEY / CODEX_API_KEY.`
+      }
+    }
+  } else if (providerType === 'gemini') {
+    const { bin, version } = await detectBinary(['gemini'])
+    detectedVersion = version
+    if (!bin) {
+      healthStatus = 'unhealthy'
+      healthMessage = 'Gemini CLI not found (expected gemini on PATH)'
+    } else {
+      const hasCred = Boolean(process.env.GEMINI_API_KEY || existing.secretCiphertext)
+      if (hasCred) {
+        healthStatus = 'healthy'
+        healthMessage = `Binary found at ${bin}. GEMINI_API_KEY is configured (not verified against the API).`
+      } else {
+        healthStatus = 'degraded'
+        healthMessage = `Binary found at ${bin}. Connect a Gemini API key in Providers, or set GEMINI_API_KEY.`
+      }
+    }
+  } else if (providerType === 'copilot') {
+    const { bin, version } = await detectBinary(['copilot'])
+    detectedVersion = version
+    if (!bin) {
+      healthStatus = 'unhealthy'
+      healthMessage = 'GitHub Copilot CLI not found (expected copilot on PATH)'
+    } else {
+      const hasCred = Boolean(process.env.COPILOT_GITHUB_TOKEN || existing.secretCiphertext)
+      if (hasCred) {
+        healthStatus = 'healthy'
+        healthMessage = `Binary found at ${bin}. COPILOT_GITHUB_TOKEN is configured (not verified against the API).`
+      } else {
+        healthStatus = 'degraded'
+        healthMessage = `Binary found at ${bin}. Connect a fine-grained PAT with Copilot Requests in Providers, or set COPILOT_GITHUB_TOKEN.`
       }
     }
   } else {

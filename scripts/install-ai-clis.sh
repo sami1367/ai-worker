@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Cursor Agent CLI + Claude Code CLI into the image (or host).
+# Install Cursor Agent CLI + Claude Code CLI + Codex CLI + Gemini CLI + GitHub Copilot CLI into the image (or host).
 # Intended for Docker build; also usable on a Linux host for local worker runs.
 set -Eeuo pipefail
 
@@ -19,8 +19,44 @@ fi
 command -v claude >/dev/null
 claude --version || true
 
+echo "[install-ai-clis] Installing Codex CLI (@openai/codex)…"
+npm install -g --prefix "${HOME}/.npm-global" @openai/codex
+if [[ -x "${HOME}/.npm-global/bin/codex" ]]; then
+  ln -sfn "${HOME}/.npm-global/bin/codex" "${HOME}/.local/bin/codex"
+fi
+command -v codex >/dev/null
+codex --version || true
+
+echo "[install-ai-clis] Installing Gemini CLI (@google/gemini-cli)…"
+npm install -g --prefix "${HOME}/.npm-global" @google/gemini-cli
+if [[ -x "${HOME}/.npm-global/bin/gemini" ]]; then
+  ln -sfn "${HOME}/.npm-global/bin/gemini" "${HOME}/.local/bin/gemini"
+fi
+command -v gemini >/dev/null
+gemini --version || true
+
+echo "[install-ai-clis] Installing GitHub Copilot CLI (@github/copilot)…"
+# Requires Node.js 22+ (image base). Prefer npm so the binary lands next to other CLIs.
+npm_config_ignore_scripts=false npm install -g --prefix "${HOME}/.npm-global" @github/copilot
+if [[ -x "${HOME}/.npm-global/bin/copilot" ]]; then
+  ln -sfn "${HOME}/.npm-global/bin/copilot" "${HOME}/.local/bin/copilot"
+fi
+command -v copilot >/dev/null
+copilot --version || true
+
 echo "[install-ai-clis] Installing Cursor Agent CLI…"
 curl https://cursor.com/install -fsS | bash
+
+echo "[install-ai-clis] Installing CodeGraph CLI…"
+# Self-contained bundle (no Node required at runtime for the CLI itself).
+# Agent MCP wiring (`codegraph install`) runs at worker start — not bake-time —
+# so configs land in the runtime home directory.
+curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
+if [[ -x "${HOME}/.local/bin/codegraph" ]]; then
+  ln -sfn "${HOME}/.local/bin/codegraph" "${HOME}/.local/bin/codegraph"
+fi
+command -v codegraph >/dev/null
+codegraph --version || true
 
 # Prefer system-wide symlinks so web + worker find binaries without PATH tweaks.
 link_into_usr_local() {
@@ -38,6 +74,18 @@ fi
 if command -v claude >/dev/null 2>&1; then
   link_into_usr_local "$(command -v claude)" claude
 fi
+if command -v codex >/dev/null 2>&1; then
+  link_into_usr_local "$(command -v codex)" codex
+fi
+if command -v gemini >/dev/null 2>&1; then
+  link_into_usr_local "$(command -v gemini)" gemini
+fi
+if command -v copilot >/dev/null 2>&1; then
+  link_into_usr_local "$(command -v copilot)" copilot
+fi
+if command -v codegraph >/dev/null 2>&1; then
+  link_into_usr_local "$(command -v codegraph)" codegraph
+fi
 
 if ! command -v agent >/dev/null 2>&1 && ! command -v cursor-agent >/dev/null 2>&1; then
   echo "[install-ai-clis] ERROR: Cursor CLI not found after install (expected agent or cursor-agent)" >&2
@@ -47,6 +95,22 @@ if ! command -v claude >/dev/null 2>&1; then
   echo "[install-ai-clis] ERROR: Claude Code CLI not found after install" >&2
   exit 1
 fi
+if ! command -v codex >/dev/null 2>&1; then
+  echo "[install-ai-clis] ERROR: Codex CLI not found after install" >&2
+  exit 1
+fi
+if ! command -v gemini >/dev/null 2>&1; then
+  echo "[install-ai-clis] ERROR: Gemini CLI not found after install" >&2
+  exit 1
+fi
+if ! command -v copilot >/dev/null 2>&1; then
+  echo "[install-ai-clis] ERROR: GitHub Copilot CLI not found after install" >&2
+  exit 1
+fi
+if ! command -v codegraph >/dev/null 2>&1; then
+  echo "[install-ai-clis] ERROR: CodeGraph CLI not found after install" >&2
+  exit 1
+fi
 
 agent --version 2>/dev/null || cursor-agent --version 2>/dev/null || true
-echo "[install-ai-clis] Done. claude=$(command -v claude) agent=$(command -v agent || true) cursor-agent=$(command -v cursor-agent || true)"
+echo "[install-ai-clis] Done. claude=$(command -v claude) codex=$(command -v codex) gemini=$(command -v gemini) copilot=$(command -v copilot) codegraph=$(command -v codegraph) agent=$(command -v agent || true) cursor-agent=$(command -v cursor-agent || true)"

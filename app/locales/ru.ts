@@ -23,7 +23,7 @@ export const ru: Messages = {
   'layout.language': 'Язык',
   'setup.nav.needsAttention': 'Требует внимания',
   'setup.warn.provider.title': 'Подключите AI-провайдера',
-  'setup.warn.provider.description': 'Включите и подключите хотя бы одного AI-провайдера (Cursor или Claude) перед запуском задач.',
+  'setup.warn.provider.description': 'Включите и подключите хотя бы одного AI-провайдера (Cursor, Claude, Codex, Gemini или Copilot) перед запуском задач.',
   'setup.warn.provider.action': 'Открыть провайдеров',
   'setup.warn.connection.title': 'Подключите GitHub или GitLab',
   'setup.warn.connection.description': 'Добавьте хотя бы одно рабочее forge-подключение, затем зарегистрируйте репозиторий.',
@@ -45,9 +45,26 @@ export const ru: Messages = {
   'howItWorks.subtitle': 'Руководство по GitHub, GitLab и этой панели',
   'howItWorks.intro.heading': 'Обзор',
   'howItWorks.intro.p1':
-    'AI Worker — это self-hosted помощник для написания кода для GitHub и GitLab. Повседневная работа управляется labels на issues и pull/merge requests. Эта панель нужна для setup, мониторинга и конфигурации.',
+    'AI Worker — self-hosted coding assistant для GitHub и GitLab. Запускает Cursor CLI, Claude Code, Codex CLI, Gemini CLI или GitHub Copilot CLI в вашей среде, с опциональной семантической индексацией CodeGraph. Повседневная работа идёт через labels на issues и pull/merge requests. Эта панель — для setup, мониторинга и конфигурации.',
   'howItWorks.intro.p2':
     'Сначала подключите forge и AI providers здесь, включите repositories, затем используйте labels в GitHub или GitLab, чтобы ставить в очередь задания implement, Q&A или review. AI-агент меняет только назначенный workspace; commit, push, PR/MR и комментарии выполняет доверенный слой оркестрации AI Worker — агент не может самостоятельно использовать ваши forge-токены.',
+  
+  'howItWorks.providers.heading': 'AI-провайдеры',
+  'howItWorks.providers.intro':
+    'Откройте Providers, чтобы включить и подключить хотя бы одного агента. Задайте default; провайдера можно переопределить на репозитории. Все пять CLI входят в Docker-образ. Вставьте секреты здесь (шифруются at rest) или задайте те же переменные в compose .env.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — API-ключ Cursor (CURSOR_API_KEY) из настроек панели Cursor.',
+  'howItWorks.providers.claude':
+    'Claude Code — API-ключ Anthropic (ANTHROPIC_API_KEY) с console.anthropic.com или OAuth-токен Claude Code (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — API-ключ OpenAI (OPENAI_API_KEY или CODEX_API_KEY) с platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — API-ключ Gemini (GEMINI_API_KEY) с aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — fine-grained GitHub PAT с Copilot Requests (COPILOT_GITHUB_TOKEN). Классические ghp_ не поддерживаются; не используйте forge GITHUB_TOKEN для агента.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — устанавливается вместе с агентами. По умолчанию включён для каждого репозитория: хранит локальный индекс .codegraph/ и при отсутствии запускает codegraph init перед агентами. Отключите на странице репозитория, чтобы удалить индекс. При первом bootstrap админа собирается email для опционального waitlist CodeGraph Pro. Индекс никогда не коммитится.',
+
   'howItWorks.forge.heading': 'Работа в GitHub и GitLab',
   'howItWorks.forge.intro':
     'Повседневная работа идёт в GitHub или GitLab — не в терминале на хосте AI Worker. После подключения и включения репозитория откройте issue или PR/MR, опишите одну ясную цель, добавьте нужные label(s) и оставьте элемент открытым, пока работает worker. Следите за status labels, затем проверьте PR/MR, комментарий к issue или (если включён force-push) коммиты на целевой ветке.',
@@ -106,6 +123,8 @@ export const ru: Messages = {
     'Чистый checkout — перед каждым заданием worker делает fetch origin/<целевая ветка>, hard-reset к этому tip и отбрасывает незакоммиченные изменения в workspace.',
   'howItWorks.repoOptions.forcePush':
     'Force-push в целевую ветку (без PR/MR) — по умолчанию выкл. Если включено, реализация делает force-push в целевую ветку вместо открытия PR/MR и пишет комментарий в issue. Перезаписывает удалённую ветку; используйте осторожно.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — включён по умолчанию. При включении worker хранит локальный индекс .codegraph/ и при отсутствии запускает codegraph init перед агентами. При отключении .codegraph/ удаляется и не создаётся снова, пока вы не включите опцию. Индекс никогда не коммитится.',
   'howItWorks.labels.heading': 'Справочник labels',
   'howItWorks.labels.intro':
     'Обычно вы добавляете только ai, ai + no-change или ai-review. Worker управляет status labels по циклу выше (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
@@ -136,7 +155,7 @@ export const ru: Messages = {
   'howItWorks.panel.intro':
     'Используйте панель, чтобы подключать forges и AI providers, включать repositories, настраивать prompts и settings и отслеживать tasks. Повседневная работа с кодом по-прежнему идёт через labels в GitHub или GitLab.',
   'howItWorks.panel.setup.heading': 'Рекомендуемый порядок setup',
-  'howItWorks.panel.setup.item1': 'Providers — подключите Cursor и/или Claude, включите хотя бы один и задайте default.',
+  'howItWorks.panel.setup.item1': 'Providers — подключите Cursor, Claude, Codex, Gemini и/или Copilot, включите хотя бы один и задайте default.',
   'howItWorks.panel.setup.item2': 'Connections — подключите GitHub и/или GitLab с token, у которого есть scopes выше.',
   'howItWorks.panel.setup.item3':
     'Repositories — дождитесь discovery или нажмите Fetch, затем включите repos, которые хотите автоматизировать.',
@@ -146,9 +165,9 @@ export const ru: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — использование AI, метрики worker и недавние runs.',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks и необязательный SSH public key.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — регистрация, вкл/выкл, статус клона, целевая ветка, опциональный force-push, провайдер и промпты для каждого репо.',
+    'Repositories — регистрация, enable/disable, статус clone, target branch, опциональный force-push, переключатель CodeGraph, provider и prompts на репозиторий.',
   'howItWorks.panel.pages.tasks': 'Tasks — живая forge queue и история runs для implement, review и связанных заданий.',
-  'howItWorks.panel.pages.providers': 'Providers — учётные данные Cursor / Claude, включение, health checks и default.',
+  'howItWorks.panel.pages.providers': 'Providers — учётные данные Cursor / Claude / Codex / Gemini / Copilot, включение, health checks и default.',
   'howItWorks.panel.pages.prompts': 'Prompts — глобальные templates и snippets, которые использует worker.',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention и настройки UI.',
   'howItWorks.panel.pages.system': 'System — операционное состояние и статус платформы.',
@@ -159,7 +178,7 @@ export const ru: Messages = {
   'about.subtitle': 'Обзор продукта, услуги, контакты и лицензия',
   'about.product.heading': 'О AI Worker',
   'about.product.p1':
-    'AI Worker — самохостинговый ИИ-помощник для кодирования для GitHub и GitLab. Пометьте issue или pull/merge request, и он запустит поддерживаемые ИИ-инструменты в вашей среде для реализации работы или ревью изменений.',
+    'AI Worker — self-hosted AI coding assistant для GitHub и GitLab. Пометьте issue или pull/merge request, и он запустит Cursor CLI, Claude Code, Codex CLI, Gemini CLI или GitHub Copilot CLI в вашей среде (с опциональной индексацией CodeGraph), чтобы реализовать работу или сделать review.',
   'about.product.p2':
     'Он создан для команд, которым нужна автоматизация на собственной инфраструктуре—включая организации с GitLab Self-Managed—без отправки репозиториев стороннему хостинг-сервису агентов.',
   'about.services.heading': 'Услуги',

@@ -32,7 +32,12 @@ export const createRepositorySchema = z.object({
   blockOnOpenPr: z.boolean().optional(),
   /** When true, force-push to defaultBranch instead of opening a PR/MR. Default false. */
   forcePushToDefault: z.boolean().optional(),
-  defaultAiProvider: z.enum(['cursor', 'claude']).nullable().optional(),
+  /**
+   * When true (default), keep a CodeGraph index for this repository.
+   * When false, the worker removes `.codegraph/` and skips init until re-enabled.
+   */
+  codegraphEnabled: z.boolean().optional(),
+  defaultAiProvider: z.enum(['cursor', 'claude', 'codex', 'gemini', 'copilot']).nullable().optional(),
   settings: repositorySettingsSchema.optional(),
   activate: z.boolean().default(false),
   localPath: z.string().max(1024).optional(),
@@ -111,6 +116,7 @@ export function publicRepo(row: typeof repositories.$inferSelect) {
     isArchived: row.isArchived,
     blockOnOpenPr: row.blockOnOpenPr,
     forcePushToDefault: row.forcePushToDefault,
+    codegraphEnabled: row.codegraphEnabled,
     defaultAiProvider: row.defaultAiProvider,
     settings: row.settings,
     connectionId: row.connectionId,
@@ -171,6 +177,7 @@ export async function createRepository(
       isEnabled: parsed.activate,
       blockOnOpenPr: parsed.blockOnOpenPr ?? settings.defaultBlockOnOpenPr,
       forcePushToDefault: parsed.forcePushToDefault ?? false,
+      codegraphEnabled: parsed.codegraphEnabled ?? true,
       defaultAiProvider: parsed.defaultAiProvider ?? settings.defaultAiProvider,
     }).returning()
 
@@ -229,6 +236,7 @@ export async function updateRepository(
     defaultBranch: parsed.defaultBranch ?? existing.defaultBranch,
     blockOnOpenPr: parsed.blockOnOpenPr ?? existing.blockOnOpenPr,
     forcePushToDefault: parsed.forcePushToDefault ?? existing.forcePushToDefault,
+    codegraphEnabled: parsed.codegraphEnabled ?? existing.codegraphEnabled,
     defaultAiProvider: parsed.defaultAiProvider === undefined
       ? existing.defaultAiProvider
       : parsed.defaultAiProvider,

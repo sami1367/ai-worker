@@ -6,6 +6,7 @@ describe('bootstrapAdmin secret policy', () => {
   it('rejects missing or insecure expected bootstrap secrets before touching the database', async () => {
     await expect(bootstrapAdmin({
       username: 'admin',
+      email: 'admin@example.com',
       password: 'a-sufficiently-long-password',
       bootstrapSecret: 'changeme',
       expectedSecret: 'changeme',
@@ -16,6 +17,7 @@ describe('bootstrapAdmin secret policy', () => {
 
     await expect(bootstrapAdmin({
       username: 'admin',
+      email: 'admin@example.com',
       password: 'a-sufficiently-long-password',
       bootstrapSecret: 'anything',
       expectedSecret: '',

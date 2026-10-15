@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { forgePracticeKeys, labelLifecycleSections } from '../utils/how-it-works-doc'
+import { forgePracticeKeys, labelLifecycleSections, providerDocKeys } from '../utils/how-it-works-doc'
 
 const { t } = useI18n()
 
@@ -29,6 +29,7 @@ const repoOptionKeys = [
   'howItWorks.repoOptions.targetBranch',
   'howItWorks.repoOptions.freshCheckout',
   'howItWorks.repoOptions.forcePush',
+  'howItWorks.repoOptions.codegraph',
 ] as const
 
 const tipKeys = [
@@ -96,6 +97,20 @@ const workerLabels = [
       <p class="text-sm leading-relaxed opacity-90">
         {{ t('howItWorks.intro.p2') }}
       </p>
+    </section>
+
+    <section class="aw-panel space-y-4 rounded-xl p-5" aria-labelledby="how-providers">
+      <h2 id="how-providers" class="font-display text-xl">
+        {{ t('howItWorks.providers.heading') }}
+      </h2>
+      <p class="text-sm leading-relaxed opacity-90">
+        {{ t('howItWorks.providers.intro') }}
+      </p>
+      <ul class="list-disc space-y-2 ps-5 text-sm leading-relaxed opacity-90">
+        <li v-for="key in providerDocKeys" :key="key">
+          {{ t(key) }}
+        </li>
+      </ul>
     </section>
 
     <section class="aw-panel space-y-4 rounded-xl p-5" aria-labelledby="how-forge">

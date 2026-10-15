@@ -42,3 +42,6 @@ dist/
 coverage/
 playwright-report/
 test-results/
+
+.codegraph/
+

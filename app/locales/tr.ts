@@ -23,7 +23,7 @@ export const tr: Messages = {
   'layout.language': 'Dil',
   'setup.nav.needsAttention': 'Dikkat gerekli',
   'setup.warn.provider.title': 'Bir AI sağlayıcı bağlayın',
-  'setup.warn.provider.description': 'Görevler çalışmadan önce en az bir AI sağlayıcıyı (Cursor veya Claude) etkinleştirip bağlayın.',
+  'setup.warn.provider.description': 'Görevler çalışmadan önce en az bir AI sağlayıcıyı (Cursor, Claude, Codex, Gemini veya Copilot) etkinleştirip bağlayın.',
   'setup.warn.provider.action': 'Sağlayıcıları aç',
   'setup.warn.connection.title': 'GitHub veya GitLab bağlayın',
   'setup.warn.connection.description': 'En az bir çalışan forge bağlantısı ekleyin, ardından bir depo kaydedin.',
@@ -45,9 +45,26 @@ export const tr: Messages = {
   'howItWorks.subtitle': 'GitHub, GitLab ve bu panel için eğitim',
   'howItWorks.intro.heading': 'Genel bakış',
   'howItWorks.intro.p1':
-    'AI Worker, GitHub ve GitLab için self-hosted bir kodlama asistanıdır. Günlük iş, issues ve pull/merge requests üzerindeki labels ile yürütülür. Bu panel setup, izleme ve yapılandırma içindir.',
+    'AI Worker, GitHub ve GitLab için self-hosted bir kodlama asistanıdır. Ortamınızda Cursor CLI, Claude Code, Codex CLI, Gemini CLI veya GitHub Copilot CLI çalıştırır; isteğe bağlı CodeGraph semantik indeksleme ile. Günlük iş, issue ve pull/merge request etiketleriyle yürür. Bu panel kurulum, izleme ve yapılandırma içindir.',
   'howItWorks.intro.p2':
     'Önce burada forge ve AI providers bağlantısını kurun, repositories öğelerini etkinleştirin, ardından implement, Q&A veya review işlerini kuyruğa almak için GitHub veya GitLab\'da labels kullanın. AI agent yalnızca atanan workspace üzerinde düzenleme yapar; commit, push, PR/MR ve forge yorumları güvenilir AI Worker orchestration katmanı tarafından yapılır — agent forge token\'larınızı kendi başına kullanamaz.',
+  
+  'howItWorks.providers.heading': 'AI sağlayıcıları',
+  'howItWorks.providers.intro':
+    'En az bir agent’ı etkinleştirip bağlamak için Providers’ı açın. Bir default belirleyin; sağlayıcıyı depo bazında değiştirebilirsiniz. Beş CLI de Docker imajında gelir. Gizli anahtarları buraya yapıştırın (at-rest şifreli) veya compose .env içinde aynı değişkenleri ayarlayın.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — Cursor pano ayarlarından Cursor API anahtarı (CURSOR_API_KEY).',
+  'howItWorks.providers.claude':
+    'Claude Code — console.anthropic.com adresinden Anthropic API anahtarı (ANTHROPIC_API_KEY) veya Claude Code OAuth token’ı (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — platform.openai.com/api-keys adresinden OpenAI API anahtarı (OPENAI_API_KEY veya CODEX_API_KEY).',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — aistudio.google.com/apikey adresinden Gemini API anahtarı (GEMINI_API_KEY).',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — Copilot Requests izinli fine-grained GitHub PAT (COPILOT_GITHUB_TOKEN). Klasik ghp_ token’lar desteklenmez; agent için forge GITHUB_TOKEN’ını yeniden kullanmayın.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — agent’larla birlikte kurulur. Depo başına varsayılan olarak açık: yerel .codegraph/ indeksini tutar ve yoksa agent öncesi codegraph init çalıştırır. İndeksi kaldırmak için depo sayfasında kapatın. İlk admin kurulumunda isteğe bağlı CodeGraph Pro waitlist için e-posta toplanır. İndeks asla commit edilmez.',
+
   'howItWorks.forge.heading': 'GitHub ve GitLab\'da çalışma',
   'howItWorks.forge.intro':
     'Günlük iş GitHub veya GitLab’da yapılır — AI Worker host’undaki bir terminalde değil. Depo bağlanıp etkinleştirildikten sonra bir issue veya PR/MR açın, tek net bir hedef yazın, doğru label(s) ekleyin ve worker çalışırken öğeyi açık tutun. İlerleme için status labels’ı izleyin; ardından PR/MR’yi, issue yorumunu veya (force-push açıksa) hedef daldaki commit’leri gözden geçirin.',
@@ -106,6 +123,8 @@ export const tr: Messages = {
     'Temiz checkout — her işten önce worker origin/<hedef dal> alır, hard-reset yapar ve workspace’teki commit edilmemiş değişiklikleri atar.',
   'howItWorks.repoOptions.forcePush':
     'Hedef dala force-push (PR/MR atla) — varsayılan kapalı. Açıkken issue implement PR/MR açmak yerine hedef dala force-push eder ve issue’ya yorum yazar. Uzak dalın üzerine yazar; dikkatli kullanın.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — varsayılan olarak açık. Açıkken worker yerel .codegraph/ indeksini tutar ve yoksa agent öncesi codegraph init çalıştırır. Kapalıyken .codegraph/ silinir ve yeniden açılana kadar oluşturulmaz. İndeks asla commit edilmez.',
   'howItWorks.labels.heading': 'Label başvurusu',
   'howItWorks.labels.intro':
     'Normalde yalnızca ai, ai + no-change veya ai-review eklersiniz. Worker status labels’ı yukarıdaki yaşam döngüsüne göre yönetir (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
@@ -135,7 +154,7 @@ export const tr: Messages = {
     'Forges ve AI providers bağlantısı kurmak, repositories etkinleştirmek, prompts ve settings ayarlamak ve tasks izlemek için paneli kullanın. Günlük kodlama işi yine GitHub veya GitLab\'daki labels ile yapılır.',
   'howItWorks.panel.setup.heading': 'Önerilen setup sırası',
   'howItWorks.panel.setup.item1':
-    'Providers — Cursor ve/veya Claude bağlayın, en az birini etkinleştirin ve bir default ayarlayın.',
+    'Providers — Cursor, Claude, Codex, Gemini ve/veya Copilot bağlayın, en az birini etkinleştirin ve bir default ayarlayın.',
   'howItWorks.panel.setup.item2': 'Connections — yukarıdaki scopes\'a sahip bir token ile GitHub ve/veya GitLab bağlayın.',
   'howItWorks.panel.setup.item3':
     'Repositories — discovery\'yi bekleyin veya Fetch\'e tıklayın, ardından otomatikleştirmek istediğiniz repos öğelerini etkinleştirin.',
@@ -145,9 +164,9 @@ export const tr: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI kullanımı, worker metrikleri ve son runs.',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks ve isteğe bağlı SSH public key.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — kayıt, etkin/devre dışı, clone durumu, hedef dal, isteğe bağlı force-push, depo başına sağlayıcı ve prompt’lar.',
+    'Repositories — kayıt, etkinleştir/devre dışı, clone durumu, hedef dal, isteğe bağlı force-push, CodeGraph anahtarı, depo başına provider ve prompt’lar.',
   'howItWorks.panel.pages.tasks': 'Tasks — implement, review ve ilgili işler için canlı forge queue ve run geçmişi.',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, etkinleştirme, health checks ve default.',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini / Copilot credentials, etkinleştirme, health checks ve default.',
   'howItWorks.panel.pages.prompts': 'Prompts — worker tarafından kullanılan global templates ve snippets.',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention ve UI tercihleri.',
   'howItWorks.panel.pages.system': 'System — operasyonel sağlık ve platform durumu.',
@@ -158,7 +177,7 @@ export const tr: Messages = {
   'about.subtitle': 'Ürün özeti, hizmetler, iletişim ve lisans',
   'about.product.heading': 'AI Worker hakkında',
   'about.product.p1':
-    'AI Worker, GitHub ve GitLab için kendi barındırılan bir yapay zeka kodlama asistanıdır. Bir issue veya pull/merge request etiketlediğinizde, desteklenen yapay zeka araçlarını ortamınızda çalıştırarak işi uygular veya değişiklikleri inceler.',
+    'AI Worker, GitHub ve GitLab için self-hosted bir AI kodlama asistanıdır. Bir issue veya pull/merge request’e etiket ekleyin; ortamınızda Cursor CLI, Claude Code, Codex CLI, Gemini CLI veya GitHub Copilot CLI’yi (isteğe bağlı CodeGraph indeksleme ile) çalıştırarak işi uygular veya değişiklikleri inceler.',
   'about.product.p2':
     'Kendi altyapılarında otomasyon isteyen ekipler için tasarlanmıştır—GitLab Self-Managed kullanan kuruluşlar dahil—depoları üçüncü taraf barındırılan bir ajan hizmetine göndermeden.',
   'about.services.heading': 'Hizmetler',

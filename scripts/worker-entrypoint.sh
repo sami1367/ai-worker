@@ -20,6 +20,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'forge-credentials.env' \
     --exclude 'provider-credentials.env' \
     --exclude 'worker-runtime.env' \
+    --exclude 'codegraph.env' \
     --exclude 'app-secrets.env' \
     --exclude '.env' \
     "$SRC/" "$DEST/"
@@ -70,6 +71,23 @@ fi
 if [[ -f "$DEST/worker-runtime.env" ]]; then
   # shellcheck disable=SC1091
   source "$DEST/worker-runtime.env"
+fi
+
+# CodeGraph admin email (written at first-admin bootstrap).
+if [[ -f "$DEST/codegraph.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$DEST/codegraph.env"
+fi
+
+# Install/wire CodeGraph for all agents (CLI may already be in the image).
+# shellcheck disable=SC1091
+if [[ -f /app/scripts/lib/codegraph.sh ]]; then
+  source /app/scripts/lib/codegraph.sh
+  ai_codegraph_ensure_system || true
+elif [[ -f "$DEST/../scripts/lib/codegraph.sh" ]]; then
+  # Host/dev layout fallback
+  source "$DEST/../scripts/lib/codegraph.sh"
+  ai_codegraph_ensure_system || true
 fi
 
 # Keep runtime env on the volume across image sync (do not delete via rsync).

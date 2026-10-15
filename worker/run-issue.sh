@@ -66,6 +66,7 @@ PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
 PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
 DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
 FORCE_PUSH_TO_DEFAULT="$(ai_project_entry_bool "${PROJECT_ENTRY:-}" "force_push_to_default" 0)"
+export CODEGRAPH_ENABLED="$(ai_project_entry_bool "${PROJECT_ENTRY:-}" "codegraph_enabled" 1)"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"

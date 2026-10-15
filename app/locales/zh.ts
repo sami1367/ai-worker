@@ -23,7 +23,7 @@ export const zh: Messages = {
   'layout.language': '语言',
   'setup.nav.needsAttention': '需要处理',
   'setup.warn.provider.title': '连接 AI 提供商',
-  'setup.warn.provider.description': '在运行任务前，请至少启用并连接一个 AI 提供商（Cursor 或 Claude）。',
+  'setup.warn.provider.description': '在运行任务前，请至少启用并连接一个 AI 提供商（Cursor、Claude、Codex、Gemini 或 Copilot）。',
   'setup.warn.provider.action': '打开提供商',
   'setup.warn.connection.title': '连接 GitHub 或 GitLab',
   'setup.warn.connection.description': '至少添加一个可用的 Forge 连接，然后注册仓库。',
@@ -45,8 +45,25 @@ export const zh: Messages = {
   'howItWorks.subtitle': 'GitHub、GitLab 与本面板教程',
   'howItWorks.intro.heading': '概述',
   'howItWorks.intro.p1':
-    'AI Worker 是面向 GitHub 与 GitLab 的自托管编程助手。日常工作由 issue 与 pull/merge request 上的标签驱动。本面板用于设置、监控与配置。',
+    'AI Worker 是面向 GitHub 与 GitLab 的自托管编码助手。可在您的环境中运行 Cursor CLI、Claude Code、Codex CLI、Gemini CLI 或 GitHub Copilot CLI，并可选启用 CodeGraph 语义索引。日常工作由 issue 与 PR/MR 上的标签驱动。本面板用于设置、监控与配置。',
   'howItWorks.intro.p2': '先在此连接代码托管平台与 AI 提供商，启用仓库，再在 GitHub 或 GitLab 中用标签排队实现、问答或评审任务。 AI 代理仅编辑分配的工作区；提交、推送、PR/MR 与评论由受信任的 AI Worker 编排层执行——代理无法自行使用你的 forge 令牌。',
+  
+  'howItWorks.providers.heading': 'AI 提供商',
+  'howItWorks.providers.intro':
+    '打开 Providers，启用并连接至少一个代理。设置默认项；可按仓库覆盖提供商。五个 CLI 均已包含在 Docker 镜像中。在此粘贴密钥（静态加密），或在 compose 的 .env 中设置对应变量。',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — Cursor API 密钥（CURSOR_API_KEY），来自 Cursor 控制台设置。',
+  'howItWorks.providers.claude':
+    'Claude Code — Anthropic API 密钥（ANTHROPIC_API_KEY，来自 console.anthropic.com），或 Claude Code OAuth 令牌（CLAUDE_CODE_OAUTH_TOKEN）。',
+  'howItWorks.providers.codex':
+    'Codex CLI — OpenAI API 密钥（OPENAI_API_KEY 或 CODEX_API_KEY），来自 platform.openai.com/api-keys。',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — Gemini API 密钥（GEMINI_API_KEY），来自 aistudio.google.com/apikey。',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — 带 Copilot Requests 权限的细粒度 GitHub PAT（COPILOT_GITHUB_TOKEN）。不支持经典 ghp_ 令牌；请勿将 forge 的 GITHUB_TOKEN 用于代理。',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — 随代理一并安装。每个仓库默认开启：保留本地 .codegraph/ 索引，缺失时在代理运行前执行 codegraph init。在仓库页面关闭可删除索引。首次管理员设置会收集邮箱用于可选的 CodeGraph Pro 候补名单。索引永不提交。',
+
   'howItWorks.forge.heading': '在 GitHub 与 GitLab 中工作',
   'howItWorks.forge.intro':
     '日常工作在 GitHub 或 GitLab 中完成——而不是在 AI Worker 主机的终端里。仓库连接并启用后，打开 issue 或 PR/MR，写清一个明确目标，添加正确的标签，并在 worker 运行期间保持该条目打开。通过状态标签查看进度，然后审查 PR/MR、issue 评论，或（若开启 force-push）目标分支上的提交。',
@@ -100,6 +117,7 @@ export const zh: Messages = {
   'howItWorks.repoOptions.targetBranch': 'PR / MR 目标分支 — 新 pull/merge request 的基线分支（例如 main、master 或 develop）。也用作每次运行的干净检出基准。',
   'howItWorks.repoOptions.freshCheckout': '全新检出 — 每次任务开始前，worker 会 fetch origin/<目标分支>、hard-reset 到该 tip，并丢弃工作区未提交的更改。',
   'howItWorks.repoOptions.forcePush': '强制推送到目标分支（跳过 PR/MR）— 默认关闭。启用后，issue 实现会强制推送到目标分支而不打开 PR/MR，并在 issue 上发表结果评论。会覆盖远程分支，请谨慎使用。',
+  'howItWorks.repoOptions.codegraph': 'CodeGraph — 默认开启。启用时，worker 会保留本地 .codegraph/ 索引，并在缺失时于 agent 运行前执行 codegraph init。禁用时会删除 .codegraph/，直到重新启用才重建。该索引永不提交。',
   'howItWorks.labels.heading': '标签参考',
   'howItWorks.labels.intro':
     '通常只需添加 ai、ai + no-change 或 ai-review。worker 按上方生命周期管理状态标签（ai-working、ai-pr、ai-answered、ai-failed、ai-reviewing、ai-reviewed、ai-review-failed）。',
@@ -124,16 +142,16 @@ export const zh: Messages = {
   'howItWorks.panel.heading': '在本面板中工作',
   'howItWorks.panel.intro': '使用本面板连接 forge 与 AI 提供商、启用仓库、调整提示词与设置，并监控任务。日常编码工作仍通过 GitHub 或 GitLab 中的标签完成。',
   'howItWorks.panel.setup.heading': '推荐设置顺序',
-  'howItWorks.panel.setup.item1': 'Providers — 连接 Cursor 和/或 Claude，至少启用一个，并设置默认项。',
+  'howItWorks.panel.setup.item1': 'Providers — 连接 Cursor、Claude、Codex、Gemini 和/或 Copilot，至少启用一个，并设置默认项。',
   'howItWorks.panel.setup.item2': 'Connections — 使用具备上述权限的令牌连接 GitHub 和/或 GitLab。',
   'howItWorks.panel.setup.item3': 'Repositories — 等待发现或点击 Fetch，然后启用要自动化的仓库。',
   'howItWorks.panel.setup.item4': '可选 — 在 APP_BASE_URL 可达时运行 Setup labels 与 Setup webhooks，以更快唤醒。',
   'howItWorks.panel.pages.heading': '各页面用途',
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI 用量、worker 指标与近期运行。',
   'howItWorks.panel.pages.connections': 'Connections — forge 令牌、发现、webhooks，以及可选的 SSH 公钥。',
-  'howItWorks.panel.pages.repositories': 'Repositories — 注册、启用/禁用、克隆状态、目标分支、可选强制推送、按仓库的提供商与提示词。',
+  'howItWorks.panel.pages.repositories': 'Repositories — 注册、启用/禁用、克隆状态、目标分支、可选 force-push、CodeGraph 开关、每仓库提供商与提示词。',
   'howItWorks.panel.pages.tasks': 'Tasks — 实现、评审及相关任务的实时 forge 队列与运行历史。',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude 凭据、启用状态、健康检查与默认项。',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini / Copilot 凭据、启用状态、健康检查与默认项。',
   'howItWorks.panel.pages.prompts': 'Prompts — worker 使用的全局模板与片段。',
   'howItWorks.panel.pages.settings': 'Settings — 轮询间隔、并发、默认值、保留策略与界面偏好。',
   'howItWorks.panel.pages.system': 'System — 运行健康与平台状态。',
@@ -144,7 +162,7 @@ export const zh: Messages = {
   'about.subtitle': '产品概览、服务、联系方式与许可证',
   'about.product.heading': '关于 AI Worker',
   'about.product.p1':
-    'AI Worker 是面向 GitHub 和 GitLab 的自托管 AI 编程助手。给 issue 或 pull/merge request 打上标签后，它会在您的环境中运行受支持的 AI 编程工具，以完成实现或审查变更。',
+    'AI Worker 是面向 GitHub 与 GitLab 的自托管 AI 编码助手。给 issue 或 pull/merge request 打标签后，即可在您的环境中运行 Cursor CLI、Claude Code、Codex CLI、Gemini CLI 或 GitHub Copilot CLI（可选 CodeGraph 索引）来实现改动或审查变更。',
   'about.product.p2':
     '它面向希望在自有基础设施上实现自动化的团队——包括运行 GitLab Self-Managed 的组织——而无需将仓库发送到第三方托管代理服务。',
   'about.services.heading': '服务',

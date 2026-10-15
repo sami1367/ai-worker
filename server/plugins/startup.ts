@@ -6,6 +6,7 @@ import { exportForgeCredentialsForWorker } from '#services/forge-credentials'
 import { exportProviderCredentialsForWorker } from '#services/provider-credentials'
 import { exportWorkerConfig } from '#services/config-sync'
 import { exportWorkerRuntimeEnv } from '#services/worker-runtime'
+import { exportCodegraphEnv } from '#services/codegraph'
 import { ensureProviderRows } from '#services/providers'
 import { ensurePromptRows } from '#services/prompts'
 import {
@@ -41,6 +42,7 @@ export default defineNitroPlugin(async () => {
         await exportForgeCredentialsForWorker()
         await exportProviderCredentialsForWorker()
         await exportWorkerRuntimeEnv()
+        await exportCodegraphEnv()
         // Ensure project conf includes full_name for work-first discovery / lazy clone
         await exportWorkerConfig()
       } catch (err) {

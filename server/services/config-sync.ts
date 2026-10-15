@@ -23,6 +23,11 @@ export interface ExportedProject {
    * instead of opening a pull/merge request. Default false.
    */
   force_push_to_default: boolean
+  /**
+   * When true (default), worker keeps `.codegraph/` and runs `codegraph init`
+   * before agents when the index is missing. When false, removes `.codegraph/`.
+   */
+  codegraph_enabled: boolean
   /** Forge identity for polling without a local clone (lazy workspace). */
   full_name: string
   remote_url: string
@@ -88,6 +93,7 @@ export async function exportWorkerConfig(
       block_on_open_pr: row.blockOnOpenPr,
       default_branch: row.defaultBranch || 'main',
       force_push_to_default: row.forcePushToDefault === true,
+      codegraph_enabled: row.codegraphEnabled !== false,
       full_name: fullName,
       remote_url: row.remoteUrl,
       forge: row.forgeType,

@@ -38,7 +38,11 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 7. **GitLab MR AI review** — same pattern
 8. **Cursor CLI provider** — `agent` / `cursor-agent` (`lib/ai/cursor.sh`)
 9. **Claude Code CLI provider** — `claude` (`lib/ai/claude.sh`)
-10. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`
+9b. **Codex CLI provider** — `codex` (`lib/ai/codex.sh`)
+9c. **Gemini CLI provider** — `gemini` (`lib/ai/gemini.sh`)
+9d. **GitHub Copilot CLI provider** — `copilot` (`lib/ai/copilot.sh`)
+9e. **CodeGraph** — local `.codegraph/` index + MCP for agents; per-repo `codegraph_enabled` (default on); `ai_codegraph_prepare` / waitlist email via admin bootstrap
+10. **JSON project registries** — `github-projects.conf` / `gitlab-projects.conf` with `name`, `path`, optional `block_on_open_pr`, `codegraph_enabled`
 11. **One task per repository** — in-memory PID map + `state/slots/<key>.lock` via `flock`
 12. **Cross-repository concurrency** — multiple repo agents in parallel
 13. **Global worker lock** — `state/worker.lock` (single supervisor)
@@ -66,6 +70,10 @@ No live `github-projects.conf`, `gitlab-projects.conf`, or `.env` were present i
 | `gh` | Any GitHub project registered |
 | `agent` or `cursor-agent` | `AI_PROVIDER=cursor` |
 | `claude` | `AI_PROVIDER=claude` |
+| `codex` | `AI_PROVIDER=codex` |
+| `gemini` | `AI_PROVIDER=gemini` |
+| `copilot` | `AI_PROVIDER=copilot` |
+| `codegraph` | CodeGraph enabled for a repo (default); binary on PATH in the image |
 
 ---
 
@@ -99,10 +107,15 @@ From `.env.example` and code:
 |----------|---------|
 | `GITLAB_HOST` | GitLab hostname (default `git.dctm.dev`) |
 | `GITLAB_TOKEN` | GitLab PAT (`api` scope) |
-| `AI_PROVIDER` | `cursor` (default) or `claude` |
+| `AI_PROVIDER` | `cursor` (default), `claude`, `codex`, `gemini`, or `copilot` |
 | `AI_CURSOR_MODEL`, `AI_CURSOR_EXTRA_ARGS` | Cursor options |
 | `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` | Claude auth |
+| `OPENAI_API_KEY` / `CODEX_API_KEY` | Codex auth |
+| `GEMINI_API_KEY` | Gemini auth |
+| `COPILOT_GITHUB_TOKEN` | Copilot auth (fine-grained PAT with Copilot Requests) |
 | `AI_CLAUDE_MODEL`, `AI_CLAUDE_*` | Claude headless options |
+| `AI_GEMINI_MODEL`, `AI_GEMINI_*` | Gemini headless options |
+| `AI_COPILOT_MODEL`, `AI_COPILOT_*` | Copilot headless options |
 | `AI_RELATED_TASKS_DRY_RUN` | Test-only related-task dry run |
 
 GitHub auth is **not** in `.env`; it uses `gh auth login` (host keyring / `GH_TOKEN` if set by operator).
@@ -117,6 +130,9 @@ GitHub auth is **not** in `.env`; it uses `gh auth login` (host keyring / `GH_TO
 | **GitLab** | `GITLAB_TOKEN` + `GITLAB_HOST` → `curl` REST API in `lib/gitlab.sh` |
 | **Cursor** | CLI binary on PATH; auth is Cursor’s own login / account (not in worker `.env`) |
 | **Claude Code** | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in environment |
+| **Codex** | `OPENAI_API_KEY` or `CODEX_API_KEY` in environment |
+| **Gemini** | `GEMINI_API_KEY` in environment |
+| **GitHub Copilot** | `COPILOT_GITHUB_TOKEN` in environment (fine-grained PAT; not forge `GH_TOKEN`) |
 
 ---
 

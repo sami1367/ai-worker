@@ -23,7 +23,7 @@ export const es: Messages = {
   'layout.language': 'Idioma',
   'setup.nav.needsAttention': 'Requiere atención',
   'setup.warn.provider.title': 'Conecta un proveedor de IA',
-  'setup.warn.provider.description': 'Habilita y conecta al menos un proveedor de IA (Cursor o Claude) antes de ejecutar tareas.',
+  'setup.warn.provider.description': 'Habilita y conecta al menos un proveedor de IA (Cursor, Claude, Codex, Gemini o Copilot) antes de ejecutar tareas.',
   'setup.warn.provider.action': 'Abrir proveedores',
   'setup.warn.connection.title': 'Conecta GitHub o GitLab',
   'setup.warn.connection.description': 'Añade al menos una conexión de forge válida y luego registra un repositorio.',
@@ -45,9 +45,26 @@ export const es: Messages = {
   'howItWorks.subtitle': 'Tutorial para GitHub, GitLab y este panel',
   'howItWorks.intro.heading': 'Resumen',
   'howItWorks.intro.p1':
-    'AI Worker es un asistente de programación autoalojado para GitHub y GitLab. El trabajo diario se controla con labels en issues y pull/merge requests. Este panel sirve para la configuración, la supervisión y los ajustes.',
+    'AI Worker es un asistente de código autoalojado para GitHub y GitLab. Ejecuta Cursor CLI, Claude Code, Codex CLI, Gemini CLI o GitHub Copilot CLI en tu entorno, con indexación semántica opcional de CodeGraph. El trabajo diario se impulsa con labels en issues y pull/merge requests. Este panel es para configuración, monitorización y ajustes.',
   'howItWorks.intro.p2':
     'Empieza conectando aquí tu forge y los proveedores de IA, habilita repositorios y luego usa labels en GitHub o GitLab para encolar trabajos de implementación, preguntas y respuestas, o revisión. El agente de IA solo edita el workspace asignado; commit, push, PR/MR y comentarios en el forge los realiza la capa de orquestación de confianza de AI Worker: el agente no puede usar tus tokens del forge por su cuenta.',
+  
+  'howItWorks.providers.heading': 'Proveedores de IA',
+  'howItWorks.providers.intro':
+    'Abre Providers para habilitar y conectar al menos un agente. Define un valor por defecto; puedes sobrescribir el proveedor por repositorio. Los cinco CLI vienen en la imagen Docker. Pega secretos aquí (cifrados en reposo) o define las variables equivalentes en el .env de compose.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — clave API de Cursor (CURSOR_API_KEY) desde la configuración del panel de Cursor.',
+  'howItWorks.providers.claude':
+    'Claude Code — clave API de Anthropic (ANTHROPIC_API_KEY) desde console.anthropic.com, o un token OAuth de Claude Code (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — clave API de OpenAI (OPENAI_API_KEY o CODEX_API_KEY) desde platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — clave API de Gemini (GEMINI_API_KEY) desde aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — PAT de GitHub de grano fino con Copilot Requests (COPILOT_GITHUB_TOKEN). Los tokens clásicos ghp_ no son compatibles; no reutilices GITHUB_TOKEN del forge para el agente.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — instalado con los agentes. Activado por defecto por repositorio: mantiene un índice local .codegraph/ y ejecuta codegraph init antes de los agentes si falta. Desactívalo en la página del repositorio para eliminar el índice. El setup del primer admin recoge un email para la lista de espera opcional de CodeGraph Pro. El índice nunca se hace commit.',
+
   'howItWorks.forge.heading': 'Trabajar en GitHub y GitLab',
   'howItWorks.forge.intro':
     'El trabajo diario ocurre en GitHub o GitLab — no en un terminal del host de AI Worker. Cuando un repositorio está conectado y habilitado, abre un issue o PR/MR, describe un objetivo claro, añade la(s) label(s) correcta(s) y deja el ítem abierto mientras corre el worker. Observa las labels de estado para el progreso y luego revisa el PR/MR, el comentario del issue o (si force-push está activo) los commits en la rama destino.',
@@ -107,6 +124,8 @@ export const es: Messages = {
     'Checkout limpio — antes de cada trabajo el worker hace fetch de origin/<rama destino>, hard-reset a esa punta y descarta cambios sin commit en el workspace.',
   'howItWorks.repoOptions.forcePush':
     'Force-push a la rama destino (omitir PR/MR) — desactivado por defecto. Si se activa, la implementación hace force-push a la rama destino en lugar de abrir un PR/MR y deja un comentario en el issue. Sobrescribe la rama remota; úsalo con cuidado.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — activado por defecto. Si está activo, el worker mantiene un índice local .codegraph/ y ejecuta codegraph init antes de los agents si falta. Si se desactiva, se elimina .codegraph/ y no se recrea hasta reactivarlo. El índice nunca se hace commit.',
   'howItWorks.labels.heading': 'Referencia de labels',
   'howItWorks.labels.intro':
     'Normalmente solo añades ai, ai + no-change, o ai-review. El worker gestiona las labels de estado según el ciclo anterior (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed).',
@@ -137,7 +156,7 @@ export const es: Messages = {
   'howItWorks.panel.intro':
     'Usa el panel para conectar forges y proveedores de IA, habilitar repositorios, ajustar prompts y settings, y supervisar tasks. El trabajo diario de programación sigue haciéndose con labels en GitHub o GitLab.',
   'howItWorks.panel.setup.heading': 'Orden de configuración recomendado',
-  'howItWorks.panel.setup.item1': 'Providers — conecta Cursor y/o Claude, habilita al menos uno y define uno por defecto.',
+  'howItWorks.panel.setup.item1': 'Providers — conecta Cursor, Claude, Codex, Gemini y/o Copilot, habilita al menos uno y define uno por defecto.',
   'howItWorks.panel.setup.item2': 'Connections — conecta GitHub y/o GitLab con un token que tenga los scopes anteriores.',
   'howItWorks.panel.setup.item3':
     'Repositories — espera al descubrimiento o haz clic en Fetch, y luego habilita los repos que quieras automatizar.',
@@ -147,11 +166,11 @@ export const es: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — uso de IA, métricas del worker y ejecuciones recientes.',
   'howItWorks.panel.pages.connections': 'Connections — tokens del forge, descubrimiento, webhooks y la clave pública SSH opcional.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — registrar, activar/desactivar, estado de clon, rama destino, force-push opcional, proveedor y prompts por repo.',
+    'Repositories — registrar, habilitar/deshabilitar, estado de clone, rama destino, force-push opcional, interruptor CodeGraph, proveedor y prompts por repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — cola en vivo del forge e historial de ejecuciones de implementación, revisión y trabajos relacionados.',
   'howItWorks.panel.pages.providers':
-    'Providers — credenciales de Cursor / Claude, habilitación, comprobaciones de estado y valor por defecto.',
+    'Providers — credenciales de Cursor / Claude / Codex / Gemini / Copilot, habilitación, comprobaciones de estado y valor por defecto.',
   'howItWorks.panel.pages.prompts': 'Prompts — plantillas globales y fragmentos que usa el worker.',
   'howItWorks.panel.pages.settings':
     'Settings — intervalo de sondeo, concurrencia, valores por defecto, retención y preferencias de la UI.',
@@ -163,7 +182,7 @@ export const es: Messages = {
   'about.subtitle': 'Descripción del producto, servicios, contacto y licencia',
   'about.product.heading': 'Acerca de AI Worker',
   'about.product.p1':
-    'AI Worker es un asistente de codificación con IA autoalojado para GitHub y GitLab. Etiqueta un issue o pull/merge request y ejecuta herramientas de IA compatibles en tu entorno para implementar trabajo o revisar cambios.',
+    'AI Worker es un asistente de código con IA autoalojado para GitHub y GitLab. Etiqueta un issue o pull/merge request y ejecuta Cursor CLI, Claude Code, Codex CLI, Gemini CLI o GitHub Copilot CLI en tu entorno (con indexación CodeGraph opcional) para implementar trabajo o revisar cambios.',
   'about.product.p2':
     'Está pensado para equipos que quieren automatización en su propia infraestructura—incluidas organizaciones con GitLab Self-Managed—sin enviar repositorios a un servicio de agente alojado de terceros.',
   'about.services.heading': 'Servicios',

@@ -33,6 +33,7 @@ describeIf('auth integration', () => {
     expect((await setupStatus()).needsSetup).toBe(true)
     await bootstrapAdmin({
       username: 'admin',
+      email: 'admin@example.com',
       password: 'integration-test-password',
       bootstrapSecret: 'integration-bootstrap-secret',
       expectedSecret: 'integration-bootstrap-secret',

@@ -23,7 +23,7 @@ export const ar: Messages = {
   'layout.language': 'اللغة',
   'setup.nav.needsAttention': 'يحتاج إلى انتباه',
   'setup.warn.provider.title': 'وصّل مزوّد ذكاء اصطناعي',
-  'setup.warn.provider.description': 'فعّل ووصّل مزوّد AI واحدًا على الأقل (Cursor أو Claude) قبل تشغيل المهام.',
+  'setup.warn.provider.description': 'فعّل ووصّل مزوّد AI واحدًا على الأقل (Cursor أو Claude أو Codex أو Gemini أو Copilot) قبل تشغيل المهام.',
   'setup.warn.provider.action': 'فتح المزوّدين',
   'setup.warn.connection.title': 'وصّل GitHub أو GitLab',
   'setup.warn.connection.description': 'أضف اتصال forge عاملًا واحدًا على الأقل ثم سجّل مستودعًا.',
@@ -45,9 +45,26 @@ export const ar: Messages = {
   'howItWorks.subtitle': 'دليل تعليمي لـ GitHub و GitLab وهذه اللوحة',
   'howItWorks.intro.heading': 'نظرة عامة',
   'howItWorks.intro.p1':
-    'AI Worker هو مساعد برمجة مستضاف ذاتيًا لـ GitHub و GitLab. العمل اليومي يعتمد على التسميات (labels) في الـ issues وطلبات السحب/الدمج. هذه اللوحة مخصّصة للإعداد والمراقبة والتهيئة.',
+    'AI Worker مساعد ترميز مستضاف ذاتياً لـ GitHub و GitLab. يشغّل Cursor CLI أو Claude Code أو Codex CLI أو Gemini CLI أو GitHub Copilot CLI في بيئتك، مع فهرسة CodeGraph الدلالية الاختيارية. العمل اليومي يُقاد عبر التسميات على القضايا وطلبات الدمج. هذه اللوحة للإعداد والمراقبة والتهيئة.',
   'howItWorks.intro.p2':
     'ابدأ بربط منصة الاستضافة ومزوّدي الذكاء الاصطناعي هنا، فعّل المستودعات، ثم استخدم التسميات في GitHub أو GitLab لوضع مهام التنفيذ أو الأسئلة والأجوبة أو المراجعة في قائمة الانتظار. يعدّل وكيل الذكاء الاصطناعي مساحة العمل المعيّنة فقط؛ وتنفّذ طبقة تنسيق AI Worker الموثوقة عمليات commit وpush وPR/MR وتعليقات المنصة — ولا يستطيع الوكيل استخدام رموز المنصة بمفرده.',
+  
+  'howItWorks.providers.heading': 'مزوّدو الذكاء الاصطناعي',
+  'howItWorks.providers.intro':
+    'افتح Providers لتمكين وربط وكيل واحد على الأقل. عيّن افتراضياً؛ يمكنك تجاوز المزوّد لكل مستودع. تُشحن أدوات CLI الخمس في صورة Docker. الصق الأسرار هنا (مشفّرة أثناء التخزين) أو عيّن المتغيرات المطابقة في .env لـ compose.',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — مفتاح API لـ Cursor (CURSOR_API_KEY) من إعدادات لوحة Cursor.',
+  'howItWorks.providers.claude':
+    'Claude Code — مفتاح Anthropic API (ANTHROPIC_API_KEY) من console.anthropic.com، أو رمز OAuth لـ Claude Code (CLAUDE_CODE_OAUTH_TOKEN).',
+  'howItWorks.providers.codex':
+    'Codex CLI — مفتاح OpenAI API (OPENAI_API_KEY أو CODEX_API_KEY) من platform.openai.com/api-keys.',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — مفتاح Gemini API (GEMINI_API_KEY) من aistudio.google.com/apikey.',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — PAT دقيق الصلاحيات من GitHub مع Copilot Requests (COPILOT_GITHUB_TOKEN). الرموز الكلاسيكية ghp_ غير مدعومة؛ لا تُعد استخدام GITHUB_TOKEN الخاص بالـ forge للوكيل.',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — يُثبَّت مع الوكلاء. مفعّل افتراضياً لكل مستودع: يحتفظ بفهرس محلي .codegraph/ ويشغّل codegraph init قبل الوكلاء إن كان مفقوداً. عطّله في صفحة المستودع لحذف الفهرس. يجمع إعداد أول مسؤول بريداً لقائمة انتظار CodeGraph Pro الاختيارية. لا يُعمل commit للفهرس أبداً.',
+
   'howItWorks.forge.heading': 'العمل في GitHub و GitLab',
   'howItWorks.forge.intro':
     'العمل اليومي يتم في GitHub أو GitLab — وليس في طرفية على مضيف AI Worker. بعد ربط المستودع وتفعيله، افتح issue أو PR/MR، صِف هدفًا واحدًا واضحًا، أضف التسمية/التسميات الصحيحة، واترك العنصر مفتوحًا أثناء تشغيل الـ worker. راقب تسميات الحالة للتقدم، ثم راجع الـ PR/MR أو تعليق الـ issue أو (إذا كان الدفع القسري مفعّلًا) الالتزامات على الفرع الهدف.',
@@ -105,6 +122,8 @@ export const ar: Messages = {
     'فحص نظيف — قبل كل مهمة يجلب الـ worker origin/<فرع الهدف> ويعيد التعيين القاسي إلى طرفه ويتجاهل التغييرات غير المُودَعة في مساحة العمل.',
   'howItWorks.repoOptions.forcePush':
     'دفع قسري إلى فرع الهدف (تخطي PR/MR) — معطّل افتراضيًا. عند التفعيل يدفع التنفيذ قسريًا إلى فرع الهدف بدل فتح PR/MR ويعلّق على الـ issue. يستبدل الفرع البعيد؛ استخدمه بحذر.',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — مفعّل افتراضياً. عند التفعيل يحتفظ الـ worker بفهرس محلي .codegraph/ ويشغّل codegraph init قبل الوكلاء إن كان مفقوداً. عند التعطيل يُحذف .codegraph/ ولا يُعاد إنشاؤه حتى إعادة التفعيل. لا يُعمل commit للفهرس أبداً.',
   'howItWorks.labels.heading': 'مرجع التسميات',
   'howItWorks.labels.intro':
     'عادةً تضيف فقط ai أو ai + no-change أو ai-review. يدير الـ worker تسميات الحالة وفق الدورة أعلاه (ai-working، ai-pr، ai-answered، ai-failed، ai-reviewing، ai-reviewed، ai-review-failed).',
@@ -131,7 +150,7 @@ export const ar: Messages = {
   'howItWorks.panel.intro':
     'استخدم اللوحة لربط منصات الـ forge ومزوّدي الذكاء الاصطناعي، وتفعيل المستودعات، وضبط الـ prompts والإعدادات، ومراقبة المهام. عمل البرمجة اليومي يبقى عبر التسميات في GitHub أو GitLab.',
   'howItWorks.panel.setup.heading': 'ترتيب الإعداد الموصى به',
-  'howItWorks.panel.setup.item1': 'Providers — اربط Cursor و/أو Claude، فعّل واحدًا على الأقل، وعيّن الافتراضي.',
+  'howItWorks.panel.setup.item1': 'Providers — اربط Cursor و Claude و Codex و Gemini و/أو Copilot، فعّل واحدًا على الأقل، وعيّن الافتراضي.',
   'howItWorks.panel.setup.item2': 'Connections — اربط GitHub و/أو GitLab برمز يمتلك النطاقات أعلاه.',
   'howItWorks.panel.setup.item3': 'Repositories — انتظر الاكتشاف أو انقر Fetch، ثم فعّل المستودعات التي تريد أتمتتها.',
   'howItWorks.panel.setup.item4': 'اختياري — Setup labels و Setup webhooks لإيقاظ أسرع عندما يكون APP_BASE_URL قابلاً للوصول.',
@@ -139,9 +158,9 @@ export const ar: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — استخدام الذكاء الاصطناعي ومقاييس الـ worker والتشغيلات الأخيرة.',
   'howItWorks.panel.pages.connections': 'Connections — رموز الـ forge والاكتشاف والـ webhooks ومفتاح SSH العام الاختياري.',
   'howItWorks.panel.pages.repositories':
-    'Repositories — التسجيل والتفعيل/التعطيل وحالة الاستنساخ وفرع الهدف والدفع القسري الاختياري والمزوّد والـ prompts لكل مستودع.',
+    'Repositories — التسجيل، التفعيل/التعطيل، حالة النسخ، الفرع الهدف، force-push اختياري، مفتاح CodeGraph، المزوّد والقوالب لكل مستودع.',
   'howItWorks.panel.pages.tasks': 'Tasks — قائمة انتظار الـ forge المباشرة وسجل التشغيل لمهام التنفيذ والمراجعة وما يتصل بها.',
-  'howItWorks.panel.pages.providers': 'Providers — بيانات اعتماد Cursor / Claude والتفعيل وفحوصات الصحة والافتراضي.',
+  'howItWorks.panel.pages.providers': 'Providers — بيانات اعتماد Cursor / Claude / Codex / Gemini / Copilot والتفعيل وفحوصات الصحة والافتراضي.',
   'howItWorks.panel.pages.prompts': 'Prompts — القوالب والمقتطفات العامة التي يستخدمها الـ worker.',
   'howItWorks.panel.pages.settings': 'Settings — فترة الاستطلاع والتوازي والقيم الافتراضية والاحتفاظ وتفضيلات الواجهة.',
   'howItWorks.panel.pages.system': 'System — الصحة التشغيلية وحالة المنصة.',
@@ -152,7 +171,7 @@ export const ar: Messages = {
   'about.subtitle': 'نظرة عامة على المنتج والخدمات والتواصل والترخيص',
   'about.product.heading': 'حول AI Worker',
   'about.product.p1':
-    'AI Worker مساعد ترميز بالذكاء الاصطناعي مستضاف ذاتيًا لـ GitHub و GitLab. ضع تسمية على issue أو pull/merge request ليشغّل أدوات الترميز المدعومة في بيئتك لتنفيذ العمل أو مراجعة التغييرات.',
+    'AI Worker مساعد ترميز بالذكاء الاصطناعي مستضاف ذاتياً لـ GitHub و GitLab. ضع تسمية على قضية أو طلب دمج، فيشغّل Cursor CLI أو Claude Code أو Codex CLI أو Gemini CLI أو GitHub Copilot CLI في بيئتك (مع فهرسة CodeGraph الاختيارية) لتنفيذ العمل أو مراجعة التغييرات.',
   'about.product.p2':
     'مصمم للفرق التي تريد الأتمتة على بنيتها التحتية الخاصة—بما في ذلك المؤسسات التي تشغّل GitLab Self-Managed—دون إرسال المستودعات إلى خدمة وكيل مستضافة من طرف ثالث.',
   'about.services.heading': 'الخدمات',

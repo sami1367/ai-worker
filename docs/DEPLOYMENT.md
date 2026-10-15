@@ -61,9 +61,23 @@ Prefer **Connections** UI, or set `GITHUB_TOKEN` in the environment. Do not bake
 
 Connect in the UI, or set `GITLAB_HOST` and `GITLAB_TOKEN`.
 
-### Cursor CLI + Claude Code
+### AI providers (Cursor / Claude / Codex / Gemini / Copilot)
 
-Installed in the image. Connect credentials in **Providers** UI.
+All five CLIs are installed in the image via `scripts/install-ai-clis.sh`. Connect credentials in the **Providers** UI, or set env vars in compose `.env`:
+
+| Provider | Env vars |
+|----------|----------|
+| Cursor | `CURSOR_API_KEY` |
+| Claude Code | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` |
+| Codex | `OPENAI_API_KEY` or `CODEX_API_KEY` |
+| Gemini | `GEMINI_API_KEY` |
+| GitHub Copilot | `COPILOT_GITHUB_TOKEN` (fine-grained PAT with **Copilot Requests**; not a classic `ghp_` token) |
+
+DB-stored secrets from the Providers UI override env when both are set. Enable at least one provider and set a default before tasks can run.
+
+### CodeGraph
+
+CodeGraph is installed in the image and wired into agent CLIs (MCP). Per-repository toggle defaults to **on**. The admin email collected at `/setup` is written to `codegraph.env` for optional waitlist signup on worker start. See [README — CodeGraph](../README.md#codegraph).
 
 ## Updates
 

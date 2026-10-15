@@ -23,7 +23,7 @@ export const hi: Messages = {
   'layout.language': 'भाषा',
   'setup.nav.needsAttention': 'ध्यान आवश्यक',
   'setup.warn.provider.title': 'एक AI प्रदाता कनेक्ट करें',
-  'setup.warn.provider.description': 'कार्य चलाने से पहले कम से कम एक AI प्रदाता (Cursor या Claude) सक्षम और कनेक्ट करें।',
+  'setup.warn.provider.description': 'कार्य चलाने से पहले कम से कम एक AI प्रदाता (Cursor, Claude, Codex, Gemini, या Copilot) सक्षम और कनेक्ट करें।',
   'setup.warn.provider.action': 'प्रदाता खोलें',
   'setup.warn.connection.title': 'GitHub या GitLab कनेक्ट करें',
   'setup.warn.connection.description': 'कम से कम एक काम करने वाला forge कनेक्शन जोड़ें, फिर एक रेपो पंजीकृत करें।',
@@ -45,9 +45,26 @@ export const hi: Messages = {
   'howItWorks.subtitle': 'GitHub, GitLab और इस पैनल के लिए ट्यूटोरियल',
   'howItWorks.intro.heading': 'अवलोकन',
   'howItWorks.intro.p1':
-    'AI Worker, GitHub और GitLab के लिए एक self-hosted कोडिंग सहायक है। रोज़मर्रा का काम issues और pull/merge requests पर labels से चलता है। यह पैनल setup, निगरानी और कॉन्फ़िगरेशन के लिए है।',
+    'AI Worker GitHub और GitLab के लिए एक self-hosted कोडिंग सहायक है। यह आपके वातावरण में Cursor CLI, Claude Code, Codex CLI, Gemini CLI, या GitHub Copilot CLI चलाता है, वैकल्पिक CodeGraph सिमेंटिक इंडेक्सिंग के साथ। रोज़मर्रा का काम issue और pull/merge request पर labels से चलता है। यह पैनल सेटअप, निगरानी और कॉन्फ़िगरेशन के लिए है।',
   'howItWorks.intro.p2':
     'पहले यहाँ अपना forge और AI providers कनेक्ट करें, repositories सक्षम करें, फिर implement, Q&A या review जॉब्स कतार में लगाने के लिए GitHub या GitLab में labels का उपयोग करें। AI एजेंट केवल असाइन किए गए workspace को संपादित करता है; commit, push, PR/MR और forge टिप्पणियाँ विश्वसनीय AI Worker orchestration परत करती है — एजेंट आपके forge टोकन स्वयं उपयोग नहीं कर सकता।',
+  
+  'howItWorks.providers.heading': 'AI प्रदाता',
+  'howItWorks.providers.intro':
+    'कम से कम एक एजेंट सक्षम और कनेक्ट करने के लिए Providers खोलें। एक default सेट करें; प्रति-रिपॉजिटरी ओवरराइड संभव है। पाँचों CLI Docker इमेज में आते हैं। यहाँ सीक्रेट चिपकाएँ (at-rest एन्क्रिप्टेड) या compose .env में समान चर सेट करें।',
+  'howItWorks.providers.cursor':
+    'Cursor CLI — Cursor डैशबोर्ड सेटिंग्स से Cursor API कुंजी (CURSOR_API_KEY)।',
+  'howItWorks.providers.claude':
+    'Claude Code — console.anthropic.com से Anthropic API कुंजी (ANTHROPIC_API_KEY), या Claude Code OAuth टोकन (CLAUDE_CODE_OAUTH_TOKEN)।',
+  'howItWorks.providers.codex':
+    'Codex CLI — platform.openai.com/api-keys से OpenAI API कुंजी (OPENAI_API_KEY या CODEX_API_KEY)।',
+  'howItWorks.providers.gemini':
+    'Gemini CLI — aistudio.google.com/apikey से Gemini API कुंजी (GEMINI_API_KEY)।',
+  'howItWorks.providers.copilot':
+    'GitHub Copilot CLI — Copilot Requests वाला fine-grained GitHub PAT (COPILOT_GITHUB_TOKEN)। क्लासिक ghp_ टोकन समर्थित नहीं; एजेंट के लिए forge GITHUB_TOKEN दोबारा उपयोग न करें।',
+  'howItWorks.providers.codegraph':
+    'CodeGraph — एजेंटों के साथ इंस्टॉल। प्रति-रिपॉजिटरी डिफ़ॉल्ट ऑन: स्थानीय .codegraph/ इंडेक्स रखता है और गायब होने पर agents से पहले codegraph init चलाता है। इंडेक्स हटाने के लिए रिपॉजिटरी पेज पर बंद करें। प्रथम-admin सेटअप वैकल्पिक CodeGraph Pro waitlist के लिए ईमेल लेता है। इंडेक्स कभी commit नहीं होता।',
+
   'howItWorks.forge.heading': 'GitHub और GitLab में काम करना',
   'howItWorks.forge.intro':
     'रोजमर्रा का काम GitHub या GitLab में होता है — AI Worker होस्ट के टर्मिनल में नहीं। रिपॉजिटरी कनेक्ट और सक्षम होने के बाद, issue या PR/MR खोलें, एक स्पष्ट लक्ष्य लिखें, सही label(s) जोड़ें, और worker चलते समय आइटम खुला रखें। प्रगति के लिए status labels देखें, फिर PR/MR, issue comment, या (force-push ऑन हो तो) target branch पर commits की समीक्षा करें।',
@@ -106,6 +123,8 @@ export const hi: Messages = {
     'ताज़ा checkout — हर job से पहले worker origin/<target branch> fetch करता है, hard-reset करता है, और workspace के uncommitted बदलाव हटाता है।',
   'howItWorks.repoOptions.forcePush':
     'Target branch पर force-push (PR/MR छोड़ें) — डिफ़ॉल्ट बंद। ऑन होने पर issue implement PR/MR खोले बिना target branch पर force-push करता है और issue पर comment करता है। Remote branch ओवरराइट होती है; सावधानी से उपयोग करें।',
+  'howItWorks.repoOptions.codegraph':
+    'CodeGraph — डिफ़ॉल्ट रूप से चालू। सक्षम होने पर worker स्थानीय .codegraph/ इंडेक्स रखता है और गायब होने पर agents से पहले codegraph init चलाता है। अक्षम होने पर .codegraph/ हटा दिया जाता है और फिर से चालू करने तक नहीं बनता। इंडेक्स कभी commit नहीं होता।',
   'howItWorks.labels.heading': 'Label संदर्भ',
   'howItWorks.labels.intro':
     'आमतौर पर आप केवल ai, ai + no-change, या ai-review जोड़ते हैं। Worker ऊपर के जीवनचक्र के अनुसार status labels संभालता है (ai-working, ai-pr, ai-answered, ai-failed, ai-reviewing, ai-reviewed, ai-review-failed)।',
@@ -135,7 +154,7 @@ export const hi: Messages = {
     'forges और AI providers कनेक्ट करने, repositories सक्षम करने, prompts और settings ट्यून करने, तथा tasks की निगरानी करने के लिए पैनल का उपयोग करें। रोज़मर्रा का कोडिंग काम अब भी GitHub या GitLab में labels से होता है।',
   'howItWorks.panel.setup.heading': 'अनुशंसित setup क्रम',
   'howItWorks.panel.setup.item1':
-    'Providers — Cursor और/या Claude कनेक्ट करें, कम से कम एक सक्षम करें, और एक default सेट करें।',
+    'Providers — Cursor, Claude, Codex, Gemini और/या Copilot कनेक्ट करें, कम से कम एक सक्षम करें, और एक default सेट करें।',
   'howItWorks.panel.setup.item2': 'Connections — ऊपर दिए scopes वाले token के साथ GitHub और/या GitLab कनेक्ट करें।',
   'howItWorks.panel.setup.item3':
     'Repositories — discovery का इंतज़ार करें या Fetch क्लिक करें, फिर जिन repos को स्वचालित करना है उन्हें सक्षम करें।',
@@ -145,9 +164,9 @@ export const hi: Messages = {
   'howItWorks.panel.pages.dashboard': 'Dashboard — AI उपयोग, worker मेट्रिक्स, और हाल के runs।',
   'howItWorks.panel.pages.connections': 'Connections — forge tokens, discovery, webhooks, और वैकल्पिक SSH public key।',
   'howItWorks.panel.pages.repositories':
-    'Repositories — पंजीकरण, सक्षम/अक्षम, clone स्थिति, target branch, वैकल्पिक force-push, प्रति-repo provider और prompts।',
+    'Repositories — पंजीकरण, सक्षम/अक्षम, clone स्थिति, target branch, वैकल्पिक force-push, CodeGraph टॉगल, प्रति-repo provider और prompts।',
   'howItWorks.panel.pages.tasks': 'Tasks — implement, review और संबंधित जॉब्स के लिए लाइव forge queue और run इतिहास।',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude credentials, सक्षमता, health checks, और default।',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini / Copilot credentials, सक्षमता, health checks, और default।',
   'howItWorks.panel.pages.prompts': 'Prompts — worker द्वारा उपयोग किए जाने वाले वैश्विक templates और snippets।',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention, और UI प्राथमिकताएँ।',
   'howItWorks.panel.pages.system': 'System — परिचालन स्वास्थ्य और प्लेटफ़ॉर्म स्थिति।',
@@ -158,7 +177,7 @@ export const hi: Messages = {
   'about.subtitle': 'उत्पाद अवलोकन, सेवाएँ, संपर्क और लाइसेंस',
   'about.product.heading': 'AI Worker के बारे में',
   'about.product.p1':
-    'AI Worker GitHub और GitLab के लिए एक स्व-होस्टेड AI कोडिंग सहायक है। किसी issue या pull/merge request पर लेबल लगाएँ, और यह आपके वातावरण में समर्थित AI टूल चलाकर काम लागू करता है या बदलावों की समीक्षा करता है।',
+    'AI Worker GitHub और GitLab के लिए एक self-hosted AI कोडिंग सहायक है। किसी issue या pull/merge request पर label लगाएँ, और यह आपके वातावरण में Cursor CLI, Claude Code, Codex CLI, Gemini CLI, या GitHub Copilot CLI (वैकल्पिक CodeGraph इंडेक्सिंग के साथ) चलाकर काम लागू करता है या बदलावों की समीक्षा करता है।',
   'about.product.p2':
     'यह उन टीमों के लिए बनाया गया है जो अपनी अवसंरचना पर स्वचालन चाहती हैं—जिनमें GitLab Self-Managed चलाने वाले संगठन शामिल हैं—बिना रिपॉज़िटरी किसी तृतीय-पक्ष होस्टेड एजेंट सेवा को भेजे।',
   'about.services.heading': 'सेवाएँ',

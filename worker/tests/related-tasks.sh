@@ -32,7 +32,8 @@ cat > "$BASE_DIR/github-projects.conf" <<EOF
     "path": "$TMP/billing",
     "block_on_open_pr": false,
     "default_branch": "master",
-    "force_push_to_default": true
+    "force_push_to_default": true,
+    "codegraph_enabled": false
   }
 ]
 EOF
@@ -43,7 +44,8 @@ cat > "$BASE_DIR/gitlab-projects.conf" <<EOF
     "name": "bale-service",
     "path": "$TMP/bale",
     "block_on_open_pr": false,
-    "default_branch": "develop"
+    "default_branch": "develop",
+    "codegraph_enabled": true
   }
 ]
 EOF
@@ -75,6 +77,8 @@ billing_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "bill
     || fail "billing default_branch should be master"
 [[ "$(ai_project_entry_bool "$billing_entry" "force_push_to_default" 0)" == "1" ]] \
     || fail "billing should enable force_push_to_default"
+[[ "$(ai_project_entry_bool "$billing_entry" "codegraph_enabled" 1)" == "0" ]] \
+    || fail "billing should disable codegraph_enabled"
 
 api_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "api")" \
     || fail "resolve api entry"
@@ -84,6 +88,8 @@ api_entry="$(ai_resolve_project_entry "$BASE_DIR/github-projects.conf" "api")" \
     || fail "api should default to main when default_branch omitted"
 [[ "$(ai_project_entry_bool "$api_entry" "force_push_to_default" 0)" == "0" ]] \
     || fail "api should default force_push_to_default off when omitted"
+[[ "$(ai_project_entry_bool "$api_entry" "codegraph_enabled" 1)" == "1" ]] \
+    || fail "api should default codegraph_enabled on when omitted"
 
 bale_entry="$(ai_resolve_project_entry "$BASE_DIR/gitlab-projects.conf" "bale-service")" \
     || fail "resolve bale-service entry"
@@ -91,6 +97,8 @@ bale_entry="$(ai_resolve_project_entry "$BASE_DIR/gitlab-projects.conf" "bale-se
     || fail "bale-service should disable block_on_open_pr"
 [[ "$(ai_project_default_branch "$bale_entry")" == "develop" ]] \
     || fail "bale-service default_branch should be develop"
+[[ "$(ai_project_entry_bool "$bale_entry" "codegraph_enabled" 1)" == "1" ]] \
+    || fail "bale-service should keep codegraph_enabled"
 
 if ai_lookup_registered_project "missing-service" >/dev/null; then
     fail "unknown project should not match"

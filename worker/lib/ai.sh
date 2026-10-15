@@ -12,7 +12,7 @@ if [[ -z "${BASE_DIR:-}" ]]; then
   fi
 fi
 
-# Active provider id after ai_init (e.g. cursor, claude).
+# Active provider id after ai_init (e.g. cursor, claude, codex, gemini, copilot).
 AI_PROVIDER="${AI_PROVIDER:-cursor}"
 
 # Set by ai_init / ai_run_agent:
@@ -20,7 +20,7 @@ AI_PROVIDER_BIN=""
 AI_PROVIDER_NAME=""
 AGENT_EXIT_CODE=0
 
-AI_KNOWN_PROVIDERS=(cursor claude)
+AI_KNOWN_PROVIDERS=(cursor claude codex gemini copilot)
 
 # Technical agent↔forge isolation (env scrub + optional bubblewrap).
 # shellcheck source=lib/ai-isolation.sh
@@ -42,6 +42,9 @@ ai_init() {
 
     # shellcheck source=lib/ai/cursor.sh
     # shellcheck source=lib/ai/claude.sh
+    # shellcheck source=lib/ai/codex.sh
+    # shellcheck source=lib/ai/gemini.sh
+    # shellcheck source=lib/ai/copilot.sh
     source "$provider_file"
 
     if ! declare -F "ai_${provider}_detect" >/dev/null 2>&1; then
@@ -91,11 +94,21 @@ ai_run_agent() {
             ;;
     esac
 
+    # CODEGRAPH_ENABLED is set by runners from the project conf (default on).
+    if declare -F ai_codegraph_prepare >/dev/null 2>&1; then
+        ai_codegraph_prepare "$workspace" "${CODEGRAPH_ENABLED:-1}" || true
+    fi
+
     set +e
     "ai_${AI_PROVIDER}_run" \
         "$workspace" "$prompt_file" "$stdout_log" "$stderr_log" "$task_type"
     AGENT_EXIT_CODE=$?
     set -e
+
+    if declare -F ai_unstage_codegraph_dir >/dev/null 2>&1; then
+        ai_unstage_codegraph_dir "$workspace" || true
+    fi
+
     return "$AGENT_EXIT_CODE"
 }
 
@@ -114,7 +127,7 @@ ai_log_agent_finish() {
     echo "============================================================"
 }
 
-# Parse token usage from a Cursor / Claude stream-json NDJSON agent log.
+# Parse token usage from Cursor / Claude / Codex / Gemini / Copilot agent logs.
 # Prints a single JSON object, or nothing (exit 1) when unavailable.
 # Usage: ai_extract_token_usage <agent.ndjson>
 ai_extract_token_usage() {
@@ -124,31 +137,55 @@ ai_extract_token_usage() {
     [[ -n "$file" && -f "$file" ]] || return 1
     command -v jq >/dev/null 2>&1 || return 1
 
-    # Prefer the last terminal result event that carries a usage object.
+    # Prefer the last terminal usage event:
+    #   Cursor/Claude → type=result
+    #   Codex exec --json → type=turn.completed
     result_line="$(
-        jq -c 'select(type == "object" and .type == "result" and (.usage | type) == "object")' "$file" 2>/dev/null \
+        jq -c 'select(
+            type == "object"
+            and (.type == "result" or .type == "turn.completed")
+            and (.usage | type) == "object"
+        )' "$file" 2>/dev/null \
             | tail -n 1
     )"
-    [[ -n "$result_line" ]] || return 1
+    if [[ -n "$result_line" ]]; then
+        jq -c '
+            . as $r
+            | .usage
+            | {
+                inputTokens: ((.inputTokens // .input_tokens // 0) | tonumber? // 0 | floor),
+                outputTokens: ((.outputTokens // .output_tokens // 0) | tonumber? // 0 | floor),
+                cacheReadTokens: (
+                    (.cacheReadTokens // .cache_read_input_tokens // .cache_read_tokens // .cached_input_tokens // 0)
+                    | tonumber? // 0 | floor
+                ),
+                cacheWriteTokens: (
+                    (.cacheWriteTokens // .cache_creation_input_tokens // .cache_write_tokens // .cache_write_input_tokens // 0)
+                    | tonumber? // 0 | floor
+                )
+              }
+            | . + { totalTokens: (.inputTokens + .outputTokens) }
+            | if ($r.total_cost_usd // $r.totalCostUsd) != null then
+                . + { totalCostUsd: ($r.total_cost_usd // $r.totalCostUsd) }
+              else . end
+        ' <<<"$result_line" 2>/dev/null
+        return $?
+    fi
 
-    jq -c '
-        . as $r
-        | .usage
+    # Gemini CLI --output-format json (or a stream line with .stats.models):
+    # aggregate prompt/candidates/cached across models.
+    jq -nce '
+        [inputs | select(type == "object" and (.stats.models | type) == "object")]
+        | last // empty
+        | .stats.models
+        | to_entries
+        | map(.value.tokens // {})
         | {
-            inputTokens: ((.inputTokens // .input_tokens // 0) | tonumber? // 0 | floor),
-            outputTokens: ((.outputTokens // .output_tokens // 0) | tonumber? // 0 | floor),
-            cacheReadTokens: (
-                (.cacheReadTokens // .cache_read_input_tokens // .cache_read_tokens // 0)
-                | tonumber? // 0 | floor
-            ),
-            cacheWriteTokens: (
-                (.cacheWriteTokens // .cache_creation_input_tokens // .cache_write_tokens // 0)
-                | tonumber? // 0 | floor
-            )
+            inputTokens: (map(.prompt // 0) | add // 0 | tonumber? // 0 | floor),
+            outputTokens: (map(.candidates // .response // 0) | add // 0 | tonumber? // 0 | floor),
+            cacheReadTokens: (map(.cached // 0) | add // 0 | tonumber? // 0 | floor),
+            cacheWriteTokens: 0
           }
         | . + { totalTokens: (.inputTokens + .outputTokens) }
-        | if ($r.total_cost_usd // $r.totalCostUsd) != null then
-            . + { totalCostUsd: ($r.total_cost_usd // $r.totalCostUsd) }
-          else . end
-    ' <<<"$result_line" 2>/dev/null
+    ' <"$file" 2>/dev/null
 }

@@ -45,6 +45,9 @@ watch(() => data.value, (repo) => {
   if (typeof repo.forcePushToDefault !== 'boolean') {
     repo.forcePushToDefault = false
   }
+  if (typeof repo.codegraphEnabled !== 'boolean') {
+    repo.codegraphEnabled = true
+  }
 }, { immediate: true })
 
 async function save() {
@@ -58,6 +61,7 @@ async function save() {
         defaultBranch: data.value.defaultBranch,
         blockOnOpenPr: data.value.blockOnOpenPr,
         forcePushToDefault: data.value.forcePushToDefault,
+        codegraphEnabled: data.value.codegraphEnabled,
         defaultAiProvider: data.value.defaultAiProvider,
         settings: {
           customPrompt: data.value.settings?.customPrompt ?? '',
@@ -163,7 +167,13 @@ onBeforeUnmount(() => stopPoll.value?.())
           <UFormField label="Default AI provider">
             <USelect
               v-model="data.defaultAiProvider"
-              :items="[{ label: 'cursor', value: 'cursor' }, { label: 'claude', value: 'claude' }]"
+              :items="[
+                { label: 'cursor', value: 'cursor' },
+                { label: 'claude', value: 'claude' },
+                { label: 'codex', value: 'codex' },
+                { label: 'gemini', value: 'gemini' },
+                { label: 'copilot', value: 'copilot' },
+              ]"
             />
           </UFormField>
           <UCheckbox v-model="data.blockOnOpenPr" label="Block new issues while an AI-labeled PR/MR is open" />
@@ -173,6 +183,13 @@ onBeforeUnmount(() => stopPoll.value?.())
           />
           <p class="text-xs opacity-60">
             Off by default. When enabled, issue implement force-pushes commits onto the target branch above instead of opening a pull request or merge request. Overwrites that branch on the remote.
+          </p>
+          <UCheckbox
+            v-model="data.codegraphEnabled"
+            label="Enable CodeGraph (semantic code index)"
+          />
+          <p class="text-xs opacity-60">
+            On by default for every repository. When enabled, the worker ensures a local <code class="text-[0.7rem]">.codegraph/</code> index exists before each agent run (<code class="text-[0.7rem]">codegraph init</code> if missing). When disabled, that directory is removed and not recreated until you turn this back on. The index is never committed.
           </p>
           <UFormField
             label="Repository prompt"

@@ -29,6 +29,14 @@ describe('i18n locales', () => {
 
   it('includes How it works forge practice and label lifecycle keys', () => {
     const required = [
+      'howItWorks.providers.heading',
+      'howItWorks.providers.intro',
+      'howItWorks.providers.cursor',
+      'howItWorks.providers.claude',
+      'howItWorks.providers.codex',
+      'howItWorks.providers.gemini',
+      'howItWorks.providers.copilot',
+      'howItWorks.providers.codegraph',
       'howItWorks.forge.practice.heading',
       'howItWorks.forge.practice.item1',
       'howItWorks.forge.practice.item2',

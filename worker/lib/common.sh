@@ -125,7 +125,8 @@ ai_detect_cursor() {
 
 # Emit one JSON object per registered project (NDJSON).
 # Fields: name, path, block_on_open_pr (bool; default true), default_branch (default main),
-# force_push_to_default (bool; default false), optional custom_prompt.
+# force_push_to_default (bool; default false), codegraph_enabled (bool; default true),
+# optional custom_prompt.
 # File must be a JSON array of objects. Leading blank/# comment lines are allowed.
 ai_list_project_entries() {
     local projects_file="$1"
@@ -194,6 +195,15 @@ ai_list_project_entries() {
                   elif (tostring | ascii_downcase) == "yes" then true
                   elif (tostring | ascii_downcase) == "on" then true
                   else false end
+            ),
+            codegraph_enabled: (
+                (if has("codegraph_enabled") then .codegraph_enabled else true end)
+                | if type == "boolean" then .
+                  elif (tostring | ascii_downcase) == "false" then false
+                  elif tostring == "0" then false
+                  elif (tostring | ascii_downcase) == "no" then false
+                  elif (tostring | ascii_downcase) == "off" then false
+                  else true end
             ),
             full_name: (.full_name // .repo // "" | tostring),
             remote_url: (.remote_url // "" | tostring),
@@ -2086,6 +2096,22 @@ ai_remove_ai_artifact_files() {
     done < <(ai_implement_notes_basenames)
 }
 
+# Never commit the local CodeGraph index directory.
+ai_unstage_codegraph_dir() {
+    local project_dir="$1"
+    local staged=""
+
+    [[ -n "$project_dir" && -d "$project_dir" ]] || return 0
+
+    staged="$(git -C "$project_dir" ls-files --cached -- '.codegraph' '.codegraph/**' 2>/dev/null || true)"
+    if [[ -n "$staged" ]]; then
+        git -C "$project_dir" rm -r --cached --ignore-unmatch -- .codegraph >/dev/null 2>&1 \
+            || git -C "$project_dir" reset HEAD -- .codegraph >/dev/null 2>&1 \
+            || true
+        echo "***** CodeGraph: unstaged .codegraph/ (must not be committed)" >&2
+    fi
+}
+
 # Unstage known AI artifact paths if they were accidentally staged.
 ai_unstage_ai_artifact_files() {
     local project_dir="$1"
@@ -2108,6 +2134,54 @@ ai_unstage_ai_artifact_files() {
         done
         echo "Unstaged AI artifact file(s): ${paths[*]}" >&2
     fi
+
+    ai_unstage_codegraph_dir "$project_dir"
+}
+
+# Prepare CodeGraph for a project before an agent run.
+# Usage: ai_codegraph_prepare <project_dir> <enabled_0_or_1>
+# When enabled: ensure `.codegraph/` exists via `codegraph init -y`.
+# When disabled: remove `.codegraph/` and do not init.
+ai_codegraph_prepare() {
+    local project_dir="$1"
+    local enabled="${2:-1}"
+    local has_index=0
+
+    [[ -n "$project_dir" && -d "$project_dir" ]] || return 0
+
+    if [[ -d "${project_dir}/.codegraph" ]]; then
+        has_index=1
+    fi
+
+    if [[ "$enabled" != "1" ]]; then
+        if [[ "$has_index" -eq 1 ]]; then
+            echo "***** CodeGraph: disabled for this repository — removing .codegraph/"
+            rm -rf "${project_dir}/.codegraph"
+        else
+            echo "***** CodeGraph: disabled for this repository — index absent (skip init)"
+        fi
+        return 0
+    fi
+
+    if [[ "$has_index" -eq 1 ]]; then
+        echo "***** CodeGraph: enabled — index present (.codegraph/)"
+        ai_unstage_codegraph_dir "$project_dir"
+        return 0
+    fi
+
+    if ! command -v codegraph >/dev/null 2>&1; then
+        echo "***** CodeGraph: enabled but CLI not found — skipping init" >&2
+        return 0
+    fi
+
+    echo "***** CodeGraph: enabled — index missing; running codegraph init -y"
+    if (cd "$project_dir" && codegraph init -y); then
+        echo "***** CodeGraph: init completed"
+    else
+        echo "***** CodeGraph: init failed (non-fatal; agent will continue)" >&2
+    fi
+    ai_unstage_codegraph_dir "$project_dir"
+    return 0
 }
 
 # Wrap saved notes Markdown with a short automation footer for posting.
