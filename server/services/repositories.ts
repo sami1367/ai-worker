@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, notInArray, or } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, isNull, notInArray, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { repositories, taskRuns } from '#db/schema'
 import { AppError } from '#utils/errors'
@@ -7,6 +7,7 @@ import { managedWorkspacePath, newWorkspaceId, validateRemoteUrl } from '#utils/
 import { ensureRepositoryLabels } from './ai-labels'
 import { writeAudit } from './audit'
 import { exportWorkerConfig } from './config-sync'
+import { listPausedConnectionIds } from './connections'
 import { getSettings } from './settings'
 
 export const bulkSetEnabledSchema = z.object({
@@ -77,6 +78,15 @@ export async function listRepositories(opts: {
       ilike(repositories.name, `%${opts.q}%`),
       ilike(repositories.remoteUrl, `%${opts.q}%`),
       ilike(repositories.canonicalProjectIdentifier, `%${opts.q}%`),
+    ))
+  }
+
+  // Hide repositories belonging to disabled connections on the repositories page.
+  const pausedIds = await listPausedConnectionIds()
+  if (pausedIds.length) {
+    conditions.push(or(
+      isNull(repositories.connectionId),
+      notInArray(repositories.connectionId, pausedIds),
     ))
   }
 

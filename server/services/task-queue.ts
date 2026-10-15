@@ -2,7 +2,13 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { repositories, taskQueueItems, taskQueueRepoSync, taskRuns } from '#db/schema'
 import { getDb } from '#utils/db'
 import { redactSecrets } from '#utils/redact'
-import { getConnectionAccessToken } from './connections'
+import {
+  getConnection,
+  getConnectionAccessToken,
+  isConnectionPaused,
+  listPausedConnectionIds,
+  shouldExposeRepositoryForConnection,
+} from './connections'
 import { listGitHubAiIssues, listGitHubAiPullRequests } from './forge-github'
 import { listGitLabAiIssues, listGitLabAiMergeRequests } from './forge-gitlab'
 import { publishQueueUpdated } from './queue-events'
@@ -650,7 +656,11 @@ export async function syncTaskQueueFromForges(opts?: {
     conditions.push(inArray(repositories.id, opts.repositoryIds))
   }
 
-  const repos = await db.select().from(repositories).where(and(...conditions))
+  const allRepos = await db.select().from(repositories).where(and(...conditions))
+  const pausedConnectionIds = new Set(await listPausedConnectionIds())
+  const repos = allRepos.filter((repo) =>
+    shouldExposeRepositoryForConnection(repo.connectionId, pausedConnectionIds),
+  )
   const errors: Array<{ repositoryId: string, repositoryName: string, message: string }> = []
   let ok = 0
   let itemCount = 0
@@ -694,6 +704,13 @@ export async function syncQueueForRepositoryFullName(
   if (!repositoryFullName) return
   const db = getDb()
   const normalized = repositoryFullName.replace(/\.git$/, '').toLowerCase()
+  try {
+    const { row: connection } = await getConnection(connectionId)
+    if (isConnectionPaused(connection.status)) return
+  } catch {
+    return
+  }
+
   const repos = await db.select().from(repositories).where(and(
     eq(repositories.connectionId, connectionId),
     eq(repositories.isEnabled, true),

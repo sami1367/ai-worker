@@ -267,12 +267,20 @@ export async function handleGitHubWebhook(opts: {
   rawBody: Buffer | string
   payload: Record<string, unknown>
 }): Promise<WebhookWorkHint> {
-  const { secret } = await getConnectionWebhookSecret(opts.connectionId)
+  const { secret, row: connection } = await getConnectionWebhookSecret(opts.connectionId)
   if (!verifyGitHubSignature(opts.rawBody, opts.signature, secret)) {
     throw new AppError(401, 'Invalid GitHub webhook signature', 'webhook_unauthorized')
   }
 
   const parsed = parseGitHubWebhookEvent(opts.eventName, opts.payload)
+  if (connection.status === 'disconnected') {
+    return {
+      provider: 'github',
+      connectionId: opts.connectionId,
+      ...parsed,
+      wokeWorker: false,
+    }
+  }
   const shouldWake = shouldWakeFromGitHub(parsed)
   if (shouldWake) {
     await wakeWorkerPoll('github.label', {
@@ -309,12 +317,20 @@ export async function handleGitLabWebhook(opts: {
   tokenHeader: string | undefined
   payload: Record<string, unknown>
 }): Promise<WebhookWorkHint> {
-  const { secret } = await getConnectionWebhookSecret(opts.connectionId)
+  const { secret, row: connection } = await getConnectionWebhookSecret(opts.connectionId)
   if (!verifyGitLabToken(opts.tokenHeader, secret)) {
     throw new AppError(401, 'Invalid GitLab webhook token', 'webhook_unauthorized')
   }
 
   const parsed = parseGitLabWebhookEvent(opts.payload)
+  if (connection.status === 'disconnected') {
+    return {
+      provider: 'gitlab',
+      connectionId: opts.connectionId,
+      ...parsed,
+      wokeWorker: false,
+    }
+  }
   const shouldWake = shouldWakeFromGitLab(parsed)
   if (shouldWake) {
     await wakeWorkerPoll('gitlab.label', {
