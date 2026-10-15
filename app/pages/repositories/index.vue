@@ -55,15 +55,10 @@ async function setEnabled(repo: { id: string, name: string, isEnabled: boolean }
   const next = new Set(togglingIds.value)
   next.add(repo.id)
   togglingIds.value = next
-  message.value = ''
-  messageError.value = false
   // Optimistic update so the switch feels immediate
   repo.isEnabled = enabled
   try {
     await api(`/api/v1/repositories/${repo.id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' })
-    message.value = enabled
-      ? `Enabled ${repo.name} (polling resumed)`
-      : `Disabled ${repo.name} (frozen until re-enabled)`
   } catch (e: any) {
     repo.isEnabled = !enabled
     message.value = e?.data?.message || e?.statusMessage || `Failed to ${enabled ? 'enable' : 'disable'} ${repo.name}`
