@@ -92,6 +92,13 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    # Bubblewrap needs unprivileged user namespaces. Default Docker AppArmor
+    # (docker-default) + seccomp block CLONE_NEWUSER for non-root appuser on
+    # Ubuntu — without this, AI_ISOLATION_MODE=bwrap fails at agent start.
+    # Not privileged: still non-root, no CAP_SYS_ADMIN, no Docker socket.
+    security_opt:
+      - apparmor:unconfined
+      - seccomp:unconfined
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/config/logs/platform-wrapper.log && kill -0 1"]
       interval: 30s
