@@ -52,9 +52,7 @@ echo "[install-ai-clis] Installing CodeGraph CLI…"
 # Agent MCP wiring (`codegraph install`) runs at worker start — not bake-time —
 # so configs land in the runtime home directory.
 curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
-if [[ -x "${HOME}/.local/bin/codegraph" ]]; then
-  ln -sfn "${HOME}/.local/bin/codegraph" "${HOME}/.local/bin/codegraph"
-fi
+# Installer already places ~/.local/bin/codegraph; avoid ln -sfn A A (circular symlink).
 command -v codegraph >/dev/null
 codegraph --version || true
 
