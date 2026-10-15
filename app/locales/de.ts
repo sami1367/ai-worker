@@ -23,7 +23,7 @@ export const de: Messages = {
   'layout.language': 'Sprache',
   'setup.nav.needsAttention': 'Aufmerksamkeit erforderlich',
   'setup.warn.provider.title': 'KI-Anbieter verbinden',
-  'setup.warn.provider.description': 'Aktivieren und verbinden Sie mindestens einen KI-Anbieter (Cursor, Claude oder Codex), bevor Aufgaben laufen können.',
+  'setup.warn.provider.description': 'Aktivieren und verbinden Sie mindestens einen KI-Anbieter (Cursor, Claude, Codex oder Gemini), bevor Aufgaben laufen können.',
   'setup.warn.provider.action': 'Anbieter öffnen',
   'setup.warn.connection.title': 'GitHub oder GitLab verbinden',
   'setup.warn.connection.description': 'Fügen Sie mindestens eine funktionierende Forge-Verbindung hinzu und registrieren Sie dann ein Repository.',
@@ -138,7 +138,7 @@ export const de: Messages = {
     'Nutzen Sie das Panel, um Forges und KI-Anbieter zu verbinden, Repositories zu aktivieren, Prompts und Settings anzupassen und Tasks zu überwachen. Die tägliche Coding-Arbeit läuft weiterhin über Labels in GitHub oder GitLab.',
   'howItWorks.panel.setup.heading': 'Empfohlene Einrichtungsreihenfolge',
   'howItWorks.panel.setup.item1':
-    'Providers — verbinden Sie Cursor, Claude und/oder Codex, aktivieren Sie mindestens einen und legen Sie einen Standard fest.',
+    'Providers — verbinden Sie Cursor, Claude, Codex und/oder Gemini, aktivieren Sie mindestens einen und legen Sie einen Standard fest.',
   'howItWorks.panel.setup.item2':
     'Connections — verbinden Sie GitHub und/oder GitLab mit einem Token, das die oben genannten Scopes hat.',
   'howItWorks.panel.setup.item3':
@@ -152,7 +152,7 @@ export const de: Messages = {
     'Repositories — Registrieren, aktivieren/deaktivieren, Clone-Status, Zielbranch, optionaler Force-Push, Provider und Prompts pro Repo.',
   'howItWorks.panel.pages.tasks':
     'Tasks — Live-Forge-Warteschlange und Laufhistorie für Implementierung, Review und verwandte Jobs.',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor-/Claude-/Codex-Zugangsdaten, Aktivierung, Health-Checks und Standard.',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor-/Claude-/Codex-/Gemini-Zugangsdaten, Aktivierung, Health-Checks und Standard.',
   'howItWorks.panel.pages.prompts': 'Prompts — globale Vorlagen und Snippets, die der Worker verwendet.',
   'howItWorks.panel.pages.settings': 'Settings — Abfrageintervall, Parallelität, Standards, Aufbewahrung und UI-Einstellungen.',
   'howItWorks.panel.pages.system': 'System — Betriebszustand und Plattformstatus.',

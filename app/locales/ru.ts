@@ -23,7 +23,7 @@ export const ru: Messages = {
   'layout.language': 'Язык',
   'setup.nav.needsAttention': 'Требует внимания',
   'setup.warn.provider.title': 'Подключите AI-провайдера',
-  'setup.warn.provider.description': 'Включите и подключите хотя бы одного AI-провайдера (Cursor, Claude или Codex) перед запуском задач.',
+  'setup.warn.provider.description': 'Включите и подключите хотя бы одного AI-провайдера (Cursor, Claude, Codex или Gemini) перед запуском задач.',
   'setup.warn.provider.action': 'Открыть провайдеров',
   'setup.warn.connection.title': 'Подключите GitHub или GitLab',
   'setup.warn.connection.description': 'Добавьте хотя бы одно рабочее forge-подключение, затем зарегистрируйте репозиторий.',
@@ -136,7 +136,7 @@ export const ru: Messages = {
   'howItWorks.panel.intro':
     'Используйте панель, чтобы подключать forges и AI providers, включать repositories, настраивать prompts и settings и отслеживать tasks. Повседневная работа с кодом по-прежнему идёт через labels в GitHub или GitLab.',
   'howItWorks.panel.setup.heading': 'Рекомендуемый порядок setup',
-  'howItWorks.panel.setup.item1': 'Providers — подключите Cursor, Claude и/или Codex, включите хотя бы один и задайте default.',
+  'howItWorks.panel.setup.item1': 'Providers — подключите Cursor, Claude, Codex и/или Gemini, включите хотя бы один и задайте default.',
   'howItWorks.panel.setup.item2': 'Connections — подключите GitHub и/или GitLab с token, у которого есть scopes выше.',
   'howItWorks.panel.setup.item3':
     'Repositories — дождитесь discovery или нажмите Fetch, затем включите repos, которые хотите автоматизировать.',
@@ -148,7 +148,7 @@ export const ru: Messages = {
   'howItWorks.panel.pages.repositories':
     'Repositories — регистрация, вкл/выкл, статус клона, целевая ветка, опциональный force-push, провайдер и промпты для каждого репо.',
   'howItWorks.panel.pages.tasks': 'Tasks — живая forge queue и история runs для implement, review и связанных заданий.',
-  'howItWorks.panel.pages.providers': 'Providers — учётные данные Cursor / Claude / Codex, включение, health checks и default.',
+  'howItWorks.panel.pages.providers': 'Providers — учётные данные Cursor / Claude / Codex / Gemini, включение, health checks и default.',
   'howItWorks.panel.pages.prompts': 'Prompts — глобальные templates и snippets, которые использует worker.',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention и настройки UI.',
   'howItWorks.panel.pages.system': 'System — операционное состояние и статус платформы.',

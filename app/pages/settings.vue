@@ -46,6 +46,7 @@ async function save() {
             { label: 'Cursor', value: 'cursor' },
             { label: 'Claude Code', value: 'claude' },
             { label: 'Codex', value: 'codex' },
+            { label: 'Gemini', value: 'gemini' },
           ]"
         />
       </UFormField>

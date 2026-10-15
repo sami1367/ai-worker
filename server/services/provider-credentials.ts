@@ -16,6 +16,7 @@ export async function exportProviderCredentialsForWorker(): Promise<{
   cursor: boolean
   claude: boolean
   codex: boolean
+  gemini: boolean
 }> {
   const db = getDb()
   const rows = await db.select().from(providerConfigs)
@@ -25,10 +26,12 @@ export async function exportProviderCredentialsForWorker(): Promise<{
   let anthropicKey = process.env.ANTHROPIC_API_KEY || ''
   let claudeOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN || ''
   let openaiKey = process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY || ''
+  let geminiKey = process.env.GEMINI_API_KEY || ''
 
   const cursor = rows.find((r) => r.providerType === 'cursor')
   const claude = rows.find((r) => r.providerType === 'claude')
   const codex = rows.find((r) => r.providerType === 'codex')
+  const gemini = rows.find((r) => r.providerType === 'gemini')
 
   if (cursor?.secretCiphertext && key) {
     try {
@@ -63,6 +66,14 @@ export async function exportProviderCredentialsForWorker(): Promise<{
     }
   }
 
+  if (gemini?.secretCiphertext && key) {
+    try {
+      geminiKey = decryptSecret(gemini.secretCiphertext, key)
+    } catch {
+      // Keep env fallback
+    }
+  }
+
   const base = workerBaseDir()
   await mkdir(base, { recursive: true })
   const target = join(base, 'provider-credentials.env')
@@ -78,6 +89,7 @@ export async function exportProviderCredentialsForWorker(): Promise<{
     claudeOauth ? `export CLAUDE_CODE_OAUTH_TOKEN=${shellQuote(claudeOauth)}` : '# CLAUDE_CODE_OAUTH_TOKEN unset',
     openaiKey ? `export OPENAI_API_KEY=${shellQuote(openaiKey)}` : '# OPENAI_API_KEY unset',
     openaiKey ? `export CODEX_API_KEY=${shellQuote(openaiKey)}` : '# CODEX_API_KEY unset',
+    geminiKey ? `export GEMINI_API_KEY=${shellQuote(geminiKey)}` : '# GEMINI_API_KEY unset',
     '',
   ]
 
@@ -91,6 +103,7 @@ export async function exportProviderCredentialsForWorker(): Promise<{
     cursor: Boolean(cursorKey),
     claude: Boolean(anthropicKey || claudeOauth),
     codex: Boolean(openaiKey),
+    gemini: Boolean(geminiKey),
   }
 }
 

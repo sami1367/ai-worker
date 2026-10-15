@@ -170,6 +170,7 @@ async function save(p: any) {
 function credentialTypeForConnect(p: any, d: Draft): string {
   if (p.providerType === 'claude') return d.credentialType
   if (p.providerType === 'codex') return 'openai_api_key'
+  if (p.providerType === 'gemini') return 'gemini_api_key'
   return 'cursor_api_key'
 }
 
@@ -237,6 +238,9 @@ function secretHint(p: any): string {
   if (p.providerType === 'codex') {
     return 'OpenAI API key (OPENAI_API_KEY / CODEX_API_KEY) from platform.openai.com/api-keys'
   }
+  if (p.providerType === 'gemini') {
+    return 'Gemini API key (GEMINI_API_KEY) from aistudio.google.com/apikey'
+  }
   const d = draftFor(p.providerType)
   return d.credentialType === 'claude_oauth_token'
     ? 'Claude Code OAuth token (CLAUDE_CODE_OAUTH_TOKEN)'
@@ -246,6 +250,7 @@ function secretHint(p: any): string {
 function secretLabel(p: any): string {
   if (p.providerType === 'cursor') return 'Cursor API key'
   if (p.providerType === 'codex') return 'OpenAI API key'
+  if (p.providerType === 'gemini') return 'Gemini API key'
   return 'Secret'
 }
 </script>
@@ -257,11 +262,12 @@ function secretLabel(p: any): string {
       <p class="mt-1 text-sm opacity-70">
         Providers start disabled. Enable and connect the ones you want to use.
         After the first successful connect, exactly one provider stays the default — switch it anytime, or uncheck it when another connected provider can take over.
-        Cursor, Claude, and Codex CLIs are installed in the Docker image. Set
+        Cursor, Claude, Codex, and Gemini CLIs are installed in the Docker image. Set
         <code class="text-xs">CURSOR_API_KEY</code> /
         <code class="text-xs">ANTHROPIC_API_KEY</code> /
         <code class="text-xs">CLAUDE_CODE_OAUTH_TOKEN</code> /
-        <code class="text-xs">OPENAI_API_KEY</code>
+        <code class="text-xs">OPENAI_API_KEY</code> /
+        <code class="text-xs">GEMINI_API_KEY</code>
         in the compose <code class="text-xs">.env</code>, or paste secrets here (encrypted at rest, never shown again).
       </p>
     </div>
@@ -271,10 +277,10 @@ function secretLabel(p: any): string {
       :color="messageError ? 'error' : 'success'"
       variant="subtle"
     />
-    <div v-if="pending && !data" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <div v-for="i in 3" :key="i" class="aw-panel h-48 animate-pulse rounded-xl" />
+    <div v-if="pending && !data" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div v-for="i in 4" :key="i" class="aw-panel h-48 animate-pulse rounded-xl" />
     </div>
-    <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <div v-for="p in data?.items || []" :key="p.id" class="aw-panel space-y-3 rounded-xl p-4">
         <div class="flex items-start justify-between gap-2">
           <div>

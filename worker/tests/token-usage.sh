@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercises ai_extract_token_usage against Cursor / Claude / Codex stream-json samples.
+# Exercises ai_extract_token_usage against Cursor / Claude / Codex / Gemini samples.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,6 +12,7 @@ source "$ROOT/lib/ai.sh"
 CURSOR_LOG="$TMP/cursor.agent.ndjson"
 CLAUDE_LOG="$TMP/claude.agent.ndjson"
 CODEX_LOG="$TMP/codex.agent.ndjson"
+GEMINI_LOG="$TMP/gemini.agent.json"
 
 cat > "$CURSOR_LOG" <<'EOF'
 {"type":"system","subtype":"init"}
@@ -31,9 +32,14 @@ cat > "$CODEX_LOG" <<'EOF'
 {"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"cache_write_input_tokens":12,"output_tokens":122,"reasoning_output_tokens":0}}
 EOF
 
+cat > "$GEMINI_LOG" <<'EOF'
+{"response":"done","stats":{"models":{"gemini-2.5-pro":{"tokens":{"prompt":24939,"candidates":20,"total":25113,"cached":21263}},"gemini-2.5-flash":{"tokens":{"prompt":8965,"candidates":10,"total":9033,"cached":0}}}}}
+EOF
+
 cursor_usage="$(ai_extract_token_usage "$CURSOR_LOG")"
 claude_usage="$(ai_extract_token_usage "$CLAUDE_LOG")"
 codex_usage="$(ai_extract_token_usage "$CODEX_LOG")"
+gemini_usage="$(ai_extract_token_usage "$GEMINI_LOG")"
 
 echo "$cursor_usage" | jq -e '
   .inputTokens == 5749
@@ -58,6 +64,14 @@ echo "$codex_usage" | jq -e '
   and .cacheReadTokens == 24448
   and .cacheWriteTokens == 12
   and .totalTokens == 24885
+' >/dev/null
+
+echo "$gemini_usage" | jq -e '
+  .inputTokens == 33904
+  and .outputTokens == 30
+  and .cacheReadTokens == 21263
+  and .cacheWriteTokens == 0
+  and .totalTokens == 33934
 ' >/dev/null
 
 if ai_extract_token_usage "$TMP/missing.ndjson" 2>/dev/null; then

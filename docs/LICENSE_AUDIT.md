@@ -123,6 +123,16 @@ Components referenced by `Dockerfile` and `docker-compose.yml` (audit only; thos
 | Covered by AI Worker Apache-2.0? | **No** |
 | Publishing pre-baked public images | **Unresolved** — confirm OpenAI redistribution terms before relying on Hub distribution of a baked-in CLI. |
 
+### 3.4b Gemini CLI (`@google/gemini-cli`)
+
+| Item | Detail |
+|------|--------|
+| Install | `npm install -g @google/gemini-cli` in image build |
+| Nature | Open-source CLI (Apache-2.0 upstream); Gemini API usage subject to Google AI terms |
+| Governing terms | [gemini-cli LICENSE](https://github.com/google-gemini/gemini-cli) + Google AI / Gemini API terms |
+| Covered by AI Worker Apache-2.0? | CLI source is Apache-2.0 (compatible); API usage is not relicensed by this project |
+| Publishing pre-baked public images | Lower risk than proprietary CLIs for the binary itself; still confirm Google AI API terms for operators |
+
 ### 3.5 Operator credentials (AI CLIs)
 
 AI Worker is designed so forge/AI tokens are supplied by the operator (env / UI), not baked into the image. That aligns with vendor expectations that end users use their own accounts. It does **not** by itself resolve binary redistribution questions for published images.
@@ -138,7 +148,7 @@ AI Worker is designed so forge/AI tokens are supplied by the operator (env / UI)
 | NOTICE file | Not required | Supported / expected for attribution |
 | Compatibility with current npm graph | Yes | Yes |
 | Enterprise familiarity | High | High (often preferred in enterprise OSS reviews) |
-| Effect on Cursor / Claude / Codex redistribution | None | None |
+| Effect on Cursor / Claude / Codex / Gemini redistribution | None | None |
 
 Neither license can authorize redistribution of proprietary CLIs.
 
@@ -151,10 +161,11 @@ Do **not** treat these as approved without vendor confirmation or counsel:
 1. **Cursor Agent CLI in public Docker Hub images** — Is baking the CLI into `sami1367/ai-worker` and publishing for anonymous `docker pull` permitted under Cursor’s current Terms, or must end users install the CLI themselves (runtime install / local build)?
 2. **Claude Code in public Docker Hub images** — Does Anthropic’s “preinstall in products” guidance cover third-party public image redistribution, or is a separate agreement / runtime-only install required?
 3. **Codex CLI in public Docker Hub images** — Confirm whether baking `@openai/codex` into a public pullable image is permitted under OpenAI’s current terms.
-4. **Trademark / naming** — Confirm marketing language (“Cursor CLI”, “Claude Code”, “Codex”) stays within each vendor’s trademark guidelines (plain-text accurate description vs. endorsement implication).
-5. **`vaul-vue` SPDX metadata** — Confirm ongoing MIT status when upgrading; package.json still lacks a license field.
-6. **Full Debian / Alpine copyright aggregation** — For compliance-hardened commercial deliverables, generate a complete OS package copyright report from the built image (not done in this audit).
-7. **Export controls** — Cursor, Anthropic, and OpenAI terms reference export/trade controls; operators in restricted jurisdictions need their own compliance review.
+4. **Gemini CLI in public Docker Hub images** — CLI is Apache-2.0; confirm Google AI API terms still fit your redistribution / operator model.
+5. **Trademark / naming** — Confirm marketing language (“Cursor CLI”, “Claude Code”, “Codex”, “Gemini”) stays within each vendor’s trademark guidelines (plain-text accurate description vs. endorsement implication).
+6. **`vaul-vue` SPDX metadata** — Confirm ongoing MIT status when upgrading; package.json still lacks a license field.
+7. **Full Debian / Alpine copyright aggregation** — For compliance-hardened commercial deliverables, generate a complete OS package copyright report from the built image (not done in this audit).
+8. **Export controls** — Cursor, Anthropic, OpenAI, and Google terms may reference export/trade controls; operators in restricted jurisdictions need their own compliance review.
 
 ---
 

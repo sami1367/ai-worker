@@ -103,20 +103,20 @@ Update values in `.env` (or recreate with care), restart; the entrypoint rewrite
 
 ## AI agent ↔ forge isolation
 
-AI agents (Cursor CLI / Claude Code / Codex CLI) run in a **separate execution phase** from GitHub/GitLab publishing.
+AI agents (Cursor CLI / Claude Code / Codex CLI / Gemini CLI) run in a **separate execution phase** from GitHub/GitLab publishing.
 
 | Phase | Who | Capabilities |
 |-------|-----|--------------|
-| **AGENT** | Cursor / Claude / Codex under `ai_isolation_exec` | Read/modify the assigned workspace; run permitted tools; write task artifacts. **No** forge write tokens, **no** git credential helpers, **no** platform SSH keys, **no** `forge-credentials.env` / `app-secrets.env` / `.env`. |
+| **AGENT** | Cursor / Claude / Codex / Gemini under `ai_isolation_exec` | Read/modify the assigned workspace; run permitted tools; write task artifacts. **No** forge write tokens, **no** git credential helpers, **no** platform SSH keys, **no** `forge-credentials.env` / `app-secrets.env` / `.env`. |
 | **VALIDATE** | Trusted runner scripts | Inspect diffs, secret-file gates, no-change/review allowlists, forge-text validation. Does **not** execute agent-provided shell. |
 | **PUBLISH** | Trusted runner scripts | Commit, push, force-push (when configured), open PR/MR, post comments, update labels — using forge credentials held only by the orchestration process. |
 
 ### Technical controls
 
-- **Environment scrub** — agent child processes unset `GH_TOKEN` / `GITHUB_TOKEN` / `GITLAB_TOKEN`, `GIT_SSH_COMMAND`, `WORKER_INTERNAL_TOKEN`, DB/session/encryption secrets, etc. AI provider keys (`CURSOR_API_KEY`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`) remain so the CLIs can call their APIs.
+- **Environment scrub** — agent child processes unset `GH_TOKEN` / `GITHUB_TOKEN` / `GITLAB_TOKEN`, `GIT_SSH_COMMAND`, `WORKER_INTERNAL_TOKEN`, DB/session/encryption secrets, etc. AI provider keys (`CURSOR_API_KEY`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`, `GEMINI_API_KEY`) remain so the CLIs can call their APIs.
 - **Git auth disabled for the agent** — `GIT_CONFIG_*` overrides clear credential helpers; `GIT_TERMINAL_PROMPT=0` / `GIT_ASKPASS=/bin/false`.
 - **Bubblewrap filesystem overlays** (default when `bwrap` is installed) — mask credential files with empty binds; tmpfs over SSH / `gh` config dirs; workspaces root read-only except the assigned workspace (writable).
-- **Provider defense in depth** — Cursor `--sandbox enabled` by default; Claude review/answer tasks default to a Bash-free `--allowedTools` list; Codex defaults to `--sandbox workspace-write`. These are **not** the security boundary.
+- **Provider defense in depth** — Cursor `--sandbox enabled` by default; Claude review/answer tasks default to a Bash-free `--allowedTools` list; Codex defaults to `--sandbox workspace-write`; Gemini defaults to `--yolo` for headless edits. These are **not** the security boundary.
 - **Logs** — agent / validate / publish phases are logged separately; token values are never printed.
 
 ### Configuration
@@ -126,6 +126,8 @@ AI agents (Cursor CLI / Claude Code / Codex CLI) run in a **separate execution p
 | `AI_ISOLATION_MODE` | `auto` | `auto` (bwrap if present else env), `bwrap` (require bubblewrap), `env` (scrub only), `off` (insecure escape hatch) |
 | `AI_CURSOR_SANDBOX` | `enabled` | Passed to Cursor CLI `--sandbox` |
 | `AI_CODEX_SANDBOX` | `workspace-write` | Passed to Codex CLI `exec --sandbox` |
+| `AI_GEMINI_APPROVAL_MODE` | (unset → `--yolo`) | Gemini `--approval-mode` (`default` \| `auto_edit` \| `yolo`); when unset, `--yolo` is used |
+| `AI_GEMINI_MODEL` | (unset) | Optional Gemini `--model` override |
 | `AI_CLAUDE_ALLOWED_TOOLS` | (unset) | Optional override; review tasks default to `Read,Glob,Grep,Write,Edit` |
 | `AI_CLAUDE_REVIEW_ALLOWED_TOOLS` | see above | Override review/answer tool allowlist |
 

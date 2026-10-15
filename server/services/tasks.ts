@@ -443,7 +443,7 @@ export async function providerUsageStats(windowHours = 24): Promise<ProviderUsag
     row.successRate = decided > 0 ? Math.round((row.succeeded / decided) * 1000) / 10 : null
   }
 
-  const preferred = ['cursor', 'claude', 'codex', 'unassigned']
+  const preferred = ['cursor', 'claude', 'codex', 'gemini', 'unassigned']
   return [...map.values()].sort((a, b) => {
     const ai = preferred.indexOf(a.provider)
     const bi = preferred.indexOf(b.provider)

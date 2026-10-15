@@ -172,7 +172,7 @@ Verified with per-connection secrets (GitHub HMAC / GitLab token). On `ai` or `a
 
 1. Tokens encrypted in PostgreSQL with `SECRET_ENCRYPTION_KEY` (AES-256-GCM).
 2. On forge connect/disconnect/refresh, web writes `/data/config/forge-credentials.env` (0600).
-3. On AI provider connect/disconnect (Providers UI) — or from compose `.env` `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` / `OPENAI_API_KEY` / `CODEX_API_KEY` — web writes `/data/config/provider-credentials.env` (0600). DB-stored secrets override env when both are set.
+3. On AI provider connect/disconnect (Providers UI) — or from compose `.env` `CURSOR_API_KEY` / `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` / `OPENAI_API_KEY` / `CODEX_API_KEY` / `GEMINI_API_KEY` — web writes `/data/config/provider-credentials.env` (0600). DB-stored secrets override env when both are set.
 4. `scripts/worker-entrypoint.sh` sources that file before `platform-wrapper.sh`.
 5. Project conf JSON never contains tokens.
 6. **AI agent phase** runs under `lib/ai-isolation.sh`: forge tokens, app secrets, git credential helpers, and SSH keys are withheld from the agent; only the trusted runner (validate/publish) uses forge credentials afterward. See `docs/SECURITY.md`.

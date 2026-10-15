@@ -22,7 +22,7 @@ export const en = {
 
   'setup.nav.needsAttention': 'Needs attention',
   'setup.warn.provider.title': 'Connect an AI provider',
-  'setup.warn.provider.description': 'Enable and connect at least one AI provider (Cursor, Claude, or Codex) before tasks can run.',
+  'setup.warn.provider.description': 'Enable and connect at least one AI provider (Cursor, Claude, Codex, or Gemini) before tasks can run.',
   'setup.warn.provider.action': 'Open providers',
   'setup.warn.connection.title': 'Connect GitHub or GitLab',
   'setup.warn.connection.description': 'Add at least one working forge connection, then register a repository.',
@@ -141,7 +141,7 @@ export const en = {
   'howItWorks.panel.intro':
     'Use the panel to connect forges and AI providers, enable repositories, tune prompts and settings, and monitor tasks. Everyday coding work still happens with labels in GitHub or GitLab.',
   'howItWorks.panel.setup.heading': 'Recommended setup order',
-  'howItWorks.panel.setup.item1': 'Providers — connect Cursor, Claude, and/or Codex, enable at least one, and set a default.',
+  'howItWorks.panel.setup.item1': 'Providers — connect Cursor, Claude, Codex, and/or Gemini, enable at least one, and set a default.',
   'howItWorks.panel.setup.item2': 'Connections — connect GitHub and/or GitLab with a token that has the scopes above.',
   'howItWorks.panel.setup.item3': 'Repositories — wait for discovery or click Fetch, then enable the repos you want automated.',
   'howItWorks.panel.setup.item4': 'Optional — Setup labels and Setup webhooks for faster wake-ups when APP_BASE_URL is reachable.',
@@ -152,7 +152,7 @@ export const en = {
   'howItWorks.panel.pages.repositories':
     'Repositories — register, enable/disable, clone status, target branch, optional force-push, per-repo provider and prompts.',
   'howItWorks.panel.pages.tasks': 'Tasks — live forge queue and run history for implement, review, and related jobs.',
-  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex credentials, enablement, health checks, and default.',
+  'howItWorks.panel.pages.providers': 'Providers — Cursor / Claude / Codex / Gemini credentials, enablement, health checks, and default.',
   'howItWorks.panel.pages.prompts': 'Prompts — global templates and snippets used by the worker.',
   'howItWorks.panel.pages.settings': 'Settings — poll interval, concurrency, defaults, retention, and UI preferences.',
   'howItWorks.panel.pages.system': 'System — operational health and platform status.',

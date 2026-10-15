@@ -31,6 +31,7 @@ export async function exportWorkerRuntimeEnv(): Promise<{
     defaultProvider?.providerType === 'cursor'
     || defaultProvider?.providerType === 'claude'
     || defaultProvider?.providerType === 'codex'
+    || defaultProvider?.providerType === 'gemini'
   )
     ? defaultProvider.providerType
     : settings.defaultAiProvider
