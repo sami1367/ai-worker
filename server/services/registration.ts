@@ -243,10 +243,12 @@ export async function registerDiscoveredRepositories(
 export async function autoRegisterDiscoveredForConnection(
   connectionId: string,
   actor?: Actor,
+  opts?: { enable?: boolean },
 ) {
   const db = getDb()
   const settings = await getSettings()
   const systemActor: Actor = actor || { id: null, username: 'system' }
+  const enable = opts?.enable !== false
 
   const discovered = await db.select({ id: discoveredRepositories.id })
     .from(discoveredRepositories)
@@ -260,7 +262,7 @@ export async function autoRegisterDiscoveredForConnection(
 
   for (const disc of discovered) {
     const result = await registerOneDiscovered(disc.id, {
-      enable: true,
+      enable,
       clone: false,
       actor: systemActor,
       settings,

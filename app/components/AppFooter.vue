@@ -1,6 +1,5 @@
 <script setup lang="ts">
-const { $i18n } = useNuxtApp()
-const t = (key: string) => $i18n?.t?.(key) ?? key
+const { t } = useI18n()
 
 const contact = CONTACT_LINKS.find((l) => l.id === 'email')
 </script>
@@ -15,7 +14,13 @@ const contact = CONTACT_LINKS.find((l) => l.id === 'email')
         <span class="font-medium opacity-90">{{ SITE.name }}</span>
         · © {{ SITE.copyrightYear }} {{ SITE.copyrightHolder }}
       </p>
-      <nav class="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Footer">
+      <nav class="flex flex-wrap items-center gap-x-4 gap-y-1" :aria-label="t('layout.footerNav')">
+        <NuxtLink
+          to="/how-it-works"
+          class="underline-offset-2 hover:underline hover:opacity-100"
+        >
+          {{ t('footer.howItWorks') }}
+        </NuxtLink>
         <NuxtLink
           to="/about"
           class="underline-offset-2 hover:underline hover:opacity-100"

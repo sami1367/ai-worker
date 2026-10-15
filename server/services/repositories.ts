@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, notInArray, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { repositories, taskRuns } from '#db/schema'
 import { AppError } from '#utils/errors'
@@ -8,6 +8,14 @@ import { ensureRepositoryLabels } from './ai-labels'
 import { writeAudit } from './audit'
 import { exportWorkerConfig } from './config-sync'
 import { getSettings } from './settings'
+
+export const bulkSetEnabledSchema = z.object({
+  enabled: z.boolean(),
+  connectionId: z.string().uuid().optional(),
+  forgeType: z.enum(['github', 'gitlab']).optional(),
+  q: z.string().max(256).optional(),
+  workspaceStatus: z.string().max(64).optional(),
+})
 
 export const repositorySettingsSchema = z.object({
   /** Optional instructions appended to every AI prompt for this repository. Default empty. */
@@ -230,6 +238,78 @@ export async function updateRepository(
   })
   await exportWorkerConfig(actor)
   return publicRepo(row)
+}
+
+export async function setRepositoriesEnabledBulk(
+  input: z.infer<typeof bulkSetEnabledSchema>,
+  actor: { id: string, username: string },
+  ipHash?: string,
+) {
+  const parsed = bulkSetEnabledSchema.parse(input)
+  const db = getDb()
+
+  const conditions = [
+    eq(repositories.isArchived, false),
+    eq(repositories.isEnabled, !parsed.enabled),
+  ]
+  if (parsed.connectionId) conditions.push(eq(repositories.connectionId, parsed.connectionId))
+  if (parsed.forgeType) conditions.push(eq(repositories.forgeType, parsed.forgeType))
+  if (parsed.workspaceStatus) {
+    conditions.push(eq(
+      repositories.workspaceStatus,
+      parsed.workspaceStatus as typeof repositories.$inferSelect.workspaceStatus,
+    ))
+  }
+  if (parsed.q) {
+    conditions.push(or(
+      ilike(repositories.name, `%${parsed.q}%`),
+      ilike(repositories.remoteUrl, `%${parsed.q}%`),
+      ilike(repositories.canonicalProjectIdentifier, `%${parsed.q}%`),
+    )!)
+  }
+  // Do not enable hard-failed workspaces in bulk (same gate as single enable).
+  if (parsed.enabled) {
+    conditions.push(notInArray(repositories.workspaceStatus, ['failed', 'inaccessible']))
+  }
+
+  const updated = await db.update(repositories).set({
+    isEnabled: parsed.enabled,
+    updatedAt: new Date(),
+  }).where(and(...conditions)).returning({ id: repositories.id })
+
+  if (parsed.enabled && updated.length) {
+    // Best-effort labels so polling can start; do not fail the bulk op.
+    for (const row of updated.slice(0, 50)) {
+      try {
+        await ensureRepositoryLabels(row.id, { strict: false })
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  await writeAudit({
+    actorUserId: actor.id,
+    actorUsername: actor.username,
+    action: parsed.enabled ? 'repository.bulk_enable' : 'repository.bulk_disable',
+    targetType: 'repository',
+    targetId: parsed.connectionId || 'all',
+    metadata: {
+      enabled: parsed.enabled,
+      updated: updated.length,
+      connectionId: parsed.connectionId,
+      forgeType: parsed.forgeType,
+      q: parsed.q,
+      workspaceStatus: parsed.workspaceStatus,
+    },
+    ipHash,
+  })
+
+  if (updated.length) {
+    await exportWorkerConfig(actor)
+  }
+
+  return { updated: updated.length, enabled: parsed.enabled }
 }
 
 export async function setRepositoryEnabled(

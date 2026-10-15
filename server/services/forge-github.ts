@@ -416,8 +416,13 @@ export async function listGitHubAiIssues(
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
+function isAiIssueBranchName(branch: string | null | undefined): boolean {
+  return Boolean(branch && /^ai\/issue-\d+(-|$)/.test(branch))
+}
+
 /**
- * Open PRs carrying any AI implement or review workflow label.
+ * Open PRs carrying any AI implement or review workflow label, or whose head
+ * branch is ai/issue-* (safety net when ai-pr was not applied).
  * Uses the pulls list API (core rate limit) instead of Search (30 req/min),
  * so polling many repositories does not look like a permissions failure.
  */
@@ -444,7 +449,8 @@ export async function listGitHubAiPullRequests(
     if (!batch.length) break
     for (const pr of batch) {
       const labels = labelNames(pr.labels)
-      if (!hasAnyLabel(labels, PR_AI_LABELS)) continue
+      const sourceBranch = pr.head?.ref || null
+      if (!hasAnyLabel(labels, PR_AI_LABELS) && !isAiIssueBranchName(sourceBranch)) continue
       const id = String(pr.number)
       byId.set(id, {
         externalId: id,
@@ -453,7 +459,7 @@ export async function listGitHubAiPullRequests(
         labels,
         createdAt: String(pr.created_at || new Date(0).toISOString()),
         kind: 'pull_request',
-        sourceBranch: pr.head?.ref || null,
+        sourceBranch,
       })
     }
     if (batch.length < 100) break

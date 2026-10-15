@@ -41,6 +41,8 @@ source "$WORKER_CODE_DIR/lib/common.sh"
 source "$WORKER_CODE_DIR/lib/gitlab.sh"
 # shellcheck source=lib/labels.sh
 source "$WORKER_CODE_DIR/lib/labels.sh"
+# shellcheck source=lib/ai.sh
+source "$WORKER_CODE_DIR/lib/ai.sh"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 ai_load_env "$BASE_DIR/.env"
@@ -104,8 +106,9 @@ echo "============================================================"
 #   - an agent running, or
 #   - an open issue labeled ai-working, or
 #   - an open PR/MR labeled ai / ai-working / ai-failed / ai-pr
-#     (unless the project sets "block_on_open_pr": false)
-# Human open PRs/MRs without those labels do not block.
+#     (or head/source branch ai/issue-*), unless the project sets
+#     "block_on_open_pr": false
+# Human open PRs/MRs without those labels / AI branches do not block.
 # Updating or reviewing an existing PR/MR is still allowed when
 # that repository's agent is idle.
 # ============================================================
@@ -220,21 +223,79 @@ agent_meta_from_job() {
         } + (if $branch != "" then {branch: $branch} else {} end)'
 }
 
+# Find newest result / agent log artifacts for a finished task.
+# Usage: latest_task_artifact <project> <external_id> <suffix>
+# suffix examples: result.txt | agent.ndjson | log
+latest_task_artifact() {
+    local project_name="$1"
+    local external_id="$2"
+    local suffix="$3"
+    local match=""
+
+    [[ -n "$project_name" && -n "$external_id" && -n "$suffix" ]] || return 1
+    shopt -s nullglob
+    # Newest first by mtime; names include a sortable timestamp prefix segment.
+    # shellcheck disable=SC2086
+    match="$(ls -t "$LOG_DIR"/${project_name}-*-${external_id}-*.${suffix} 2>/dev/null | head -n 1 || true)"
+    shopt -u nullglob
+    [[ -n "$match" ]] || return 1
+    printf '%s\n' "$match"
+}
+
 report_task_run_from_meta() {
     local meta="$1"
     local status="$2"
     local exit_code="${3:-}"
     local payload
+    local project_name="" external_id="" branch=""
+    local agent_log="" main_log="" result_file="" usage_json="{}" log_path=""
 
     [[ -n "$meta" ]] || return 0
+
+    project_name="$(jq -r '.repositoryName // empty' <<<"$meta" 2>/dev/null || true)"
+    external_id="$(jq -r '.externalId // empty' <<<"$meta" 2>/dev/null || true)"
+    branch="$(jq -r '.branch // empty' <<<"$meta" 2>/dev/null || true)"
+
+    # On terminal status, attach log path + token usage from the agent NDJSON log.
+    if [[ "$status" != "running" && "$status" != "starting" && "$status" != "queued" ]]; then
+        result_file="$(latest_task_artifact "$project_name" "$external_id" "result.txt" 2>/dev/null || true)"
+        if [[ -n "$result_file" && -f "$result_file" ]]; then
+            agent_log="$(awk -F= '/^agent_log=/{print substr($0, index($0,$2)); exit}' "$result_file" 2>/dev/null || true)"
+            main_log="$(awk -F= '/^main_log=/{print substr($0, index($0,$2)); exit}' "$result_file" 2>/dev/null || true)"
+            if [[ -z "$branch" ]]; then
+                branch="$(awk -F= '/^branch=/{print substr($0, index($0,$2)); exit}' "$result_file" 2>/dev/null || true)"
+            fi
+        fi
+        if [[ -z "$agent_log" || ! -f "$agent_log" ]]; then
+            agent_log="$(latest_task_artifact "$project_name" "$external_id" "agent.ndjson" 2>/dev/null || true)"
+        fi
+        if [[ -z "$main_log" || ! -f "$main_log" ]]; then
+            main_log="$(latest_task_artifact "$project_name" "$external_id" "log" 2>/dev/null || true)"
+        fi
+        if [[ -n "$agent_log" && -f "$agent_log" ]]; then
+            usage_json="$(ai_extract_token_usage "$agent_log" 2>/dev/null || true)"
+            [[ -n "$usage_json" ]] || usage_json="{}"
+        fi
+        if [[ -n "$main_log" && -f "$main_log" ]]; then
+            log_path="$main_log"
+        fi
+    fi
 
     payload="$(jq -nc \
         --argjson meta "$meta" \
         --arg status "$status" \
         --arg exitCode "$exit_code" \
         --arg finishedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        --arg provider "${AI_PROVIDER:-}" \
+        --arg branch "$branch" \
+        --argjson usage "$usage_json" \
+        --arg logPath "$log_path" \
         '
         ($meta.taskType // "") as $tt
+        | (
+            (if $branch != "" then {branch: $branch} else {} end)
+            + (if ($usage | type) == "object" and ($usage | length) > 0 then {usage: $usage} else {} end)
+          ) as $resultMetadata
         | {
             repositoryName: ($meta.repositoryName // null),
             forgeType: (if ($tt | startswith("gitlab_")) then "gitlab" else "github" end),
@@ -243,11 +304,13 @@ report_task_run_from_meta() {
             status: $status,
             startedAt: ($meta.startedAt // null),
             correlationId: ($meta.correlationId // null),
-            resultMetadata: (if ($meta.branch // "") != "" then {branch: $meta.branch} else {} end)
+            resultMetadata: $resultMetadata
           }
         + (if $status == "running" or $status == "starting" then {} else {finishedAt: $finishedAt} end)
         + (if $exitCode == "" then {} else {exitCode: ($exitCode | tonumber)} end)
         + (if ($meta.title // "") != "" then {title: $meta.title} else {} end)
+        + (if $provider != "" then {provider: $provider} else {} end)
+        + (if $logPath != "" then {logPath: $logPath} else {} end)
         ' 2>/dev/null || true)"
 
     if [[ -n "$payload" ]]; then
@@ -604,76 +667,6 @@ github_find_open_issue_with_label() {
         2>/dev/null || true
 }
 
-# Label open PRs whose head is ai/issue-N or ai/issue-N-* with ai-pr.
-# Usage: github_label_open_issue_prs_ai_pr <repo> <issue_number>
-github_label_open_issue_prs_ai_pr() {
-    local repo="$1"
-    local issue_number="$2"
-    local prefix="ai/issue-${issue_number}"
-    local pr_num
-
-    while IFS= read -r pr_num; do
-        [[ -n "$pr_num" ]] || continue
-        echo "Adding ai-pr label to pull request #$pr_num"
-        gh pr edit "$pr_num" \
-            --repo "$repo" \
-            --add-label "ai-pr" \
-            >/dev/null 2>&1 || echo "WARNING: Could not add ai-pr to PR #$pr_num"
-    done < <(
-        gh pr list \
-            --repo "$repo" \
-            --state open \
-            --limit 50 \
-            --json number,headRefName \
-            2>/dev/null \
-            | jq -r --arg p "$prefix" '
-                .[]
-                | select(
-                    .headRefName == $p
-                    or (.headRefName | startswith($p + "-"))
-                  )
-                | .number
-              ' || true
-    )
-}
-
-# AI implement-workflow labels on an open PR that should block starting a new
-# `ai` issue (human PRs without these labels do not block).
-GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
-
-# Print a short description of the oldest open PR carrying an AI implement
-# label, or empty. Example: "#12 (ai/issue-3, ai-pr)"
-github_find_open_pr() {
-    local repo="$1"
-    local label row created desc best_created="" best_desc=""
-
-    for label in "${GITHUB_AI_IN_FLIGHT_PR_LABELS[@]}"; do
-        row="$(
-            gh pr list \
-                --repo "$repo" \
-                --state open \
-                --label "$label" \
-                --limit 1 \
-                --json number,headRefName,createdAt \
-                --jq \
-                ".[0] | if . then \"\(.createdAt)\t#\(.number) (\(.headRefName // \\\"unknown\\\"), ${label})\" else empty end" \
-                2>/dev/null || true
-        )"
-        [[ -n "$row" ]] || continue
-
-        created="${row%%$'\t'*}"
-        desc="${row#*$'\t'}"
-        [[ -n "$created" && -n "$desc" ]] || continue
-
-        if [[ -z "$best_created" || "$created" < "$best_created" ]]; then
-            best_created="$created"
-            best_desc="$desc"
-        fi
-    done
-
-    printf '%s' "$best_desc"
-}
-
 # Print a reason if this GitHub project already has in-flight issue work.
 # When block_on_open_pr is 0, AI-labeled open PRs are ignored (ai-working still blocks).
 github_in_flight_issue_reason() {
@@ -842,11 +835,17 @@ github_issue_job() {
         else
             echo "Changing labels: ai-working -> ai-pr (issue + open PR)"
 
-            gh issue edit "$ISSUE_NUMBER" \
+            if ! gh issue edit "$ISSUE_NUMBER" \
                 --repo "$REPO" \
                 --add-label "ai-pr" \
-                --remove-label "ai-working" \
-                >/dev/null 2>&1 || true
+                --remove-label "ai-working"; then
+                echo "WARNING: Could not change issue #$ISSUE_NUMBER labels ai-working -> ai-pr"
+                # Best-effort split so a missing remove does not block add.
+                gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai-pr" \
+                    || echo "WARNING: Could not add ai-pr to issue #$ISSUE_NUMBER"
+                gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai-working" \
+                    || true
+            fi
 
             gh issue edit "$ISSUE_NUMBER" \
                 --repo "$REPO" \
@@ -992,10 +991,15 @@ gitlab_issue_job() {
         else
             echo "Changing labels: ai-working -> ai-pr (issue + open MR)"
 
-            gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
+            if ! gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
                 --add "ai-pr" \
-                --remove "ai-working" \
-                >/dev/null 2>&1 || true
+                --remove "ai-working"; then
+                echo "WARNING: Could not change issue #$ISSUE_NUMBER labels ai-working -> ai-pr"
+                gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" --add "ai-pr" \
+                    || echo "WARNING: Could not add ai-pr to issue #$ISSUE_NUMBER"
+                gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" --remove "ai-working" \
+                    || true
+            fi
 
             gitlab_edit_issue_labels "$REPO_PATH" "$ISSUE_NUMBER" \
                 --remove "ai-failed" \
@@ -1098,11 +1102,14 @@ github_pr_implement_job() {
         echo "Time:          $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "============================================================"
 
-        gh pr edit "$PR_NUMBER" \
+        if ! gh pr edit "$PR_NUMBER" \
             --repo "$REPO" \
             --add-label "ai-pr" \
-            --remove-label "ai-working" \
-            >/dev/null 2>&1 || true
+            --remove-label "ai-working"; then
+            echo "WARNING: Could not change PR #$PR_NUMBER labels ai-working -> ai-pr"
+            github_ensure_pr_has_ai_pr_label "$REPO" "$PR_NUMBER" || true
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "ai-working" || true
+        fi
 
         gh pr edit "$PR_NUMBER" \
             --repo "$REPO" \
@@ -1530,16 +1537,8 @@ process_github_pr_implement() {
         return 0
     fi
 
-    PR_NUMBER="$(
-        gh pr list \
-            --repo "$REPO" \
-            --label "ai" \
-            --state open \
-            --limit 100 \
-            --json number,createdAt \
-            --jq 'sort_by(.createdAt) | .[0].number // empty' \
-            2>/dev/null || true
-    )"
+    # Avoid `gh pr list --label` (GitHub Search API); filter labels client-side.
+    PR_NUMBER="$(github_find_open_pr_with_label "$REPO" "ai")"
 
     if [[ -z "$PR_NUMBER" ]]; then
         return 0
@@ -1576,16 +1575,8 @@ process_github_pr_review() {
         return 0
     fi
 
-    PR_NUMBER="$(
-        gh pr list \
-            --repo "$REPO" \
-            --label "ai-review" \
-            --state open \
-            --limit 100 \
-            --json number,createdAt \
-            --jq 'sort_by(.createdAt) | .[0].number // empty' \
-            2>/dev/null || true
-    )"
+    # Avoid `gh pr list --label` (GitHub Search API); filter labels client-side.
+    PR_NUMBER="$(github_find_open_pr_with_label "$REPO" "ai-review")"
 
     if [[ -z "$PR_NUMBER" ]]; then
         return 0

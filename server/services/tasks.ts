@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm'
+import { and, avg, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from 'drizzle-orm'
 import { createReadStream } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
@@ -288,6 +288,26 @@ export async function upsertTaskRunFromWorker(input: {
   return row
 }
 
+export type ProviderUsageStats = {
+  provider: string
+  runs: number
+  succeeded: number
+  failed: number
+  running: number
+  cancelled: number
+  interrupted: number
+  other: number
+  successRate: number | null
+  avgDurationMs: number | null
+  totalDurationMs: number
+  byTaskType: Array<{
+    taskType: string
+    runs: number
+    succeeded: number
+    failed: number
+  }>
+}
+
 export async function taskMetrics(windowHours = 24) {
   const db = getDb()
   const since = new Date(Date.now() - windowHours * 3600 * 1000)
@@ -301,6 +321,16 @@ export async function taskMetrics(windowHours = 24) {
     eq(taskRuns.status, 'failed'),
     gte(taskRuns.finishedAt, since),
   ))
+  const [avgAll] = await db.select({
+    avgDurationMs: avg(taskRuns.durationMs),
+    totalDurationMs: sum(taskRuns.durationMs),
+    finished: count(),
+  }).from(taskRuns).where(and(
+    gte(taskRuns.finishedAt, since),
+    inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
+  ))
+
+  const byProvider = await providerUsageStats(windowHours)
 
   return {
     windowHours,
@@ -308,5 +338,210 @@ export async function taskMetrics(windowHours = 24) {
     queued: queued?.c ?? 0,
     succeeded: succeeded?.c ?? 0,
     failed: failed?.c ?? 0,
+    avgDurationMs: avgAll?.avgDurationMs != null ? Math.round(Number(avgAll.avgDurationMs)) : null,
+    totalDurationMs: avgAll?.totalDurationMs != null ? Number(avgAll.totalDurationMs) : 0,
+    byProvider,
   }
+}
+
+/** Aggregate task_runs usage for each AI provider inside the time window. */
+export async function providerUsageStats(windowHours = 24): Promise<ProviderUsageStats[]> {
+  const db = getDb()
+  const since = new Date(Date.now() - windowHours * 3600 * 1000)
+
+  const statusRows = await db.select({
+    provider: sql<string>`coalesce(${taskRuns.provider}, 'unassigned')`.as('provider'),
+    status: taskRuns.status,
+    c: count(),
+  }).from(taskRuns)
+    .where(gte(taskRuns.createdAt, since))
+    .groupBy(sql`coalesce(${taskRuns.provider}, 'unassigned')`, taskRuns.status)
+
+  const durationRows = await db.select({
+    provider: sql<string>`coalesce(${taskRuns.provider}, 'unassigned')`.as('provider'),
+    avgDurationMs: avg(taskRuns.durationMs),
+    totalDurationMs: sum(taskRuns.durationMs),
+  }).from(taskRuns)
+    .where(and(
+      gte(taskRuns.createdAt, since),
+      inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
+    ))
+    .groupBy(sql`coalesce(${taskRuns.provider}, 'unassigned')`)
+
+  const typeRows = await db.select({
+    provider: sql<string>`coalesce(${taskRuns.provider}, 'unassigned')`.as('provider'),
+    taskType: taskRuns.taskType,
+    status: taskRuns.status,
+    c: count(),
+  }).from(taskRuns)
+    .where(gte(taskRuns.createdAt, since))
+    .groupBy(sql`coalesce(${taskRuns.provider}, 'unassigned')`, taskRuns.taskType, taskRuns.status)
+
+  const map = new Map<string, ProviderUsageStats>()
+
+  function ensure(provider: string): ProviderUsageStats {
+    let row = map.get(provider)
+    if (!row) {
+      row = {
+        provider,
+        runs: 0,
+        succeeded: 0,
+        failed: 0,
+        running: 0,
+        cancelled: 0,
+        interrupted: 0,
+        other: 0,
+        successRate: null,
+        avgDurationMs: null,
+        totalDurationMs: 0,
+        byTaskType: [],
+      }
+      map.set(provider, row)
+    }
+    return row
+  }
+
+  for (const r of statusRows) {
+    const row = ensure(r.provider)
+    const n = Number(r.c) || 0
+    row.runs += n
+    if (r.status === 'succeeded') row.succeeded += n
+    else if (r.status === 'failed') row.failed += n
+    else if (r.status === 'running' || r.status === 'starting') row.running += n
+    else if (r.status === 'cancelled') row.cancelled += n
+    else if (r.status === 'interrupted') row.interrupted += n
+    else row.other += n
+  }
+
+  for (const r of durationRows) {
+    const row = ensure(r.provider)
+    row.avgDurationMs = r.avgDurationMs != null ? Math.round(Number(r.avgDurationMs)) : null
+    row.totalDurationMs = r.totalDurationMs != null ? Number(r.totalDurationMs) : 0
+  }
+
+  const typeMap = new Map<string, Map<string, { runs: number, succeeded: number, failed: number }>>()
+  for (const r of typeRows) {
+    const byType = typeMap.get(r.provider) || new Map()
+    const cur = byType.get(r.taskType) || { runs: 0, succeeded: 0, failed: 0 }
+    const n = Number(r.c) || 0
+    cur.runs += n
+    if (r.status === 'succeeded') cur.succeeded += n
+    if (r.status === 'failed') cur.failed += n
+    byType.set(r.taskType, cur)
+    typeMap.set(r.provider, byType)
+  }
+
+  for (const [provider, byType] of typeMap) {
+    const row = ensure(provider)
+    row.byTaskType = [...byType.entries()]
+      .map(([taskType, v]) => ({ taskType, ...v }))
+      .sort((a, b) => b.runs - a.runs)
+  }
+
+  for (const row of map.values()) {
+    const decided = row.succeeded + row.failed
+    row.successRate = decided > 0 ? Math.round((row.succeeded / decided) * 1000) / 10 : null
+  }
+
+  const preferred = ['cursor', 'claude', 'unassigned']
+  return [...map.values()].sort((a, b) => {
+    const ai = preferred.indexOf(a.provider)
+    const bi = preferred.indexOf(b.provider)
+    if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+    return b.runs - a.runs
+  })
+}
+
+export type TaskTokenUsage = {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalTokens: number
+  totalCostUsd: number | null
+}
+
+function asNonNegInt(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.floor(n)
+}
+
+/** Normalize Cursor (camelCase) / Claude (snake_case) usage stored on result_metadata. */
+export function extractTaskTokenUsage(resultMetadata: unknown): TaskTokenUsage | null {
+  if (!resultMetadata || typeof resultMetadata !== 'object') return null
+  const root = resultMetadata as Record<string, unknown>
+  const usage = (root.usage && typeof root.usage === 'object')
+    ? root.usage as Record<string, unknown>
+    : root
+  const inputTokens = asNonNegInt(usage.inputTokens ?? usage.input_tokens)
+  const outputTokens = asNonNegInt(usage.outputTokens ?? usage.output_tokens)
+  const cacheReadTokens = asNonNegInt(
+    usage.cacheReadTokens ?? usage.cache_read_input_tokens ?? usage.cache_read_tokens,
+  )
+  const cacheWriteTokens = asNonNegInt(
+    usage.cacheWriteTokens ?? usage.cache_creation_input_tokens ?? usage.cache_write_tokens,
+  )
+  const totalTokens = asNonNegInt(usage.totalTokens ?? usage.total_tokens)
+    || (inputTokens + outputTokens)
+  const costRaw = usage.totalCostUsd ?? usage.total_cost_usd
+  const totalCostUsd = typeof costRaw === 'number' && Number.isFinite(costRaw) ? costRaw : null
+
+  if (inputTokens === 0 && outputTokens === 0 && cacheReadTokens === 0 && cacheWriteTokens === 0 && totalTokens === 0) {
+    return null
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalTokens,
+    totalCostUsd,
+  }
+}
+
+/** Finished task runs for dashboards (status + token usage). */
+export async function listFinishedTaskRuns(opts: {
+  windowHours?: number
+  limit?: number
+} = {}) {
+  const db = getDb()
+  const windowHours = Math.min(168, Math.max(1, opts.windowHours ?? 24))
+  const limit = Math.min(100, Math.max(1, opts.limit ?? 50))
+  const since = new Date(Date.now() - windowHours * 3600 * 1000)
+
+  const rows = await db.select({
+    run: taskRuns,
+    repositoryName: repositories.name,
+  }).from(taskRuns)
+    .leftJoin(repositories, eq(taskRuns.repositoryId, repositories.id))
+    .where(and(
+      inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
+      gte(taskRuns.finishedAt, since),
+    ))
+    .orderBy(desc(taskRuns.finishedAt))
+    .limit(limit)
+
+  return rows.map(({ run, repositoryName }) => {
+    const usage = extractTaskTokenUsage(run.resultMetadata)
+    return {
+      id: run.id,
+      title: run.title,
+      externalId: run.externalId,
+      externalUrl: run.externalUrl,
+      taskType: run.taskType,
+      forgeType: run.forgeType,
+      provider: run.provider,
+      status: run.status,
+      repositoryName,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      durationMs: run.durationMs,
+      exitCode: run.exitCode,
+      errorSummary: run.errorSummary,
+      branch: typeof run.resultMetadata?.branch === 'string' ? run.resultMetadata.branch : null,
+      usage,
+    }
+  })
 }

@@ -280,23 +280,31 @@ function computeNextTask(
 
 const IMPLEMENT_IN_FLIGHT_PR_LABELS = new Set(['ai', 'ai-working', 'ai-failed', 'ai-pr'])
 
+/** AI issue branch naming: ai/issue-N or ai/issue-N-* (label-apply failure safety net). */
+function isAiIssueBranch(branch: string | null | undefined): boolean {
+  return Boolean(branch && /^ai\/issue-\d+(-|$)/.test(branch))
+}
+
 function formatPrMrRef(item: QueueItem): string {
   const ref = item.kind === 'merge_request' ? `!${item.externalId}` : `#${item.externalId}`
   const branch = item.sourceBranch || null
   const inFlightLabel = lowerLabels(item.labels).find((l) => IMPLEMENT_IN_FLIGHT_PR_LABELS.has(l))
+    || (isAiIssueBranch(branch) ? 'ai-branch' : undefined)
   if (branch && inFlightLabel) return `${ref} (${branch}, ${inFlightLabel})`
   if (branch) return `${ref} (${branch})`
   if (inFlightLabel) return `${ref} (${inFlightLabel})`
   return ref
 }
 
+function isBlockingOpenPrMr(item: QueueItem): boolean {
+  if (!(item.kind === 'pull_request' || item.kind === 'merge_request')) return false
+  if (lowerLabels(item.labels).some((l) => IMPLEMENT_IN_FLIGHT_PR_LABELS.has(l))) return true
+  return isAiIssueBranch(item.sourceBranch)
+}
+
 function findBlockingOpenPrMr(items: QueueItem[], repositoryId: string): QueueItem | null {
   const blockers = items
-    .filter((i) =>
-      i.repositoryId === repositoryId
-      && (i.kind === 'pull_request' || i.kind === 'merge_request')
-      && lowerLabels(i.labels).some((l) => IMPLEMENT_IN_FLIGHT_PR_LABELS.has(l)),
-    )
+    .filter((i) => i.repositoryId === repositoryId && isBlockingOpenPrMr(i))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   return blockers[0] ?? null
 }
@@ -371,10 +379,7 @@ function computeStatusReason(
 
   const repoBlock = repoBlockReasonById.get(item.repositoryId) || null
 
-  if (
-    (item.kind === 'pull_request' || item.kind === 'merge_request')
-    && lowerLabels(item.labels).some((l) => IMPLEMENT_IN_FLIGHT_PR_LABELS.has(l))
-  ) {
+  if (isBlockingOpenPrMr(item)) {
     const oldest = findBlockingOpenPrMr(allItems, item.repositoryId)
     if (oldest?.id === item.id && repoBlock) {
       return repoBlock

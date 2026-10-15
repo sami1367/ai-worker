@@ -1,14 +1,13 @@
 <script setup lang="ts">
-const { $i18n } = useNuxtApp()
-const t = (key: string) => $i18n?.t?.(key) ?? key
+const { t } = useI18n()
 
-const serviceItems = [
-  'AI Worker installation and deployment',
-  'Security hardening and configuration',
-  'GitHub and GitLab Self-Managed integration',
-  'Custom AI workflows, prompts, and integrations',
-  'Ongoing maintenance and technical support',
-]
+const serviceItemKeys = [
+  'about.services.item1',
+  'about.services.item2',
+  'about.services.item3',
+  'about.services.item4',
+  'about.services.item5',
+] as const
 </script>
 
 <template>
@@ -27,15 +26,10 @@ const serviceItems = [
         {{ t('about.product.heading') }}
       </h2>
       <p class="text-sm leading-relaxed opacity-90">
-        AI Worker is a self-hosted AI coding assistant for GitHub and GitLab.
-        Label an issue or pull/merge request, and it runs supported AI coding tools
-        in your environment to implement work or review changes.
+        {{ t('about.product.p1') }}
       </p>
       <p class="text-sm leading-relaxed opacity-90">
-        It is built for teams that want automation on their own infrastructure—
-        including organizations running
-        <strong class="font-medium">GitLab Self-Managed</strong>—
-        without sending repositories to a third-party hosted agent service.
+        {{ t('about.product.p2') }}
       </p>
     </section>
 
@@ -44,13 +38,11 @@ const serviceItems = [
         {{ t('about.services.heading') }}
       </h2>
       <p class="text-sm leading-relaxed opacity-90">
-        Paid professional services are available on request for companies and
-        development teams. Engagements are scoped per request; no public price
-        list is published here.
+        {{ t('about.services.intro') }}
       </p>
       <ul class="list-disc space-y-2 ps-5 text-sm leading-relaxed opacity-90">
-        <li v-for="item in serviceItems" :key="item">
-          {{ item }}
+        <li v-for="key in serviceItemKeys" :key="key">
+          {{ t(key) }}
         </li>
       </ul>
     </section>
@@ -87,7 +79,7 @@ const serviceItems = [
 
       <div class="border-t border-[var(--aw-line)] pt-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wide opacity-60">
-          Collaboration
+          {{ t('about.collaboration') }}
         </p>
         <ul class="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-2">
           <li v-for="link in COLLABORATION_LINKS" :key="link.id">
@@ -135,12 +127,12 @@ const serviceItems = [
             target="_blank"
           >
             <UIcon name="i-lucide-scale" class="size-3.5" aria-hidden="true" />
-            View LICENSE in the repository
+            {{ t('about.license.view') }}
           </a>
         </p>
       </template>
       <p v-else class="text-sm opacity-70" role="status">
-        License information pending
+        {{ t('about.license.pending') }}
       </p>
     </section>
   </div>

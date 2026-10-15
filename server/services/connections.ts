@@ -153,12 +153,16 @@ export const startGitLabConnectionSchema = z.object({
 export const githubTokenConnectionSchema = z.object({
   token: z.string().min(8).max(512),
   displayName: z.string().max(128).optional(),
+  /** When true (default), newly registered repos from this connect are enabled. */
+  enableRepositories: z.boolean().default(true),
 })
 
 export const gitlabTokenConnectionSchema = z.object({
   instanceUrl: z.string().max(512).default('https://gitlab.com'),
   token: z.string().min(8).max(512),
   displayName: z.string().max(128).optional(),
+  /** When true (default), newly registered repos from this connect are enabled. */
+  enableRepositories: z.boolean().default(true),
 })
 
 async function upsertActiveConnection(opts: {
@@ -172,6 +176,7 @@ async function upsertActiveConnection(opts: {
   displayName?: string | null
   createdBy: string
   actorUsername?: string
+  enableRepositories?: boolean
 }) {
   const db = getDb()
   const [existing] = await db.select().from(forgeConnections).where(and(
@@ -235,6 +240,7 @@ async function upsertActiveConnection(opts: {
     await syncConnectionRepositories(connection.id, {
       actorUserId: opts.createdBy,
       actorUsername: opts.actorUsername,
+      enableRepositories: opts.enableRepositories,
     })
   } catch (err) {
     await db.update(forgeConnections).set({
@@ -276,6 +282,7 @@ export async function connectGitHubWithToken(
     displayName: parsed.displayName,
     createdBy: actor.id,
     actorUsername: actor.username,
+    enableRepositories: parsed.enableRepositories,
   })
 
   // Surface fine-grained private-access gaps immediately after first sync.
@@ -319,6 +326,7 @@ export async function connectGitLabWithToken(
     displayName: parsed.displayName,
     createdBy: actor.id,
     actorUsername: actor.username,
+    enableRepositories: parsed.enableRepositories,
   })
 }
 

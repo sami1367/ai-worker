@@ -50,6 +50,99 @@ async function test(provider: string) {
   }
 }
 
+function isToggling(providerType: string) {
+  return busy.value === `toggle-${providerType}`
+}
+
+const connectedEnabled = computed(() =>
+  (data.value?.items || []).filter((p: any) => p.isEnabled && p.hasSecret),
+)
+
+/** Sole connected+enabled default cannot be unchecked — pick another provider first. */
+function canUnsetDefault(p: any) {
+  return connectedEnabled.value.some((o: any) => o.providerType !== p.providerType)
+}
+
+function canSetDefault(p: any) {
+  return Boolean(p.isEnabled && p.hasSecret)
+}
+
+async function setEnabled(p: any, enabled: boolean) {
+  if (p.isEnabled === enabled || isToggling(p.providerType)) return
+  const prevEnabled = p.isEnabled
+  const prevDefault = p.isDefault
+  busy.value = `toggle-${p.providerType}`
+  message.value = ''
+  messageError.value = false
+  // Optimistic update so the control feels immediate
+  p.isEnabled = enabled
+  if (!enabled) p.isDefault = false
+  try {
+    await api(`/api/v1/providers/${p.providerType}`, {
+      method: 'PATCH',
+      body: { isEnabled: enabled },
+    })
+    message.value = enabled ? `${p.displayName} enabled` : `${p.displayName} disabled`
+    await refresh()
+    await refreshNuxtData('setup-readiness')
+  } catch (e: any) {
+    p.isEnabled = prevEnabled
+    p.isDefault = prevDefault
+    message.value = e?.data?.message || e?.statusMessage || `Failed to ${enabled ? 'enable' : 'disable'} ${p.displayName}`
+    messageError.value = true
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function setDefault(p: any, isDefault: boolean) {
+  if (p.isDefault === isDefault || isToggling(p.providerType)) return
+  if (isDefault && !canSetDefault(p)) {
+    message.value = `Enable and connect ${p.displayName} before making it the default`
+    messageError.value = true
+    return
+  }
+  if (!isDefault && p.isDefault && !canUnsetDefault(p)) {
+    message.value = 'At least one connected provider must remain the default. Enable and select another provider first.'
+    messageError.value = true
+    return
+  }
+  const prevByType = Object.fromEntries(
+    (data.value?.items || []).map((item: any) => [item.providerType, item.isDefault]),
+  )
+  busy.value = `toggle-${p.providerType}`
+  message.value = ''
+  messageError.value = false
+  // Optimistic radio-style update when selecting a new default
+  if (isDefault) {
+    for (const item of data.value?.items || []) {
+      item.isDefault = item.providerType === p.providerType
+    }
+  } else {
+    p.isDefault = false
+  }
+  try {
+    await api(`/api/v1/providers/${p.providerType}`, {
+      method: 'PATCH',
+      body: { isDefault },
+    })
+    message.value = isDefault
+      ? `${p.displayName} set as default`
+      : `${p.displayName} no longer default`
+    await refresh()
+  } catch (e: any) {
+    for (const item of data.value?.items || []) {
+      if (prevByType[item.providerType] !== undefined) {
+        item.isDefault = prevByType[item.providerType]
+      }
+    }
+    message.value = e?.data?.message || e?.statusMessage || 'Failed to update default provider'
+    messageError.value = true
+  } finally {
+    busy.value = ''
+  }
+}
+
 async function save(p: any) {
   busy.value = `save-${p.providerType}`
   message.value = ''
@@ -62,11 +155,7 @@ async function save(p: any) {
     }
     await api(`/api/v1/providers/${p.providerType}`, {
       method: 'PATCH',
-      body: {
-        isEnabled: p.isEnabled,
-        isDefault: p.isDefault,
-        config,
-      },
+      body: { config },
     })
     message.value = `Saved ${p.displayName}`
     await refresh()
@@ -105,6 +194,7 @@ async function connect(p: any) {
     d.showConnect = false
     message.value = `${p.displayName} connected. Credentials are encrypted and exported to the worker.`
     await refresh()
+    await refreshNuxtData('setup-readiness')
     await test(p.providerType)
   } catch (e: any) {
     message.value = e?.data?.message || 'Connect failed'
@@ -125,6 +215,7 @@ async function disconnect(p: any) {
     })
     message.value = `${p.displayName} disconnected. Stored secret cleared.`
     await refresh()
+    await refreshNuxtData('setup-readiness')
   } catch (e: any) {
     message.value = e?.data?.message || 'Disconnect failed'
     messageError.value = true
@@ -149,6 +240,8 @@ function secretHint(p: any): string {
     <div>
       <h1 class="font-display text-3xl tracking-tight">AI providers</h1>
       <p class="mt-1 text-sm opacity-70">
+        Providers start disabled. Enable and connect the ones you want to use.
+        After the first successful connect, exactly one provider stays the default — switch it anytime, or uncheck it when another connected provider can take over.
         Cursor and Claude CLIs are installed in the Docker image. Set
         <code class="text-xs">CURSOR_API_KEY</code> /
         <code class="text-xs">ANTHROPIC_API_KEY</code> /
@@ -187,8 +280,29 @@ function secretHint(p: any): string {
           <template v-else-if="p.secretSource === 'env'">yes (from environment / .env)</template>
           <template v-else>no</template>
         </p>
-        <UCheckbox v-model="p.isEnabled" label="Enabled" />
-        <UCheckbox v-model="p.isDefault" label="Default provider" />
+        <div class="flex flex-col gap-2">
+          <USwitch
+            :model-value="p.isEnabled"
+            :loading="isToggling(p.providerType)"
+            :disabled="isToggling(p.providerType)"
+            label="Enabled"
+            @update:model-value="(v: boolean) => setEnabled(p, v)"
+          />
+          <USwitch
+            :model-value="p.isDefault"
+            :loading="isToggling(p.providerType)"
+            :disabled="isToggling(p.providerType) || !canSetDefault(p) || (p.isDefault && !canUnsetDefault(p))"
+            label="Default provider"
+            :description="p.isDefault && !canUnsetDefault(p)
+              ? 'Required while this is the only connected provider'
+              : !p.hasSecret
+                ? 'Connect credentials first'
+                : !p.isEnabled
+                  ? 'Enable this provider first'
+                  : undefined"
+            @update:model-value="(v: boolean) => setDefault(p, v)"
+          />
+        </div>
 
         <div v-if="draftFor(p.providerType).showConnect" class="space-y-3 border-t border-default/40 pt-3">
           <UFormField

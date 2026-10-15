@@ -225,7 +225,7 @@ export const providerConfigs = pgTable('provider_configs', {
   id: uuid('id').defaultRandom().primaryKey(),
   providerType: varchar('provider_type', { length: 32 }).notNull(),
   displayName: varchar('display_name', { length: 128 }).notNull(),
-  isEnabled: boolean('is_enabled').notNull().default(true),
+  isEnabled: boolean('is_enabled').notNull().default(false),
   isDefault: boolean('is_default').notNull().default(false),
   config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
   secretCiphertext: text('secret_ciphertext'),

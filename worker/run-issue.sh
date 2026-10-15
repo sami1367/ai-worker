@@ -62,7 +62,9 @@ ai_require_cmds git gh jq tee || exit 1
 # Resolve project
 # ============================================================
 
-PROJECT_DIR="$(ai_resolve_project_dir "$PROJECTS_FILE" "$PROJECT")"
+PROJECT_ENTRY="$(ai_resolve_project_entry "$PROJECTS_FILE" "$PROJECT")" || true
+PROJECT_DIR="$(jq -r '.path // empty' <<<"${PROJECT_ENTRY:-}")"
+DEFAULT_BRANCH="$(ai_project_default_branch "${PROJECT_ENTRY:-}")"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo "ERROR: Project is not registered: $PROJECT"
@@ -117,7 +119,7 @@ NOTES_COMMENT_URL=""
 # ============================================================
 # Cleanup
 #
-# This ALWAYS attempts to put the repository back on main.
+# This ALWAYS attempts to put the repository back on the default branch.
 # ============================================================
 
 cleanup() {
@@ -140,7 +142,7 @@ cleanup() {
                 2>/dev/null || true
         )"
 
-        if [[ "$current_branch" != "main" ]]; then
+        if [[ "$current_branch" != "$DEFAULT_BRANCH" ]]; then
 
             if [[ -n "$(
                 git -C "$PROJECT_DIR" status --porcelain \
@@ -148,7 +150,7 @@ cleanup() {
             )" ]]; then
 
                 echo "Discarding remaining task changes"
-                echo "before returning to main..."
+                echo "before returning to $DEFAULT_BRANCH..."
 
                 echo
                 echo "Changed files before cleanup:"
@@ -163,12 +165,12 @@ cleanup() {
             fi
 
             echo
-            echo "Checking out main..."
+            echo "Checking out $DEFAULT_BRANCH..."
 
-            git -C "$PROJECT_DIR" checkout main || true
+            git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH" || true
         fi
 
-        # Remove local AI branch after returning to main.
+        # Remove local AI branch after returning to the default branch.
         #
         # The successful branch still exists on GitHub because it
         # was already pushed before the PR was created.
@@ -235,6 +237,7 @@ ai_log_banner "AI GITHUB ISSUE WORKER"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Project:       $PROJECT"
 echo "Issue:         #$ISSUE_NUMBER"
+echo "Default branch: $DEFAULT_BRANCH"
 echo "Project dir:   $PROJECT_DIR"
 echo "Main log:      $LOG_FILE"
 echo "============================================================"
@@ -263,11 +266,11 @@ ai_configure_ssh_git_remote "$PROJECT_DIR"
 echo "Origin: $(git -C "$PROJECT_DIR" remote get-url origin)"
 
 # ============================================================
-# Fresh environment: clean checkout of up-to-date main
+# Fresh environment: clean checkout of up-to-date default branch
 # ============================================================
 
 echo
-echo "Preparing fresh workspace from origin/main..."
+echo "Preparing fresh workspace from origin/$DEFAULT_BRANCH..."
 
 git -C "$PROJECT_DIR" fetch --prune origin
 
@@ -278,20 +281,20 @@ if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]]; then
     git -C "$PROJECT_DIR" clean -fd || true
 fi
 
-git -C "$PROJECT_DIR" checkout main
-git -C "$PROJECT_DIR" reset --hard origin/main
+git -C "$PROJECT_DIR" checkout "$DEFAULT_BRANCH"
+git -C "$PROJECT_DIR" reset --hard "origin/$DEFAULT_BRANCH"
 
 if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
 
     echo
-    echo "ERROR: main is not clean after fresh prepare."
+    echo "ERROR: $DEFAULT_BRANCH is not clean after fresh prepare."
 
     git -C "$PROJECT_DIR" status --short
 
     exit 12
 fi
 
-echo "Fresh workspace ready on main ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
+echo "Fresh workspace ready on $DEFAULT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
 
 # ============================================================
 # Read GitHub issue
@@ -555,7 +558,7 @@ echo
 echo "Creating task branch:"
 echo "$BRANCH"
 
-git -C "$PROJECT_DIR" checkout -b "$BRANCH" main
+git -C "$PROJECT_DIR" checkout -b "$BRANCH" "$DEFAULT_BRANCH"
 
 # Expose branch to platform heartbeat / Tasks UI while this run is active.
 printf 'branch=%s\n' "$BRANCH" >> "$STATE_FILE"
@@ -783,12 +786,26 @@ else
     PR_TITLE="Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
 fi
 
-gh pr create \
+# Attach ai-pr at create time (parity with GitLab). Label must already exist
+# (ai_ensure_project_labels ran earlier). Avoid unlabeled PRs that would not
+# block the next issue via block_on_open_pr.
+ai_ensure_project_labels github "$REPO" "$PROJECT"
+
+if ! gh pr create \
     --repo "$REPO" \
-    --base main \
+    --base "$DEFAULT_BRANCH" \
     --head "$BRANCH" \
     --title "$PR_TITLE" \
-    --body-file "$PR_BODY_FILE"
+    --body-file "$PR_BODY_FILE" \
+    --label "ai-pr"; then
+    echo "WARNING: gh pr create --label ai-pr failed; creating PR then attaching label."
+    gh pr create \
+        --repo "$REPO" \
+        --base "$DEFAULT_BRANCH" \
+        --head "$BRANCH" \
+        --title "$PR_TITLE" \
+        --body-file "$PR_BODY_FILE"
+fi
 
 # Verify PR actually exists.
 PR_URL="$(
@@ -820,10 +837,8 @@ PR_NUMBER="$(
 
 echo
 echo "Ensuring pull request has label ai-pr..."
-if ! gh pr edit "$PR_NUMBER" \
-    --repo "$REPO" \
-    --add-label "ai-pr"; then
-    echo "WARNING: Could not add ai-pr label to pull request #$PR_NUMBER."
+if ! github_ensure_pr_has_ai_pr_label "$REPO" "$PR_NUMBER"; then
+    echo "WARNING: Pull request #$PR_NUMBER may be missing ai-pr; open ai/issue-* PRs still block new issues."
 fi
 
 if [[ -f "$NOTES_SAVED" ]]; then

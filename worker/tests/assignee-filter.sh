@@ -121,14 +121,15 @@ if grep -q 'assignee_id=' "$GITLAB_API_LOG"; then
     fail "ai-working lookup must not filter by assignee"
 fi
 
-# Open-MR in-flight check must require an AI implement label (ignore human MRs).
+# Open-MR in-flight check prefers AI implement labels (ignore human MRs).
 : > "$GITLAB_API_LOG"
 mr_desc="$(gitlab_find_open_mr "group/project" || true)"
 [[ "$mr_desc" == "!100 (ai/issue-1, ai-pr)" ]] \
     || fail "expected AI-labeled MR desc, got '$mr_desc'"
 grep -q 'labels=ai-pr' "$GITLAB_API_LOG" || fail "open MR check missing labels=ai-pr"
+# When a labeled MR is found, do not need the unlabeled fallback query.
 if grep 'merge_requests?' "$GITLAB_API_LOG" | grep -vq 'labels='; then
-    fail "open MR check must not query unlabeled open MRs"
+    fail "open MR check must not query unlabeled open MRs when labeled hits exist"
 fi
 
 # When no AI-labeled MRs exist, human open MRs must not block.
@@ -154,6 +155,33 @@ gitlab_api() {
 mr_desc="$(gitlab_find_open_mr "group/project" || true)"
 [[ -z "$mr_desc" ]] || fail "human-only open MRs must not block, got '$mr_desc'"
 grep -q 'labels=ai-pr' "$GITLAB_API_LOG" || fail "expected labeled MR queries even when empty"
+# Unlabeled fallback runs only after labeled queries miss.
+grep 'merge_requests?' "$GITLAB_API_LOG" | grep -vq 'labels=' \
+    || fail "expected unlabeled MR fallback query when labels miss"
+
+# Unlabeled AI branch MRs still block (label-apply failure safety net).
+gitlab_api() {
+    local method="$1"
+    local path="$2"
+    shift 2
+    printf '%s %s\n' "$method" "$path" >> "$GITLAB_API_LOG"
+    case "$path" in
+        /projects/*/merge_requests\?*)
+            if [[ "$path" != *labels=* ]]; then
+                printf '[{"iid":50,"source_branch":"ai/issue-9","created_at":"2026-03-01T00:00:00Z"},{"iid":51,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z"}]'
+            else
+                printf '[]'
+            fi
+            ;;
+        *)
+            printf '{}'
+            ;;
+    esac
+}
+: > "$GITLAB_API_LOG"
+mr_desc="$(gitlab_find_open_mr "group/project" || true)"
+[[ "$mr_desc" == "!50 (ai/issue-9, ai-branch)" ]] \
+    || fail "expected unlabeled ai/issue-* MR to block, got '$mr_desc'"
 
 # Restore create-issue mock for following tests.
 gitlab_api() {
@@ -197,6 +225,89 @@ if grep -q -- '@me' "$TMP/gh.log"; then
     fail "github_find_ai_issue must not use @me"
 fi
 grep -q -- '--label' "$TMP/gh.log" || fail "github_find_ai_issue missing --label"
+
+# Open-PR in-flight check must list PRs without --label (Search API) and filter
+# client-side; unlabeled ai/issue-* heads still block; human PRs do not.
+gh() {
+    printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "pr" && "$2" == "list" ]]; then
+        local arg
+        for arg in "$@"; do
+            if [[ "$arg" == "--label" || "$arg" == -l ]]; then
+                fail "github_list_open_prs_json must not use --label (Search API)"
+            fi
+        done
+        cat <<'EOF'
+[
+  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}]},
+  {"number":12,"headRefName":"ai/issue-3","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"ai-pr"}]},
+  {"number":15,"headRefName":"ai/issue-9-retry","createdAt":"2026-03-01T00:00:00Z","labels":[]}
+]
+EOF
+        return 0
+    fi
+    return 0
+}
+: > "$TMP/gh.log"
+pr_desc="$(github_find_open_pr "owner/repo" || true)"
+[[ "$pr_desc" == "#12 (ai/issue-3, ai-pr)" ]] \
+    || fail "expected oldest AI-labeled PR, got '$pr_desc'"
+if grep -q -- '--label' "$TMP/gh.log"; then
+    fail "github_find_open_pr must not use gh pr list --label"
+fi
+
+gh() {
+    printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "pr" && "$2" == "list" ]]; then
+        cat <<'EOF'
+[
+  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}]},
+  {"number":15,"headRefName":"ai/issue-9","createdAt":"2026-03-01T00:00:00Z","labels":[]}
+]
+EOF
+        return 0
+    fi
+    return 0
+}
+: > "$TMP/gh.log"
+pr_desc="$(github_find_open_pr "owner/repo" || true)"
+[[ "$pr_desc" == "#15 (ai/issue-9, ai-branch)" ]] \
+    || fail "expected unlabeled ai/issue-* PR to block, got '$pr_desc'"
+
+gh() {
+    printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "pr" && "$2" == "list" ]]; then
+        cat <<'EOF'
+[
+  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}]}
+]
+EOF
+        return 0
+    fi
+    return 0
+}
+: > "$TMP/gh.log"
+pr_desc="$(github_find_open_pr "owner/repo" || true)"
+[[ -z "$pr_desc" ]] || fail "human-only open PRs must not block, got '$pr_desc'"
+
+gh() {
+    printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "pr" && "$2" == "list" ]]; then
+        cat <<'EOF'
+[
+  {"number":8,"headRefName":"ai/issue-1","createdAt":"2026-01-02T00:00:00Z","labels":[{"name":"ai"}]},
+  {"number":9,"headRefName":"fix","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"ai-review"}]}
+]
+EOF
+        return 0
+    fi
+    return 0
+}
+: > "$TMP/gh.log"
+pr_num="$(github_find_open_pr_with_label "owner/repo" "ai" || true)"
+[[ "$pr_num" == "8" ]] || fail "expected PR #8 with ai label, got '$pr_num'"
+pr_num="$(github_find_open_pr_with_label "owner/repo" "ai-review" || true)"
+[[ "$pr_num" == "9" ]] || fail "expected PR #9 with ai-review, got '$pr_num'"
 
 # Empty /user payload must fail closed for user-id helper.
 gitlab_api() {

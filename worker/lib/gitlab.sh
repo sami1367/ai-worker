@@ -198,11 +198,12 @@ gitlab_label_open_issue_mrs_ai_pr() {
 }
 
 # AI implement-workflow labels on an open MR that should block starting a new
-# `ai` issue (human MRs without these labels do not block).
+# `ai` issue (human MRs without these labels / ai/issue-* sources do not block).
 GITLAB_AI_IN_FLIGHT_MR_LABELS=(ai ai-working ai-failed ai-pr)
 
-# Print a short description of the oldest open MR carrying an AI implement
-# label, or empty. Example: "!12 (ai/issue-3, ai-pr)"
+# Print a short description of the oldest open MR that should block a new issue,
+# or empty. Prefers AI implement labels; falls back to source_branch ai/issue-*
+# when labels were not applied. Example: "!12 (ai/issue-3, ai-pr)"
 gitlab_find_open_mr() {
     local project_path="$1"
     local encoded label body
@@ -233,7 +234,30 @@ gitlab_find_open_mr() {
         fi
     done
 
-    printf '%s' "$best_desc"
+    if [[ -n "$best_desc" ]]; then
+        printf '%s' "$best_desc"
+        return 0
+    fi
+
+    # Safety net: unlabeled AI branches still block (parity with GitHub).
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=50"
+    )" || {
+        printf '%s' ''
+        return 0
+    }
+
+    jq -r '
+        [
+            .[]
+            | select((.source_branch // "") | test("^ai/issue-[0-9]+(-|$)"))
+        ]
+        | .[0]
+        | if . == null then empty
+          else "!\(.iid) (\(.source_branch // "unknown"), ai-branch)"
+          end
+    ' <<<"$body" 2>/dev/null || true
 }
 
 # Add and/or remove labels on an issue.

@@ -28,13 +28,17 @@ html, body, #__nuxt {
 }
 
 body {
-  font-family: var(--aw-font-body);
+  font-family: var(--aw-font-body), "Noto Sans Arabic", "Noto Sans", "Noto Sans SC", "Noto Sans JP", "Noto Sans Devanagari", sans-serif;
   color: var(--aw-ink);
   background:
     radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, var(--aw-accent) 18%, transparent), transparent 60%),
     radial-gradient(900px 500px at 100% 0%, color-mix(in oklab, var(--aw-accent-2) 14%, transparent), transparent 55%),
     linear-gradient(180deg, var(--aw-bg-0), var(--aw-bg-1));
   background-attachment: fixed;
+}
+
+html[dir="rtl"] .font-display {
+  font-family: "Noto Naskh Arabic", "Source Serif 4", "Amiri", serif;
 }
 
 .font-display {
