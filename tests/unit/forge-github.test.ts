@@ -99,16 +99,29 @@ describe('listGitHubAiPullRequests', () => {
           labels: [{ name: 'bug' }],
           head: { ref: 'fix' },
         },
+        {
+          number: 3,
+          title: 'Unlabeled AI branch',
+          html_url: 'https://github.com/acme/app/pull/3',
+          created_at: '2024-01-03T00:00:00Z',
+          labels: [],
+          head: { ref: 'ai/issue-9' },
+        },
       ])
     })
 
     const items = await listGitHubAiPullRequests('tok', 'acme/app')
-    expect(items).toHaveLength(1)
+    expect(items).toHaveLength(2)
     expect(items[0]).toMatchObject({
       externalId: '1',
       kind: 'pull_request',
       sourceBranch: 'feat/ai',
       labels: ['ai-review'],
+    })
+    expect(items[1]).toMatchObject({
+      externalId: '3',
+      sourceBranch: 'ai/issue-9',
+      labels: [],
     })
   })
 

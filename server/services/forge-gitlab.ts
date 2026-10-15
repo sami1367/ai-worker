@@ -400,7 +400,14 @@ export async function listGitLabAiIssues(
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
-/** Open MRs carrying any AI implement or review workflow label. */
+function isAiIssueBranchName(branch: string | null | undefined): boolean {
+  return Boolean(branch && /^ai\/issue-\d+(-|$)/.test(branch))
+}
+
+/**
+ * Open MRs carrying any AI implement or review workflow label, or whose
+ * source_branch is ai/issue-* (safety net when ai-pr was not applied).
+ */
 export async function listGitLabAiMergeRequests(
   instanceUrl: string,
   token: string,
@@ -442,6 +449,42 @@ export async function listGitLabAiMergeRequests(
       if (batch.length < 100) break
       page += 1
     }
+  }
+
+  // Safety net: include unlabeled AI issue branches (parity with worker gating).
+  let page = 1
+  while (page <= 10) {
+    const { data: batch } = await gitlabApi<Array<{
+      iid: number
+      title?: string
+      web_url?: string
+      created_at?: string
+      source_branch?: string
+      labels?: unknown
+    }>>(
+      instanceUrl,
+      `/projects/${encoded}/merge_requests?state=opened`
+      + `&per_page=100&page=${page}&order_by=created_at&sort=asc`,
+      token,
+    )
+    if (!batch.length) break
+    for (const mr of batch) {
+      const id = String(mr.iid)
+      if (byId.has(id)) continue
+      const sourceBranch = mr.source_branch || null
+      if (!isAiIssueBranchName(sourceBranch)) continue
+      byId.set(id, {
+        externalId: id,
+        title: String(mr.title || `!${mr.iid}`),
+        url: String(mr.web_url || ''),
+        labels: gitlabLabelNames(mr.labels),
+        createdAt: String(mr.created_at || new Date(0).toISOString()),
+        kind: 'merge_request',
+        sourceBranch,
+      })
+    }
+    if (batch.length < 100) break
+    page += 1
   }
 
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))

@@ -1348,6 +1348,182 @@ github_find_ai_issue() {
         2>/dev/null || true
 }
 
+# AI implement-workflow labels on an open PR that should block starting a new
+# `ai` issue (human PRs without these labels / ai/issue-* heads do not block).
+GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
+
+# List open PRs via repository GraphQL (NOT Search).
+# Do not pass --label: that forces GitHub Search (low rate limit / silent 403s).
+# Usage: github_list_open_prs_json <owner/repo> [limit]
+github_list_open_prs_json() {
+    local repo="$1"
+    local limit="${2:-100}"
+    local out
+
+    out="$(
+        gh pr list \
+            --repo "$repo" \
+            --state open \
+            --limit "$limit" \
+            --json number,headRefName,createdAt,labels \
+            2>/dev/null || true
+    )"
+    if [[ -z "$out" || "$out" == "null" ]]; then
+        printf '%s' '[]'
+        return 0
+    fi
+    printf '%s' "$out"
+}
+
+# True if a head/source branch is an AI issue branch (ai/issue-N or ai/issue-N-*).
+github_is_ai_issue_branch() {
+    local branch="$1"
+    [[ "$branch" =~ ^ai/issue-[0-9]+(-|$) ]]
+}
+
+# Print a short description of the oldest open PR that should block a new issue,
+# or empty. Matches AI implement labels OR head branch ai/issue-* (safety net when
+# label application failed). Example: "#12 (ai/issue-3, ai-pr)"
+github_find_open_pr() {
+    local repo="$1"
+    local prs
+
+    prs="$(github_list_open_prs_json "$repo" 100)"
+
+    jq -r '
+        def in_flight_labels: ["ai","ai-working","ai-failed","ai-pr"];
+        def label_names:
+            [(.labels // [])[] | (if type == "object" then (.name // "") else . end) | ascii_downcase]
+            | map(select(length > 0));
+        # Use null (not empty) so unlabeled PRs still continue through the pipeline.
+        def matching_label:
+            label_names as $names
+            | (in_flight_labels
+               | map(select(. as $l | ($names | index($l)) != null))
+               | .[0] // null);
+        def is_ai_branch:
+            ((.headRefName // "") | test("^ai/issue-[0-9]+(-|$)"));
+        [
+            .[]
+            | . as $pr
+            | ($pr | matching_label) as $lbl
+            | select(($lbl != null) or ($pr | is_ai_branch))
+            | {
+                number: $pr.number,
+                headRefName: ($pr.headRefName // "unknown"),
+                createdAt: ($pr.createdAt // ""),
+                label: (if $lbl != null then $lbl else "ai-branch" end)
+              }
+        ]
+        | sort_by(.createdAt)
+        | .[0]
+        | if . == null then empty
+          else "#\(.number) (\(.headRefName), \(.label))"
+          end
+    ' <<<"$prs" 2>/dev/null || true
+}
+
+# Oldest open PR number with a given label (client-side filter; avoids Search).
+# Usage: github_find_open_pr_with_label <owner/repo> <label>
+github_find_open_pr_with_label() {
+    local repo="$1"
+    local label="$2"
+    local prs wanted
+
+    wanted="$(printf '%s' "$label" | tr '[:upper:]' '[:lower:]')"
+    prs="$(github_list_open_prs_json "$repo" 100)"
+
+    jq -r --arg want "$wanted" '
+        [
+            .[]
+            | select(
+                [(.labels // [])[] | (if type == "object" then (.name // "") else . end) | ascii_downcase]
+                | index($want) != null
+              )
+        ]
+        | sort_by(.createdAt)
+        | .[0].number // empty
+    ' <<<"$prs" 2>/dev/null || true
+}
+
+# Add labels to a GitHub issue or PR (PR numbers share the issues labels API).
+# Usage: github_add_labels <owner/repo> <number> <label> [label...]
+github_add_labels() {
+    local repo="$1"
+    local number="$2"
+    shift 2
+    local label payload
+
+    if [[ $# -lt 1 ]]; then
+        echo "ERROR: github_add_labels requires at least one label" >&2
+        return 1
+    fi
+
+    payload="$(jq -n --args '{labels: $ARGS.positional}' -- "$@")"
+    gh api \
+        --method POST \
+        "repos/${repo}/issues/${number}/labels" \
+        --input - <<<"$payload" \
+        >/dev/null
+}
+
+# Ensure a pull request carries label ai-pr (create-time + REST fallback).
+# Usage: github_ensure_pr_has_ai_pr_label <owner/repo> <pr_number>
+github_ensure_pr_has_ai_pr_label() {
+    local repo="$1"
+    local pr_number="$2"
+    local has
+
+    has="$(
+        gh pr view "$pr_number" \
+            --repo "$repo" \
+            --json labels \
+            --jq '[.labels[].name | ascii_downcase] | any(. == "ai-pr")' \
+            2>/dev/null || echo false
+    )"
+    if [[ "$has" == "true" ]]; then
+        return 0
+    fi
+
+    if gh pr edit "$pr_number" --repo "$repo" --add-label "ai-pr" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if github_add_labels "$repo" "$pr_number" "ai-pr"; then
+        return 0
+    fi
+
+    echo "WARNING: Could not add ai-pr label to pull request #${pr_number}." >&2
+    return 1
+}
+
+# Label open PRs whose head is ai/issue-N or ai/issue-N-* with ai-pr.
+# Usage: github_label_open_issue_prs_ai_pr <repo> <issue_number>
+github_label_open_issue_prs_ai_pr() {
+    local repo="$1"
+    local issue_number="$2"
+    local prefix="ai/issue-${issue_number}"
+    local pr_num
+
+    while IFS= read -r pr_num; do
+        [[ -n "$pr_num" ]] || continue
+        echo "Adding ai-pr label to pull request #$pr_num"
+        if ! github_ensure_pr_has_ai_pr_label "$repo" "$pr_num"; then
+            echo "WARNING: Could not add ai-pr to PR #$pr_num"
+        fi
+    done < <(
+        github_list_open_prs_json "$repo" 50 \
+            | jq -r --arg p "$prefix" '
+                .[]
+                | select(
+                    .headRefName == $p
+                    or (.headRefName | startswith($p + "-"))
+                  )
+                | .number
+              ' || true
+    )
+}
+
 # Fetch all issue/PR discussion comments from GitHub (chronological).
 ai_github_fetch_issue_comments() {
     local repo="$1"

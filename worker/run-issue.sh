@@ -783,12 +783,26 @@ else
     PR_TITLE="Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
 fi
 
-gh pr create \
+# Attach ai-pr at create time (parity with GitLab). Label must already exist
+# (ai_ensure_project_labels ran earlier). Avoid unlabeled PRs that would not
+# block the next issue via block_on_open_pr.
+ai_ensure_project_labels github "$REPO" "$PROJECT"
+
+if ! gh pr create \
     --repo "$REPO" \
     --base main \
     --head "$BRANCH" \
     --title "$PR_TITLE" \
-    --body-file "$PR_BODY_FILE"
+    --body-file "$PR_BODY_FILE" \
+    --label "ai-pr"; then
+    echo "WARNING: gh pr create --label ai-pr failed; creating PR then attaching label."
+    gh pr create \
+        --repo "$REPO" \
+        --base main \
+        --head "$BRANCH" \
+        --title "$PR_TITLE" \
+        --body-file "$PR_BODY_FILE"
+fi
 
 # Verify PR actually exists.
 PR_URL="$(
@@ -820,10 +834,8 @@ PR_NUMBER="$(
 
 echo
 echo "Ensuring pull request has label ai-pr..."
-if ! gh pr edit "$PR_NUMBER" \
-    --repo "$REPO" \
-    --add-label "ai-pr"; then
-    echo "WARNING: Could not add ai-pr label to pull request #$PR_NUMBER."
+if ! github_ensure_pr_has_ai_pr_label "$REPO" "$PR_NUMBER"; then
+    echo "WARNING: Pull request #$PR_NUMBER may be missing ai-pr; open ai/issue-* PRs still block new issues."
 fi
 
 if [[ -f "$NOTES_SAVED" ]]; then
