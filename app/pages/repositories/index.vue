@@ -3,10 +3,10 @@ const route = useRoute()
 const router = useRouter()
 const { api } = useApi()
 const q = ref('')
-const forgeType = ref<string>('')
-const connectionId = ref<string>(typeof route.query.connectionId === 'string' ? route.query.connectionId : '')
-const enabledFilter = ref<string>('')
-const workspaceStatus = ref<string>('')
+const forgeType = ref<string | null>(null)
+const connectionId = ref<string | null>(typeof route.query.connectionId === 'string' ? route.query.connectionId : null)
+const enabledFilter = ref<string | null>(null)
+const workspaceStatus = ref<string | null>(null)
 const page = ref(1)
 const busy = ref('')
 const togglingIds = ref(new Set<string>())
@@ -38,7 +38,7 @@ const connectionItems = computed(() => {
       value: c.id,
     }
   })
-  return [{ label: 'All connections', value: '' }, ...items]
+  return [{ label: 'All connections', value: null }, ...items]
 })
 
 const connectionLabelById = computed(() => {
@@ -76,7 +76,7 @@ watch([q, forgeType, connectionId, enabledFilter, workspaceStatus], () => {
 })
 
 watch(connectionId, (id) => {
-  const current = typeof route.query.connectionId === 'string' ? route.query.connectionId : ''
+  const current = typeof route.query.connectionId === 'string' ? route.query.connectionId : null
   if (current === id) return
   const next = { ...route.query } as Record<string, string | string[] | undefined>
   if (id) next.connectionId = id
@@ -85,7 +85,7 @@ watch(connectionId, (id) => {
 })
 
 watch(() => route.query.connectionId, (id) => {
-  const next = typeof id === 'string' ? id : ''
+  const next = typeof id === 'string' ? id : null
   if (connectionId.value !== next) connectionId.value = next
 })
 
@@ -234,35 +234,38 @@ async function fetchAll() {
         v-model="connectionId"
         :items="connectionItems"
         class="w-64"
-        :placeholder="'All connections'"
+        placeholder="All connections"
       />
       <USelect
         v-model="forgeType"
         :items="[
-          { label: 'All forges', value: '' },
+          { label: 'All forges', value: null },
           { label: 'GitHub', value: 'github' },
           { label: 'GitLab', value: 'gitlab' },
         ]"
+        placeholder="All forges"
         class="w-40"
       />
       <USelect
         v-model="enabledFilter"
         :items="[
-          { label: 'Any status', value: '' },
+          { label: 'Any status', value: null },
           { label: 'Enabled only', value: 'true' },
           { label: 'Disabled only', value: 'false' },
         ]"
+        placeholder="Any status"
         class="w-44"
       />
       <USelect
         v-model="workspaceStatus"
         :items="[
-          { label: 'Any workspace', value: '' },
+          { label: 'Any workspace', value: null },
           { label: 'Not cloned', value: 'not_cloned' },
           { label: 'Ready', value: 'ready' },
           { label: 'Queued / cloning', value: 'queued' },
           { label: 'Failed', value: 'failed' },
         ]"
+        placeholder="Any workspace"
         class="w-48"
       />
     </div>
