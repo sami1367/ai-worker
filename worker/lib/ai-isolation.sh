@@ -45,6 +45,53 @@ AI_ISOLATION_STRIP_VARS=(
     INITIAL_ADMIN_PASSWORD
 )
 
+# Probe whether unprivileged user namespaces work in this runtime.
+# Docker AppArmor/seccomp (and some host kernels) block CLONE_NEWUSER — that
+# breaks outer bubblewrap *and* provider sandboxes (Codex workspace-write,
+# Cursor --sandbox enabled), which then fail file writes / shell tools.
+# Cached per process so we only pay the cost once per worker shell.
+AI_ISOLATION_USERNS_USABLE=""
+AI_ISOLATION_BWRAP_USABLE=""
+
+ai_isolation_userns_usable() {
+    if [[ -n "${AI_ISOLATION_USERNS_USABLE:-}" ]]; then
+        [[ "$AI_ISOLATION_USERNS_USABLE" == "1" ]]
+        return $?
+    fi
+    # Prefer bwrap when present — same path the agent sandbox uses.
+    if command -v bwrap >/dev/null 2>&1; then
+        if bwrap --ro-bind / / --dev /dev --proc /proc --die-with-parent -- true >/dev/null 2>&1; then
+            AI_ISOLATION_USERNS_USABLE=1
+            return 0
+        fi
+        AI_ISOLATION_USERNS_USABLE=0
+        return 1
+    fi
+    if command -v unshare >/dev/null 2>&1 && unshare --user -- true >/dev/null 2>&1; then
+        AI_ISOLATION_USERNS_USABLE=1
+        return 0
+    fi
+    AI_ISOLATION_USERNS_USABLE=0
+    return 1
+}
+
+ai_isolation_bwrap_usable() {
+    if [[ -n "${AI_ISOLATION_BWRAP_USABLE:-}" ]]; then
+        [[ "$AI_ISOLATION_BWRAP_USABLE" == "1" ]]
+        return $?
+    fi
+    if ! command -v bwrap >/dev/null 2>&1; then
+        AI_ISOLATION_BWRAP_USABLE=0
+        return 1
+    fi
+    if ai_isolation_userns_usable; then
+        AI_ISOLATION_BWRAP_USABLE=1
+        return 0
+    fi
+    AI_ISOLATION_BWRAP_USABLE=0
+    return 1
+}
+
 # Resolve whether bubblewrap should be used for this run.
 # Prints: bwrap | env | off
 ai_isolation_resolved_mode() {
@@ -58,12 +105,21 @@ ai_isolation_resolved_mode() {
                 echo "ERROR: AI_ISOLATION_MODE=bwrap but bubblewrap (bwrap) is not installed." >&2
                 return 1
             fi
+            if ! ai_isolation_bwrap_usable; then
+                echo "ERROR: AI_ISOLATION_MODE=bwrap but bubblewrap cannot create user namespaces." >&2
+                echo "HINT: On Ubuntu Docker, recreate the worker with security_opt apparmor/seccomp unconfined" >&2
+                echo "      (see docker-compose.yml worker service), or set AI_ISOLATION_MODE=env." >&2
+                return 1
+            fi
             printf '%s\n' "bwrap"
             ;;
         auto | *)
-            if command -v bwrap >/dev/null 2>&1; then
+            if ai_isolation_bwrap_usable; then
                 printf '%s\n' "bwrap"
             else
+                if command -v bwrap >/dev/null 2>&1; then
+                    echo "WARNING: bubblewrap is installed but cannot create namespaces; falling back to AI isolation mode=env." >&2
+                fi
                 printf '%s\n' "env"
             fi
             ;;

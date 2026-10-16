@@ -123,9 +123,9 @@ AI agents (Cursor CLI / Claude Code / Codex CLI / Gemini CLI / GitHub Copilot CL
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `AI_ISOLATION_MODE` | `auto` | `auto` (bwrap if present else env), `bwrap` (require bubblewrap), `env` (scrub only), `off` (insecure escape hatch) |
-| `AI_CURSOR_SANDBOX` | `enabled` | Passed to Cursor CLI `--sandbox` |
-| `AI_CODEX_SANDBOX` | `workspace-write` | Passed to Codex CLI `exec --sandbox` |
+| `AI_ISOLATION_MODE` | `auto` | `auto` (bwrap if usable else env), `bwrap` (require working bubblewrap), `env` (scrub only), `off` (insecure escape hatch) |
+| `AI_CURSOR_SANDBOX` | `enabled` | Passed to Cursor CLI `--sandbox`; auto-falls back to `disabled` when user namespaces are blocked or outer isolation is already `bwrap` |
+| `AI_CODEX_SANDBOX` | `workspace-write` | Passed to Codex CLI `exec --sandbox` when nested sandboxing works; otherwise uses `--dangerously-bypass-approvals-and-sandbox` (intended for externally sandboxed hosts) |
 | `AI_GEMINI_APPROVAL_MODE` | (unset → `--yolo`) | Gemini `--approval-mode` (`default` \| `auto_edit` \| `yolo`); when unset, `--yolo` is used |
 | `AI_GEMINI_MODEL` | (unset) | Optional Gemini `--model` override |
 | `AI_COPILOT_PERMISSION_MODE` | (unset → `--yolo`) | Copilot permission mode (`yolo` \| `allow-all` \| `allow-all-tools` \| `default`) |
@@ -133,7 +133,7 @@ AI agents (Cursor CLI / Claude Code / Codex CLI / Gemini CLI / GitHub Copilot CL
 | `AI_CLAUDE_ALLOWED_TOOLS` | (unset) | Optional override; review tasks default to `Read,Glob,Grep,Write,Edit` |
 | `AI_CLAUDE_REVIEW_ALLOWED_TOOLS` | see above | Override review/answer tool allowlist |
 
-Images install `bubblewrap`. Host/systemd installs without `bwrap` fall back to **env scrub only** — still strips tokens from the agent process, but cannot hide credential files on disk. Install `bubblewrap` (or run the Docker image) for full filesystem isolation.
+Images install `bubblewrap`. `auto` mode probes whether `bwrap` can actually create namespaces (not just whether the binary exists); if the probe fails it falls back to **env scrub only**. Host/systemd installs without `bwrap`, and Docker runtimes that block unprivileged user namespaces, use that fallback — still strips tokens from the agent process, but cannot hide credential files on disk. The Compose `worker` service sets `security_opt` (`apparmor:unconfined`, `seccomp:unconfined`) so bubblewrap userns work on Ubuntu Docker without granting privileged / `CAP_SYS_ADMIN`.
 
 Automated checks: `bash worker/tests/agent-isolation.sh` (included in `pnpm test:worker`).
 
@@ -145,7 +145,8 @@ CodeGraph maintains a local `.codegraph/` index inside workspaces when enabled f
 
 - Worker forge auth is process-global for the **orchestration** process (`GH_TOKEN` / `GITLAB_TOKEN`). Multiple simultaneous GitHub identities are not supported; the most recently validated active connection is exported. These tokens are **not** exported into the AI agent phase.
 - Agent network namespace is shared (AI provider APIs must be reachable). Without forge tokens / SSH keys / credential helpers, authenticated forge writes still fail; unauthenticated public HTTP is not blocked.
-- Bubblewrap is unavailable on some host kernels or restricted container runtimes → `AI_ISOLATION_MODE=env` behavior; credential **files** may remain readable though tokens are scrubbed from the environment. Prefer the Compose image (includes `bubblewrap`).
+- Bubblewrap is unavailable (or present but blocked from creating user namespaces) on some host kernels or restricted container runtimes → `auto` falls back to `AI_ISOLATION_MODE=env` behavior; credential **files** may remain readable though tokens are scrubbed from the environment. Prefer Compose (`docker-compose.yml` worker `security_opt`) so bwrap userns work; recreate the worker after changing compose security options.
+- Provider sandboxes (Codex / Cursor) nest another bubblewrap. That fails when user namespaces are blocked **or** when outer `ai_isolation_exec` already uses `bwrap`. In those cases the worker disables the provider sandbox (Codex `--dangerously-bypass-approvals-and-sandbox`, Cursor `--sandbox disabled`) so file writes succeed; `ai_isolation_exec` remains the OS security boundary.
 - Provider tool allowlists / Cursor sandbox can be widened by operator env (`AI_CLAUDE_*`, `AI_CURSOR_*`); OS isolation remains the boundary.
 - OAuth user tokens may lack org SSO authorization or fine-grained permissions required for some org repos — reconnect or grant access in the provider UI.
 - Successful OAuth does not guarantee every worker write action (labels, releases) if an admin later reduces scopes.

@@ -297,9 +297,37 @@ pass "10. forge text / path validation helpers work"
 
 # Env-only mode still strips tokens even without bwrap overlays.
 AI_ISOLATION_MODE=env
+# Reset probe cache between mode switches.
+AI_ISOLATION_BWRAP_USABLE=""
 ai_isolation_exec "$WS" -- bash -c '[[ -z "${GH_TOKEN:-}" && -z "${GITLAB_TOKEN:-}" ]]' \
     || fail "env mode failed to strip tokens"
 pass "env isolation mode strips forge tokens"
+
+# auto mode must fall back to env when bwrap cannot create namespaces.
+# Simulate a broken bwrap binary on PATH (common Docker AppArmor/seccomp case).
+FAKE_BIN="$TMP/fake-bin"
+mkdir -p "$FAKE_BIN"
+cat >"$FAKE_BIN/bwrap" <<'EOF'
+#!/usr/bin/env bash
+echo "bwrap: No permissions to create new namespace" >&2
+exit 1
+EOF
+chmod +x "$FAKE_BIN/bwrap"
+AI_ISOLATION_MODE=auto
+AI_ISOLATION_BWRAP_USABLE=""
+AI_ISOLATION_USERNS_USABLE=""
+PATH="$FAKE_BIN:$PATH"
+FALLBACK_MODE="$(ai_isolation_resolved_mode 2>/dev/null)" || fail "auto resolve failed with broken bwrap"
+[[ "$FALLBACK_MODE" == "env" ]] || fail "auto should fall back to env when bwrap is unusable (got $FALLBACK_MODE)"
+pass "auto falls back to env when bubblewrap namespaces are blocked"
+
+# Provider sandboxes must detect the same userns failure (Codex/Cursor fallbacks).
+AI_ISOLATION_USERNS_USABLE=""
+AI_ISOLATION_BWRAP_USABLE=""
+if ai_isolation_userns_usable; then
+    fail "userns probe should fail with broken bwrap on PATH"
+fi
+pass "userns probe reports blocked when bwrap cannot create namespaces"
 
 echo
 echo "agent-isolation.sh: all checks passed (mode was $MODE for primary probes)"
