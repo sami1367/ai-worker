@@ -60,7 +60,7 @@ export async function getDashboard(windowHours = 24) {
     providers,
     events,
     recentRuns,
-    finishedTasks,
+    finishedPage,
     dbHealth,
     plans,
     queue,
@@ -73,13 +73,14 @@ export async function getDashboard(windowHours = 24) {
     listProviders(),
     listRecentWorkerEvents(10),
     db.select().from(taskRuns).orderBy(desc(taskRuns.createdAt)).limit(10),
-    listFinishedTaskRuns({ windowHours, limit: 50 }),
+    listFinishedTaskRuns({ windowHours, pageSize: 50 }),
     checkDatabaseConnectivity(),
     getProviderPlanSnapshots(),
     queuePhaseCounts(),
     getSettings(),
     getSetupReadiness(),
   ])
+  const finishedTasks = finishedPage.items
 
   const latestFailures = recentRuns.filter((r) => r.status === 'failed').slice(0, 5)
   const usageByProvider = new Map<string, ProviderUsageStats>(
