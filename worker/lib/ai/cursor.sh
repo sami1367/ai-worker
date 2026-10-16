@@ -36,8 +36,8 @@ ai_cursor_run() {
 
     # Default: enable Cursor's command sandbox. Operators may override with
     # AI_CURSOR_SANDBOX=disabled (not a substitute for ai_isolation_exec).
-    # When user namespaces are blocked, Cursor's enabled sandbox fails the same
-    # way Codex workspace-write does — disable it and keep ai_isolation_exec.
+    # Disable when userns are blocked, or when outer bubblewrap already wraps the
+    # agent (nested provider sandboxes fail with CLONE_NEWUSER errors).
     local sandbox_mode="${AI_CURSOR_SANDBOX:-enabled}"
     case "$sandbox_mode" in
         enabled | disabled) ;;
@@ -49,9 +49,13 @@ ai_cursor_run() {
             sandbox_mode="enabled"
             ;;
     esac
-    if [[ "$sandbox_mode" == "enabled" ]] && ! ai_isolation_userns_usable; then
-        echo "WARNING: User namespaces unavailable; Cursor --sandbox enabled cannot run tools. Using disabled (OS isolation via ai_isolation_exec remains)." >&2
-        sandbox_mode="disabled"
+    if [[ "$sandbox_mode" == "enabled" ]]; then
+        local isolation_mode
+        isolation_mode="$(ai_isolation_resolved_mode 2>/dev/null || echo unknown)"
+        if [[ "$isolation_mode" == "bwrap" ]] || ! ai_isolation_userns_usable; then
+            echo "WARNING: Cursor nested sandbox unavailable (isolation=$isolation_mode); using --sandbox disabled (OS isolation via ai_isolation_exec remains)." >&2
+            sandbox_mode="disabled"
+        fi
     fi
     if [[ -n "$sandbox_mode" ]]; then
         cmd+=(--sandbox "$sandbox_mode")
