@@ -67,7 +67,8 @@ function rowIsConnected(row: { providerType: string, secretCiphertext: string | 
   return Boolean(row.secretCiphertext) || envCredentialPresent(row.providerType)
 }
 
-function publicProvider(row: typeof providerConfigs.$inferSelect) {
+/** Public API shape — never includes plaintext or ciphertext secrets. */
+export function publicProvider(row: typeof providerConfigs.$inferSelect) {
   const hasStoredSecret = Boolean(row.secretCiphertext)
   const hasEnvSecret = envCredentialPresent(row.providerType)
   return {
@@ -164,12 +165,20 @@ export async function updateProvider(
     .where(eq(providerConfigs.providerType, providerType)).limit(1)
   if (!existing) throw new AppError(404, 'Unknown provider', 'not_found')
 
+  // Only update stored secrets when the client sends a non-blank value or explicit null (clear).
+  // Blank / omitted secret fields retain the existing ciphertext.
   let secretCiphertext = existing.secretCiphertext
+  let secretChanged = false
   if (input.secret === null) {
     secretCiphertext = null
-  } else if (typeof input.secret === 'string' && input.secret.length > 0) {
-    if (!encryptionKey) throw new AppError(500, 'SECRET_ENCRYPTION_KEY is not configured', 'misconfigured')
-    secretCiphertext = encryptSecret(input.secret, encryptionKey)
+    secretChanged = true
+  } else if (typeof input.secret === 'string') {
+    const trimmed = input.secret.trim()
+    if (trimmed.length > 0) {
+      if (!encryptionKey) throw new AppError(500, 'SECRET_ENCRYPTION_KEY is not configured', 'misconfigured')
+      secretCiphertext = encryptSecret(trimmed, encryptionKey)
+      secretChanged = true
+    }
   }
 
   const nextEnabled = input.isEnabled ?? existing.isEnabled
@@ -228,7 +237,7 @@ export async function updateProvider(
   if (!updated) throw new AppError(500, 'Failed to update provider', 'internal')
 
   // Enforce exactly-one default among enabled+connected providers.
-  const prefer = nextDefault || (typeof input.secret === 'string' && input.secret.length > 0)
+  const prefer = nextDefault || (secretChanged && typeof input.secret === 'string')
     ? providerType
     : (input.isDefault === false ? otherCandidates[0]?.providerType : undefined)
   const reconciled = await reconcileDefaultProvider(prefer)
@@ -241,7 +250,7 @@ export async function updateProvider(
     if (fresh) row = fresh
   }
 
-  if (input.secret !== undefined) {
+  if (secretChanged) {
     try {
       await exportProviderCredentialsForWorker()
     } catch (err) {
@@ -257,12 +266,12 @@ export async function updateProvider(
     await syncDefaultAiProviderSetting(reconciled.providerType, actor, ipHash)
   }
 
-  if (input.secret !== undefined || input.isDefault !== undefined || input.isEnabled !== undefined) {
+  if (secretChanged || input.isDefault !== undefined || input.isEnabled !== undefined) {
     try {
       const { applyWorkerRuntimeChange } = await import('./worker-runtime')
       await applyWorkerRuntimeChange('provider.update', {
         providerType,
-        secretChanged: input.secret !== undefined,
+        secretChanged,
         isDefault: row.isDefault,
       })
     } catch (err) {
@@ -282,7 +291,7 @@ export async function updateProvider(
     metadata: {
       isEnabled: row.isEnabled,
       isDefault: row.isDefault,
-      secretChanged: input.secret !== undefined,
+      secretChanged,
       credentialType: typeof nextConfig?.credentialType === 'string' ? nextConfig.credentialType : undefined,
     },
     ipHash,

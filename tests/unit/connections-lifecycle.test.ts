@@ -124,6 +124,33 @@ describe('connection pause helpers', () => {
     expect(paused.disabled).toBe(true)
     expect(paused.hasAccessToken).toBe(true)
   })
+
+  it('never returns access, refresh, or webhook secret material to clients', () => {
+    process.env.APP_BASE_URL = 'http://localhost:8080'
+    const token = 'ghp_abcdefghijklmnopqrstuvwxyz012345'
+    const refresh = 'refresh-token-value-should-not-leak'
+    const webhook = 'webhook-secret-value-should-not-leak'
+    const pub = publicConnection(baseRow({
+      accessTokenCiphertext: `enc:${token}`,
+      refreshTokenCiphertext: `enc:${refresh}`,
+      webhookSecretCiphertext: `enc:${webhook}`,
+      lastError: `failed with token ${token}`,
+    }))
+    const serialized = JSON.stringify(pub)
+    expect(serialized).not.toContain(token)
+    expect(serialized).not.toContain(refresh)
+    expect(serialized).not.toContain(webhook)
+    expect(serialized).not.toContain('accessTokenCiphertext')
+    expect(serialized).not.toContain('refreshTokenCiphertext')
+    expect(serialized).not.toContain('webhookSecretCiphertext')
+    expect(pub).not.toHaveProperty('accessToken')
+    expect(pub).not.toHaveProperty('refreshToken')
+    expect(pub).not.toHaveProperty('webhookSecret')
+    expect(pub.hasAccessToken).toBe(true)
+    expect(pub.hasRefreshToken).toBe(true)
+    expect(pub.hasWebhookSecret).toBe(true)
+    expect(pub.lastError).not.toContain(token)
+  })
 })
 
 describe('disable / enable / remove connection', () => {
