@@ -55,6 +55,13 @@ ai_gemini_run() {
         cmd+=(--yolo)
     fi
 
+    # Gemini --sandbox / GEMINI_SANDBOX starts docker, podman, or seatbelt.
+    # Never enable that inside our isolation wrapper.
+    if ai_provider_nested_sandbox_blocked; then
+        echo "WARNING: Gemini nested sandbox unavailable; not using --sandbox (OS isolation via ai_isolation_exec remains)." >&2
+        unset GEMINI_SANDBOX
+    fi
+
     cmd+=(--output-format "$output_format")
 
     if [[ -n "${AI_GEMINI_MODEL:-}" ]]; then

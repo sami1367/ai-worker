@@ -43,23 +43,16 @@ ai_codex_run() {
             ;;
     esac
 
-    # Codex shells/patches spawn a nested bubblewrap. That fails when:
-    #   1) the runtime blocks user namespaces, or
-    #   2) we already wrap the agent in ai_isolation_exec bwrap (nested CLONE_NEWUSER).
-    # Codex documents --dangerously-bypass-approvals-and-sandbox for externally
-    # sandboxed environments — ai_isolation_exec remains the OS boundary.
+    # Codex shells/patches spawn a nested bubblewrap. That fails when user
+    # namespaces are blocked or when ai_isolation_exec already uses bwrap.
+    # --dangerously-bypass-approvals-and-sandbox is the documented flag for
+    # externally sandboxed hosts. ai_isolation_exec remains the OS boundary.
     local isolation_mode
     isolation_mode="$(ai_isolation_resolved_mode)" || return 1
-    local bypass_provider_sandbox=0
-    if [[ "$isolation_mode" == "bwrap" ]]; then
-        bypass_provider_sandbox=1
-    elif ! ai_isolation_userns_usable; then
-        bypass_provider_sandbox=1
-    fi
 
     local -a cmd=("$AI_PROVIDER_BIN" exec)
     cmd+=(--cd "$workspace")
-    if [[ "$bypass_provider_sandbox" -eq 1 ]]; then
+    if ai_provider_nested_sandbox_blocked; then
         echo "WARNING: Codex nested sandbox unavailable (isolation=$isolation_mode); using --dangerously-bypass-approvals-and-sandbox (OS isolation via ai_isolation_exec remains)." >&2
         cmd+=(--dangerously-bypass-approvals-and-sandbox)
     else

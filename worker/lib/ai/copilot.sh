@@ -63,6 +63,12 @@ ai_copilot_run() {
         cmd+=(--yolo)
     fi
 
+    # Copilot command sandboxing is off unless --sandbox or sandbox.enabled.
+    # We never pass --sandbox: on Linux it is another bubblewrap namespace.
+    if ai_provider_nested_sandbox_blocked; then
+        echo "WARNING: Copilot nested sandbox left disabled (OS isolation via ai_isolation_exec remains)." >&2
+    fi
+
     if [[ -n "${AI_COPILOT_MODEL:-}" ]]; then
         cmd+=(--model "$AI_COPILOT_MODEL")
     fi
