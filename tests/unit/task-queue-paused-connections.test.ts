@@ -13,6 +13,7 @@ vi.mock('../../server/services/connections', async () => {
     listPausedConnectionIds: vi.fn(async () => ['paused-conn']),
     getConnection: vi.fn(),
     getConnectionAccessToken: vi.fn(),
+    ensureConnectionAccount: vi.fn(),
   }
 })
 
@@ -102,9 +103,9 @@ describe('task queue skips disabled connections', () => {
       }),
     } as never)
 
-    // Avoid deep forge sync: getConnectionAccessToken throws so syncRepositoryQueue fails softly
-    const { getConnectionAccessToken } = await import('../../server/services/connections')
-    vi.mocked(getConnectionAccessToken).mockRejectedValue(new Error('no token'))
+    // Avoid deep forge sync: ensureConnectionAccount throws so syncRepositoryQueue fails softly
+    const { ensureConnectionAccount } = await import('../../server/services/connections')
+    vi.mocked(ensureConnectionAccount).mockRejectedValue(new Error('no token'))
 
     const result = await syncTaskQueueFromForges({ reason: 'test' })
     expect(listPausedConnectionIds).toHaveBeenCalled()

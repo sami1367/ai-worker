@@ -3,14 +3,15 @@ import { repositories, taskQueueItems, taskQueueRepoSync, taskRuns } from '#db/s
 import { getDb } from '#utils/db'
 import { redactSecrets } from '#utils/redact'
 import {
+  ensureConnectionAccount,
   getConnection,
-  getConnectionAccessToken,
   isConnectionPaused,
   listPausedConnectionIds,
   shouldExposeRepositoryForConnection,
 } from './connections'
 import { listGitHubAiIssues, listGitHubAiPullRequests } from './forge-github'
 import { listGitLabAiIssues, listGitLabAiMergeRequests } from './forge-gitlab'
+import { isAssignedToForgeAccount, type ForgeAssignee } from './forge-types'
 import { publishQueueUpdated } from './queue-events'
 import { getWorkerStatus, type ActiveTask } from './worker'
 
@@ -59,6 +60,8 @@ export type QueueItem = {
   title: string
   url: string
   labels: string[]
+  /** Forge assignees for this item (empty for unlabeled PR/MR safety-net rows). */
+  assignees: ForgeAssignee[]
   sourceBranch: string | null
   /** Branch currently associated with this work (active checkout or PR/MR head). */
   branch: string | null
@@ -90,6 +93,7 @@ type RawForgeItem = {
   title: string
   url: string
   labels: string[]
+  assignees: ForgeAssignee[]
   sourceBranch: string | null
   createdAt: string
 }
@@ -489,7 +493,12 @@ async function fetchRepoForgeItems(
     throw new Error('Repository has no project identifier')
   }
 
-  const { token, row: connection } = await getConnectionAccessToken(repo.connectionId)
+  // Prefer stored forge user; fetch /user and persist when missing.
+  const { token, row: connection } = await ensureConnectionAccount(repo.connectionId)
+  const account = {
+    accountId: connection.accountId,
+    accountLogin: connection.accountLogin,
+  }
   const items: RawForgeItem[] = []
 
   if (repo.forgeType === 'github') {
@@ -498,6 +507,8 @@ async function fetchRepoForgeItems(
       listGitHubAiPullRequests(token, projectRef),
     ])
     for (const issue of issues) {
+      // AI label alone is not enough — only queue issues assigned to the connected user.
+      if (!isAssignedToForgeAccount(issue.assignees, account)) continue
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(issue.labels, 'issue')
       items.push({
         kind: 'issue',
@@ -508,6 +519,7 @@ async function fetchRepoForgeItems(
         title: issue.title,
         url: issue.url,
         labels: issue.labels,
+        assignees: issue.assignees || [],
         sourceBranch: null,
         createdAt: issue.createdAt,
       })
@@ -523,6 +535,7 @@ async function fetchRepoForgeItems(
         title: pr.title,
         url: pr.url,
         labels: pr.labels,
+        assignees: pr.assignees || [],
         sourceBranch: pr.sourceBranch || null,
         createdAt: pr.createdAt,
       })
@@ -534,6 +547,7 @@ async function fetchRepoForgeItems(
       listGitLabAiMergeRequests(instanceUrl, token, projectRef),
     ])
     for (const issue of issues) {
+      if (!isAssignedToForgeAccount(issue.assignees, account)) continue
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(issue.labels, 'issue')
       items.push({
         kind: 'issue',
@@ -544,6 +558,7 @@ async function fetchRepoForgeItems(
         title: issue.title,
         url: issue.url,
         labels: issue.labels,
+        assignees: issue.assignees || [],
         sourceBranch: null,
         createdAt: issue.createdAt,
       })
@@ -559,6 +574,7 @@ async function fetchRepoForgeItems(
         title: mr.title,
         url: mr.url,
         labels: mr.labels,
+        assignees: mr.assignees || [],
         sourceBranch: mr.sourceBranch || null,
         createdAt: mr.createdAt,
       })
@@ -586,6 +602,7 @@ async function persistRepoQueueItems(
       title: item.title,
       url: item.url,
       labels: item.labels,
+      assignees: item.assignees,
       sourceBranch: item.sourceBranch,
       forgeCreatedAt: item.createdAt ? new Date(item.createdAt) : null,
       syncedAt: now,
@@ -598,6 +615,7 @@ async function persistRepoQueueItems(
         title: item.title,
         url: item.url,
         labels: item.labels,
+        assignees: item.assignees,
         sourceBranch: item.sourceBranch,
         forgeCreatedAt: item.createdAt ? new Date(item.createdAt) : null,
         syncedAt: now,
@@ -794,6 +812,7 @@ function buildQueuePayload(
       title: row.title,
       url: row.url,
       labels: row.labels || [],
+      assignees: row.assignees || [],
       sourceBranch: row.sourceBranch || null,
       branch: row.sourceBranch || null,
       createdAt: (row.forgeCreatedAt || row.createdAt).toISOString(),

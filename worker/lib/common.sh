@@ -1462,12 +1462,14 @@ ai_format_github_comments() {
     )" "$max_bytes"
 }
 
-# Print oldest open issue number with label "ai", or empty.
+# Print oldest open issue number with label "ai" assigned to the authenticated user, or empty.
+# Assignee is checked first: AI label alone is not enough to pick up work.
 github_find_ai_issue() {
     local repo="$1"
 
     gh issue list \
         --repo "$repo" \
+        --assignee "@me" \
         --label "ai" \
         --state open \
         --limit 1 \
@@ -1476,12 +1478,13 @@ github_find_ai_issue() {
         2>/dev/null || true
 }
 
-# Print oldest open issue with both "ai" and "no-change" (Q&A), or empty.
+# Print oldest open issue with both "ai" and "no-change" (Q&A) assigned to @me, or empty.
 github_find_ai_no_change_issue() {
     local repo="$1"
 
     gh issue list \
         --repo "$repo" \
+        --assignee "@me" \
         --label "ai" \
         --label "no-change" \
         --state open \

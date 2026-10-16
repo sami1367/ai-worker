@@ -2,7 +2,7 @@ import { AppError } from '#utils/errors'
 import { safeFetch } from '#utils/safe-fetch'
 import { redactSecrets } from '#utils/redact'
 import { codeChallengeS256 } from './pkce'
-import type { ForgeAccount, ForgeRepo, TokenBundle } from './forge-types'
+import type { ForgeAccount, ForgeAssignee, ForgeRepo, TokenBundle } from './forge-types'
 
 const GITHUB_AUTHORIZE = 'https://github.com/login/oauth/authorize'
 const GITHUB_TOKEN = 'https://github.com/login/oauth/access_token'
@@ -350,6 +350,8 @@ export type ForgeLabeledItem = {
   kind: 'issue' | 'pull_request'
   /** Head branch for PRs (used in worker block messages). */
   sourceBranch?: string | null
+  /** Issue/PR assignees from the forge (login = GitHub login). */
+  assignees?: ForgeAssignee[]
 }
 
 const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr', 'ai-answered'] as const
@@ -371,6 +373,23 @@ function hasAnyLabel(labels: string[], wanted: readonly string[]): boolean {
   return wanted.some((w) => set.has(w.toLowerCase()))
 }
 
+function githubAssignees(
+  assignees: Array<{ id?: number, login?: string }> | undefined,
+  assignee: { id?: number, login?: string } | null | undefined,
+): ForgeAssignee[] {
+  const byId = new Map<string, ForgeAssignee>()
+  const push = (a: { id?: number, login?: string } | null | undefined) => {
+    if (!a?.login) return
+    const id = a.id != null ? String(a.id) : a.login
+    byId.set(id, { id, login: String(a.login) })
+  }
+  if (Array.isArray(assignees)) {
+    for (const a of assignees) push(a)
+  }
+  push(assignee)
+  return [...byId.values()]
+}
+
 /** Open issues carrying any AI implement workflow label (excludes PRs). */
 export async function listGitHubAiIssues(
   token: string,
@@ -389,6 +408,8 @@ export async function listGitHubAiIssues(
         created_at?: string
         pull_request?: unknown
         labels?: Array<{ name?: string } | string>
+        assignees?: Array<{ id?: number, login?: string }>
+        assignee?: { id?: number, login?: string } | null
       }>>(
         `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100&page=${page}&sort=created&direction=asc`,
         token,
@@ -406,6 +427,7 @@ export async function listGitHubAiIssues(
           labels,
           createdAt: String(issue.created_at || new Date(0).toISOString()),
           kind: 'issue',
+          assignees: githubAssignees(issue.assignees, issue.assignee),
         })
       }
       if (batch.length < 100) break
