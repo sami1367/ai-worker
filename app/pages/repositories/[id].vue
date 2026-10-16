@@ -19,6 +19,33 @@ const busy = ref('')
 const message = ref('')
 const messageError = ref(false)
 
+const branchOptions = ref<Array<{ label: string, value: string }>>([])
+const branchesLoading = ref(false)
+const branchesError = ref('')
+
+async function loadBranches() {
+  branchesLoading.value = true
+  branchesError.value = ''
+  try {
+    const res = await api<{ branches: string[], defaultBranch: string }>(
+      `/api/v1/repositories/${id.value}/branches`,
+    )
+    const names = Array.isArray(res.branches) ? res.branches : []
+    const current = data.value?.defaultBranch
+    if (current && !names.includes(current)) names.unshift(current)
+    branchOptions.value = names.map((name) => ({ label: name, value: name }))
+  } catch (e: any) {
+    branchOptions.value = []
+    branchesError.value = e?.data?.message || e?.statusMessage || 'Could not load branches'
+  } finally {
+    branchesLoading.value = false
+  }
+}
+
+watch(id, () => {
+  void loadBranches()
+}, { immediate: true })
+
 async function action(path: string, label: string, body?: Record<string, unknown>) {
   busy.value = label
   message.value = ''
@@ -179,12 +206,25 @@ onBeforeUnmount(() => stopPoll.value?.())
             label="PR / MR target branch"
             hint="Branch that new pull requests and merge requests target (for example main, master, or develop). When force-push is enabled, changes are pushed directly to this branch instead. Also used when preparing the workspace checkout."
           >
+            <USelect
+              v-if="branchOptions.length"
+              v-model="data.defaultBranch"
+              :items="branchOptions"
+              class="w-full"
+              :loading="branchesLoading"
+            />
             <UInput
+              v-else
               v-model="data.defaultBranch"
               class="w-full"
               placeholder="main"
               spellcheck="false"
+              :disabled="branchesLoading"
             />
+            <p v-if="branchesLoading" class="mt-1 text-xs opacity-60">Loading branches from forge…</p>
+            <p v-else-if="branchesError" class="mt-1 text-xs opacity-60">
+              {{ branchesError }} — enter the branch name manually, or reconnect the forge connection.
+            </p>
           </UFormField>
           <UFormField label="Default AI provider">
             <USelect

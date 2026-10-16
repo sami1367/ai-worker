@@ -540,6 +540,31 @@ export async function listGitLabAiMergeRequests(
   )
 }
 
+/** List branch names for a GitLab project (path or numeric id). Paginated. */
+export async function listGitLabBranches(
+  instanceUrl: string,
+  token: string,
+  projectPath: string,
+): Promise<string[]> {
+  const encoded = encodeURIComponent(normalizeGitLabProjectPath(projectPath))
+  const names: string[] = []
+  let page = 1
+  while (page <= 20) {
+    const { data: batch } = await gitlabApi<Array<{ name?: string }>>(
+      instanceUrl,
+      `/projects/${encoded}/repository/branches?per_page=100&page=${page}`,
+      token,
+    )
+    if (!batch.length) break
+    for (const branch of batch) {
+      if (branch.name) names.push(String(branch.name))
+    }
+    if (batch.length < 100) break
+    page += 1
+  }
+  return names
+}
+
 /** Create missing labels on a GitLab project. Idempotent; skips labels that already exist. */
 export async function ensureGitLabProjectLabels(
   instanceUrl: string,
