@@ -282,6 +282,26 @@ export async function listGitHubRepositories(token: string): Promise<ForgeRepo[]
   return [...repos.values()]
 }
 
+/** List branch names for a GitHub repository (owner/name). Paginated. */
+export async function listGitHubBranches(token: string, fullName: string): Promise<string[]> {
+  const repo = normalizeGitHubRepoFullName(fullName)
+  const names: string[] = []
+  let page = 1
+  while (page <= 20) {
+    const batch = await githubApi<Array<{ name?: string }>>(
+      `/repos/${repo}/branches?per_page=100&page=${page}`,
+      token,
+    )
+    if (!batch.length) break
+    for (const branch of batch) {
+      if (branch.name) names.push(String(branch.name))
+    }
+    if (batch.length < 100) break
+    page += 1
+  }
+  return names
+}
+
 export type ForgeLabelSpec = {
   name: string
   color: string

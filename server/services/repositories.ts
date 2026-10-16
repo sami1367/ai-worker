@@ -7,7 +7,9 @@ import { managedWorkspacePath, newWorkspaceId, validateRemoteUrl } from '#utils/
 import { ensureRepositoryLabels } from './ai-labels'
 import { writeAudit } from './audit'
 import { exportWorkerConfig } from './config-sync'
-import { listPausedConnectionIds } from './connections'
+import { getConnectionAccessToken, listPausedConnectionIds } from './connections'
+import { listGitHubBranches } from './forge-github'
+import { listGitLabBranches } from './forge-gitlab'
 import { getSettings } from './settings'
 
 export const bulkSetEnabledSchema = z.object({
@@ -168,6 +170,58 @@ export async function getRepository(id: string) {
   const [row] = await db.select().from(repositories).where(eq(repositories.id, id)).limit(1)
   if (!row) throw new AppError(404, 'Repository not found', 'not_found')
   return publicRepo(row)
+}
+
+function resolveBranchProjectRef(repo: typeof repositories.$inferSelect): string | null {
+  if (repo.canonicalProjectIdentifier) return repo.canonicalProjectIdentifier
+  // GitLab accepts numeric project ids; GitHub branch listing needs owner/name.
+  if (repo.forgeType === 'gitlab' && repo.providerRepoId) return repo.providerRepoId
+  if (repo.forgeType === 'github' && repo.providerRepoId?.includes('/')) return repo.providerRepoId
+  if (!repo.remoteUrl) return null
+  return repo.remoteUrl
+    .replace(/\.git$/, '')
+    .replace(/^https?:\/\/[^/]+\//, '')
+    .replace(/^git@[^:]+:/, '')
+    || null
+}
+
+/** Fetch remote branch names via the linked forge connection (GitHub or GitLab). */
+export async function listRepositoryBranches(id: string): Promise<{
+  branches: string[]
+  defaultBranch: string
+}> {
+  const db = getDb()
+  const [repo] = await db.select().from(repositories).where(eq(repositories.id, id)).limit(1)
+  if (!repo || repo.isArchived) throw new AppError(404, 'Repository not found', 'not_found')
+
+  const projectRef = resolveBranchProjectRef(repo)
+  if (!projectRef) {
+    throw new AppError(400, 'Repository has no project identifier for branch listing', 'missing_project_ref')
+  }
+  if (!repo.connectionId) {
+    throw new AppError(
+      400,
+      'Repository is not linked to a forge connection; reconnect or register via Connections',
+      'missing_connection',
+    )
+  }
+
+  const { token, row: connection } = await getConnectionAccessToken(repo.connectionId)
+  const fetched = connection.provider === 'github'
+    ? await listGitHubBranches(token, projectRef)
+    : await listGitLabBranches(connection.instanceUrl, token, projectRef)
+
+  const seen = new Set<string>()
+  const branches: string[] = []
+  for (const name of fetched) {
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    branches.push(name)
+  }
+  if (repo.defaultBranch && !seen.has(repo.defaultBranch)) {
+    branches.unshift(repo.defaultBranch)
+  }
+  return { branches, defaultBranch: repo.defaultBranch }
 }
 
 export async function createRepository(
