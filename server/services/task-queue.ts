@@ -11,7 +11,8 @@ import {
 } from './connections'
 import { listGitHubAiIssues, listGitHubAiPullRequests } from './forge-github'
 import { listGitLabAiIssues, listGitLabAiMergeRequests } from './forge-gitlab'
-import { isAssignedToForgeAccount, type ForgeAssignee } from './forge-types'
+import { isAcceptedReporter, isAssignedToForgeAccount, type ForgeAssignee } from './forge-types'
+import { acceptedReportersFromSettings } from './repositories'
 import { publishQueueUpdated } from './queue-events'
 import { getWorkerStatus, type ActiveTask } from './worker'
 
@@ -491,6 +492,7 @@ async function fetchRepoForgeItems(
     accountId: connection.accountId,
     accountLogin: connection.accountLogin,
   }
+  const acceptedReporters = acceptedReportersFromSettings(repo.settings as Record<string, unknown>)
   const items: RawForgeItem[] = []
 
   if (repo.forgeType === 'github') {
@@ -501,6 +503,8 @@ async function fetchRepoForgeItems(
     for (const issue of issues) {
       // AI label alone is not enough — only queue issues assigned to the connected user.
       if (!isAssignedToForgeAccount(issue.assignees, account)) continue
+      // Optional reporter allowlist from repository settings (empty = all authors).
+      if (!isAcceptedReporter(issue.author, acceptedReporters)) continue
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(issue.labels, 'issue')
       items.push({
         kind: 'issue',
@@ -554,6 +558,7 @@ async function fetchRepoForgeItems(
     ])
     for (const issue of issues) {
       if (!isAssignedToForgeAccount(issue.assignees, account)) continue
+      if (!isAcceptedReporter(issue.author, acceptedReporters)) continue
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(issue.labels, 'issue')
       items.push({
         kind: 'issue',

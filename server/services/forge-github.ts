@@ -352,7 +352,7 @@ export type ForgeLabeledItem = {
   sourceBranch?: string | null
   /** Issue/PR assignees from the forge (login = GitHub login). */
   assignees?: ForgeAssignee[]
-  /** PR author (login = GitHub login); used for open-PR gating. */
+  /** Issue/PR author (login = GitHub login); used for reporter allowlist and open-PR gating. */
   author?: ForgeAssignee | null
 }
 
@@ -392,6 +392,16 @@ function githubAssignees(
   return [...byId.values()]
 }
 
+function githubAuthor(
+  user: { id?: number, login?: string } | null | undefined,
+): ForgeAssignee | null {
+  if (!user?.login) return null
+  return {
+    id: user.id != null ? String(user.id) : String(user.login),
+    login: String(user.login),
+  }
+}
+
 /** Open issues carrying any AI implement workflow label (excludes PRs). */
 export async function listGitHubAiIssues(
   token: string,
@@ -410,6 +420,7 @@ export async function listGitHubAiIssues(
         created_at?: string
         pull_request?: unknown
         labels?: Array<{ name?: string } | string>
+        user?: { id?: number, login?: string } | null
         assignees?: Array<{ id?: number, login?: string }>
         assignee?: { id?: number, login?: string } | null
       }>>(
@@ -430,6 +441,7 @@ export async function listGitHubAiIssues(
           createdAt: String(issue.created_at || new Date(0).toISOString()),
           kind: 'issue',
           assignees: githubAssignees(issue.assignees, issue.assignee),
+          author: githubAuthor(issue.user),
         })
       }
       if (batch.length < 100) break

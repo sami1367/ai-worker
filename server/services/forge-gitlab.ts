@@ -336,7 +336,7 @@ export type ForgeLabeledItem = {
   sourceBranch?: string | null
   /** Issue/MR assignees from the forge (login = GitLab username). */
   assignees?: ForgeAssignee[]
-  /** MR author (login = GitLab username); used for open-MR gating. */
+  /** Issue/MR author (login = GitLab username); used for reporter allowlist and open-MR gating. */
   author?: ForgeAssignee | null
 }
 
@@ -404,6 +404,7 @@ export async function listGitLabAiIssues(
         web_url?: string
         created_at?: string
         labels?: unknown
+        author?: { id?: number, username?: string } | null
         assignees?: Array<{ id?: number, username?: string }>
         assignee?: { id?: number, username?: string } | null
       }>>(
@@ -424,6 +425,7 @@ export async function listGitLabAiIssues(
           createdAt: String(issue.created_at || new Date(0).toISOString()),
           kind: 'issue',
           assignees: gitlabAssignees(issue.assignees, issue.assignee),
+          author: gitlabAuthor(issue.author),
         })
       }
       if (batch.length < 100) break
