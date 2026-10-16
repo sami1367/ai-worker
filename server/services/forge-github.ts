@@ -435,7 +435,9 @@ export async function listGitHubAiIssues(
     }
   }
 
-  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.externalId.localeCompare(b.externalId),
+  )
 }
 
 function isAiIssueBranchName(branch: string | null | undefined): boolean {
@@ -464,6 +466,8 @@ export async function listGitHubAiPullRequests(
       created_at?: string
       labels?: Array<{ name?: string } | string>
       head?: { ref?: string }
+      assignees?: Array<{ id?: number, login?: string }>
+      assignee?: { id?: number, login?: string } | null
     }>>(
       `/repos/${repo}/pulls?state=open&per_page=100&page=${page}&sort=created&direction=asc`,
       token,
@@ -482,13 +486,16 @@ export async function listGitHubAiPullRequests(
         createdAt: String(pr.created_at || new Date(0).toISOString()),
         kind: 'pull_request',
         sourceBranch,
+        assignees: githubAssignees(pr.assignees, pr.assignee),
       })
     }
     if (batch.length < 100) break
     page += 1
   }
 
-  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.externalId.localeCompare(b.externalId),
+  )
 }
 
 /** Create missing labels on a GitHub repo (owner/name). Idempotent; skips labels that already exist. */
