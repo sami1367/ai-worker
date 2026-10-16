@@ -296,6 +296,8 @@ export const taskQueueItems = pgTable('task_queue_items', {
   title: text('title').notNull().default(''),
   url: text('url').notNull().default(''),
   labels: jsonb('labels').$type<string[]>().notNull().default([]),
+  /** Forge assignees ({ id, login }); issues must match the connected account to be worked. */
+  assignees: jsonb('assignees').$type<Array<{ id: string, login: string }>>().notNull().default([]),
   sourceBranch: varchar('source_branch', { length: 256 }),
   forgeCreatedAt: timestamp('forge_created_at', { withTimezone: true }),
   syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),

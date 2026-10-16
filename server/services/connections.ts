@@ -164,6 +164,36 @@ export async function getConnectionAccessToken(id: string): Promise<{
   return { token, row }
 }
 
+/**
+ * Ensure forge account id/login are stored. Fetches /user when missing
+ * (connect normally stores them; this covers older rows or partial data).
+ */
+export async function ensureConnectionAccount(connectionId: string): Promise<{
+  token: string
+  row: typeof forgeConnections.$inferSelect
+}> {
+  const { token, row } = await getConnectionAccessToken(connectionId)
+  if (row.accountId && row.accountLogin) {
+    return { token, row }
+  }
+
+  const account = row.provider === 'github'
+    ? await fetchGitHubAccount(token)
+    : await fetchGitLabAccount(row.instanceUrl, token)
+
+  const db = getDb()
+  const [updated] = await db.update(forgeConnections).set({
+    accountId: account.accountId,
+    accountLogin: account.accountLogin,
+    accountName: account.accountName,
+    scopes: account.scopes ?? row.scopes,
+    lastValidatedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(forgeConnections.id, connectionId)).returning()
+
+  return { token, row: updated }
+}
+
 export const startGitHubConnectionSchema = z.object({
   displayName: z.string().max(128).optional(),
   redirectPath: z.string().max(512).optional(),
@@ -538,6 +568,7 @@ export async function testConnection(id: string, actor: { id: string, username: 
     status: result.ok ? 'active' : 'error',
     lastError: result.ok ? null : redactSecrets(result.message),
     lastValidatedAt: result.ok ? new Date() : row.lastValidatedAt,
+    accountId: result.account?.accountId ?? row.accountId,
     accountLogin: result.account?.accountLogin ?? row.accountLogin,
     accountName: result.account?.accountName ?? row.accountName,
     ...(detectedScopes ? { scopes: detectedScopes } : {}),

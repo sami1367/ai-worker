@@ -17,6 +17,7 @@ function baseItem(overrides: Partial<QueueItem> & Pick<QueueItem, 'id' | 'extern
     statusReason: null,
     title: 't',
     url: 'https://example.test',
+    assignees: [],
     sourceBranch: null,
     branch: null,
     createdAt: '2026-01-01T00:00:00.000Z',

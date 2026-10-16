@@ -2,7 +2,7 @@ import { AppError } from '#utils/errors'
 import { normalizeInstanceUrl, safeFetch } from '#utils/safe-fetch'
 import { redactSecrets } from '#utils/redact'
 import { codeChallengeS256 } from './pkce'
-import type { ForgeAccount, ForgeRepo, TokenBundle } from './forge-types'
+import type { ForgeAccount, ForgeAssignee, ForgeRepo, TokenBundle } from './forge-types'
 
 /** api scope covers project listing and worker label/MR/issue operations. */
 export const GITLAB_OAUTH_SCOPES = 'api read_user read_repository write_repository'
@@ -334,6 +334,10 @@ export type ForgeLabeledItem = {
   kind: 'issue' | 'merge_request'
   /** Source branch for MRs (used in worker block messages). */
   sourceBranch?: string | null
+  /** Issue/MR assignees from the forge (login = GitLab username). */
+  assignees?: ForgeAssignee[]
+  /** MR author (login = GitLab username); used for open-MR gating. */
+  author?: ForgeAssignee | null
 }
 
 const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr', 'ai-answered'] as const
@@ -355,6 +359,33 @@ function gitlabLabelNames(labels: unknown): string[] {
   }).filter(Boolean)
 }
 
+function gitlabAssignees(
+  assignees: Array<{ id?: number, username?: string }> | undefined,
+  assignee: { id?: number, username?: string } | null | undefined,
+): ForgeAssignee[] {
+  const byId = new Map<string, ForgeAssignee>()
+  const push = (a: { id?: number, username?: string } | null | undefined) => {
+    if (!a?.username) return
+    const id = a.id != null ? String(a.id) : a.username
+    byId.set(id, { id, login: String(a.username) })
+  }
+  if (Array.isArray(assignees)) {
+    for (const a of assignees) push(a)
+  }
+  push(assignee)
+  return [...byId.values()]
+}
+
+function gitlabAuthor(
+  author: { id?: number, username?: string } | null | undefined,
+): ForgeAssignee | null {
+  if (!author?.username) return null
+  return {
+    id: author.id != null ? String(author.id) : String(author.username),
+    login: String(author.username),
+  }
+}
+
 /** Open issues carrying any AI implement workflow label. */
 export async function listGitLabAiIssues(
   instanceUrl: string,
@@ -373,6 +404,8 @@ export async function listGitLabAiIssues(
         web_url?: string
         created_at?: string
         labels?: unknown
+        assignees?: Array<{ id?: number, username?: string }>
+        assignee?: { id?: number, username?: string } | null
       }>>(
         instanceUrl,
         `/projects/${encoded}/issues?state=opened&labels=${encodeURIComponent(label)}`
@@ -390,6 +423,7 @@ export async function listGitLabAiIssues(
           labels,
           createdAt: String(issue.created_at || new Date(0).toISOString()),
           kind: 'issue',
+          assignees: gitlabAssignees(issue.assignees, issue.assignee),
         })
       }
       if (batch.length < 100) break
@@ -397,7 +431,9 @@ export async function listGitLabAiIssues(
     }
   }
 
-  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.externalId.localeCompare(b.externalId),
+  )
 }
 
 function isAiIssueBranchName(branch: string | null | undefined): boolean {
@@ -426,6 +462,9 @@ export async function listGitLabAiMergeRequests(
         created_at?: string
         source_branch?: string
         labels?: unknown
+        author?: { id?: number, username?: string } | null
+        assignees?: Array<{ id?: number, username?: string }>
+        assignee?: { id?: number, username?: string } | null
       }>>(
         instanceUrl,
         `/projects/${encoded}/merge_requests?state=opened&labels=${encodeURIComponent(label)}`
@@ -444,6 +483,8 @@ export async function listGitLabAiMergeRequests(
           createdAt: String(mr.created_at || new Date(0).toISOString()),
           kind: 'merge_request',
           sourceBranch: mr.source_branch || null,
+          assignees: gitlabAssignees(mr.assignees, mr.assignee),
+          author: gitlabAuthor(mr.author),
         })
       }
       if (batch.length < 100) break
@@ -461,6 +502,9 @@ export async function listGitLabAiMergeRequests(
       created_at?: string
       source_branch?: string
       labels?: unknown
+      author?: { id?: number, username?: string } | null
+      assignees?: Array<{ id?: number, username?: string }>
+      assignee?: { id?: number, username?: string } | null
     }>>(
       instanceUrl,
       `/projects/${encoded}/merge_requests?state=opened`
@@ -481,13 +525,17 @@ export async function listGitLabAiMergeRequests(
         createdAt: String(mr.created_at || new Date(0).toISOString()),
         kind: 'merge_request',
         sourceBranch,
+        assignees: gitlabAssignees(mr.assignees, mr.assignee),
+        author: gitlabAuthor(mr.author),
       })
     }
     if (batch.length < 100) break
     page += 1
   }
 
-  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.externalId.localeCompare(b.externalId),
+  )
 }
 
 /** Create missing labels on a GitLab project. Idempotent; skips labels that already exist. */

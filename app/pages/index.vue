@@ -257,7 +257,7 @@ function usageLabel(usage: any): string {
               {{ t('dashboard.finishedTasksHint') }}
             </p>
           </div>
-          <NuxtLink to="/tasks" class="text-sm text-[var(--aw-accent)] underline-offset-2 hover:underline">
+          <NuxtLink to="/tasks/usage" class="text-sm text-[var(--aw-accent)] underline-offset-2 hover:underline">
             {{ t('dashboard.allTasks') }}
           </NuxtLink>
         </div>

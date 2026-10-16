@@ -1462,33 +1462,52 @@ ai_format_github_comments() {
     )" "$max_bytes"
 }
 
-# Print oldest open issue number with label "ai", or empty.
+# Print oldest open issue number with label "ai" assigned to the authenticated user, or empty.
+# Assignee is checked first: AI label alone is not enough to pick up work.
+# Also sets GITHUB_FIND_CREATED_AT to the issue's createdAt (ISO) for global ordering.
 github_find_ai_issue() {
     local repo="$1"
+    local row
 
-    gh issue list \
-        --repo "$repo" \
-        --label "ai" \
-        --state open \
-        --limit 1 \
-        --json number \
-        --jq '.[0].number // empty' \
-        2>/dev/null || true
+    GITHUB_FIND_CREATED_AT=""
+    row="$(
+        gh issue list \
+            --repo "$repo" \
+            --assignee "@me" \
+            --label "ai" \
+            --state open \
+            --limit 50 \
+            --json number,createdAt \
+            --jq 'sort_by(.createdAt, .number) | .[0] | select(. != null) | "\(.number)\t\(.createdAt // "")"' \
+            2>/dev/null || true
+    )"
+    [[ -n "$row" ]] || return 0
+    GITHUB_FIND_CREATED_AT="${row#*$'\t'}"
+    printf '%s' "${row%%$'\t'*}"
 }
 
-# Print oldest open issue with both "ai" and "no-change" (Q&A), or empty.
+# Print oldest open issue with both "ai" and "no-change" (Q&A) assigned to @me, or empty.
+# Also sets GITHUB_FIND_CREATED_AT for global ordering.
 github_find_ai_no_change_issue() {
     local repo="$1"
+    local row
 
-    gh issue list \
-        --repo "$repo" \
-        --label "ai" \
-        --label "no-change" \
-        --state open \
-        --limit 1 \
-        --json number \
-        --jq '.[0].number // empty' \
-        2>/dev/null || true
+    GITHUB_FIND_CREATED_AT=""
+    row="$(
+        gh issue list \
+            --repo "$repo" \
+            --assignee "@me" \
+            --label "ai" \
+            --label "no-change" \
+            --state open \
+            --limit 50 \
+            --json number,createdAt \
+            --jq 'sort_by(.createdAt, .number) | .[0] | select(. != null) | "\(.number)\t\(.createdAt // "")"' \
+            2>/dev/null || true
+    )"
+    [[ -n "$row" ]] || return 0
+    GITHUB_FIND_CREATED_AT="${row#*$'\t'}"
+    printf '%s' "${row%%$'\t'*}"
 }
 
 # Pick which issue to start given an in-flight reason from *_in_flight_issue_reason.
@@ -1511,7 +1530,8 @@ ai_pick_issue_despite_in_flight() {
 }
 
 # AI implement-workflow labels on an open PR that should block starting a new
-# `ai` issue (human PRs without these labels / ai/issue-* heads do not block).
+# `ai` issue when the PR was created by the configured GitHub user (other users'
+# PRs / human PRs without these labels do not block).
 # Exception: issues labeled ai + no-change (Q&A) may still start.
 GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
 
@@ -1528,7 +1548,7 @@ github_list_open_prs_json() {
             --repo "$repo" \
             --state open \
             --limit "$limit" \
-            --json number,headRefName,createdAt,labels \
+            --json number,headRefName,createdAt,labels,assignees,author \
             2>/dev/null || true
     )"
     if [[ -z "$out" || "$out" == "null" ]]; then
@@ -1546,14 +1566,21 @@ github_is_ai_issue_branch() {
 
 # Print a short description of the oldest open PR that should block a new issue,
 # or empty. Matches AI implement labels OR head branch ai/issue-* (safety net when
-# label application failed). Example: "#12 (ai/issue-3, ai-pr)"
+# label application failed), but only when created by the configured GitHub user.
+# Example: "#12 (ai/issue-3, ai-pr)"
 github_find_open_pr() {
     local repo="$1"
-    local prs
+    local prs me
+
+    me="$(github_current_login | tr '[:upper:]' '[:lower:]')"
+    [[ -n "$me" ]] || {
+        printf '%s' ''
+        return 0
+    }
 
     prs="$(github_list_open_prs_json "$repo" 100)"
 
-    jq -r '
+    jq -r --arg me "$me" '
         def in_flight_labels: ["ai","ai-working","ai-failed","ai-pr"];
         def label_names:
             [(.labels // [])[] | (if type == "object" then (.name // "") else . end) | ascii_downcase]
@@ -1566,9 +1593,12 @@ github_find_open_pr() {
                | .[0] // null);
         def is_ai_branch:
             ((.headRefName // "") | test("^ai/issue-[0-9]+(-|$)"));
+        def author_login:
+            ((.author.login // .author.name // "") | ascii_downcase);
         [
             .[]
             | . as $pr
+            | select(($pr | author_login) == $me)
             | ($pr | matching_label) as $lbl
             | select(($lbl != null) or ($pr | is_ai_branch))
             | {
@@ -1586,27 +1616,50 @@ github_find_open_pr() {
     ' <<<"$prs" 2>/dev/null || true
 }
 
-# Oldest open PR number with a given label (client-side filter; avoids Search).
+# Current GitHub login for assignee checks (empty on failure).
+github_current_login() {
+    gh api user --jq '.login // empty' 2>/dev/null || true
+}
+
+# Oldest open PR number with a given label AND assigned to @me (client-side; avoids Search).
+# Label alone is not enough — explicit assignment to the configured GitHub user is required.
+# Also sets GITHUB_FIND_CREATED_AT for global chronological launch ordering.
 # Usage: github_find_open_pr_with_label <owner/repo> <label>
 github_find_open_pr_with_label() {
     local repo="$1"
     local label="$2"
-    local prs wanted
+    local prs wanted me row
+
+    GITHUB_FIND_CREATED_AT=""
+    me="$(github_current_login | tr '[:upper:]' '[:lower:]')"
+    [[ -n "$me" ]] || return 0
 
     wanted="$(printf '%s' "$label" | tr '[:upper:]' '[:lower:]')"
     prs="$(github_list_open_prs_json "$repo" 100)"
 
-    jq -r --arg want "$wanted" '
-        [
-            .[]
-            | select(
-                [(.labels // [])[] | (if type == "object" then (.name // "") else . end) | ascii_downcase]
-                | index($want) != null
-              )
-        ]
-        | sort_by(.createdAt)
-        | .[0].number // empty
-    ' <<<"$prs" 2>/dev/null || true
+    row="$(
+        jq -r --arg want "$wanted" --arg me "$me" '
+            [
+                .[]
+                | select(
+                    [(.labels // [])[] | (if type == "object" then (.name // "") else . end) | ascii_downcase]
+                    | index($want) != null
+                  )
+                | select(
+                    [(.assignees // [])[] | (.login // "") | ascii_downcase]
+                    | index($me) != null
+                  )
+            ]
+            | sort_by(.createdAt, .number)
+            | .[0]
+            | if . == null then empty
+              else "\(.number)\t\(.createdAt // "")"
+              end
+        ' <<<"$prs" 2>/dev/null || true
+    )"
+    [[ -n "$row" ]] || return 0
+    GITHUB_FIND_CREATED_AT="${row#*$'\t'}"
+    printf '%s' "${row%%$'\t'*}"
 }
 
 # Add labels to a GitHub issue or PR (PR numbers share the issues labels API).

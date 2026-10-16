@@ -117,11 +117,13 @@ describe('listGitHubAiPullRequests', () => {
       kind: 'pull_request',
       sourceBranch: 'feat/ai',
       labels: ['ai-review'],
+      assignees: [],
     })
     expect(items[1]).toMatchObject({
       externalId: '3',
       sourceBranch: 'ai/issue-9',
       labels: [],
+      assignees: [],
     })
   })
 

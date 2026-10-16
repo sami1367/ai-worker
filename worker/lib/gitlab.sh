@@ -144,7 +144,7 @@ gitlab_current_user_id() {
 }
 
 # Print oldest open issue iid with the given label, or empty.
-# Label-only: does not filter by assignee.
+# Label-only: does not filter by assignee (used for in-flight ai-working checks).
 gitlab_find_open_issue_with_label() {
     local project_path="$1"
     local label="$2"
@@ -160,17 +160,44 @@ gitlab_find_open_issue_with_label() {
     printf '%s' "$iid"
 }
 
-# Print oldest open issue iid with label "ai", or empty.
+# Print oldest open issue iid with label "ai" assigned to the authenticated user, or empty.
+# Assignee is checked first: AI label alone is not enough to pick up work.
+# Also sets GITLAB_FIND_CREATED_AT for global chronological launch ordering.
 gitlab_find_ai_issue() {
     local project_path="$1"
-    gitlab_find_open_issue_with_label "$project_path" "ai"
+    local uid encoded body iid
+
+    GITLAB_FIND_CREATED_AT=""
+    uid="$(gitlab_current_user_id)" || return 1
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/issues?labels=ai&state=opened&assignee_id=${uid}&order_by=created_at&sort=asc&per_page=1"
+    )" || return 1
+
+    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    GITLAB_FIND_CREATED_AT="$(jq -r '.[0].created_at // empty' <<<"$body")"
+    printf '%s' "$iid"
 }
 
-# Print oldest open issue iid with both "ai" and "no-change" (Q&A), or empty.
-# GitLab labels= is AND when comma-separated.
+# Print oldest open issue iid with both "ai" and "no-change" (Q&A) assigned to the
+# authenticated user, or empty. GitLab labels= is AND when comma-separated.
+# Also sets GITLAB_FIND_CREATED_AT for global chronological launch ordering.
 gitlab_find_ai_no_change_issue() {
     local project_path="$1"
-    gitlab_find_open_issue_with_label "$project_path" "ai,no-change"
+    local uid encoded body iid
+
+    GITLAB_FIND_CREATED_AT=""
+    uid="$(gitlab_current_user_id)" || return 1
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/issues?labels=ai,no-change&state=opened&assignee_id=${uid}&order_by=created_at&sort=asc&per_page=1"
+    )" || return 1
+
+    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    GITLAB_FIND_CREATED_AT="$(jq -r '.[0].created_at // empty' <<<"$body")"
+    printf '%s' "$iid"
 }
 
 # Label open MRs whose source_branch is ai/issue-N or ai/issue-N-* with ai-pr.
@@ -205,33 +232,44 @@ gitlab_label_open_issue_mrs_ai_pr() {
 }
 
 # AI implement-workflow labels on an open MR that should block starting a new
-# `ai` issue (human MRs without these labels / ai/issue-* sources do not block).
+# `ai` issue when the MR was created by the configured GitLab user (other users'
+# MRs / human MRs without these labels do not block).
 # Exception: issues labeled ai + no-change (Q&A) may still start.
 GITLAB_AI_IN_FLIGHT_MR_LABELS=(ai ai-working ai-failed ai-pr)
 
 # Print a short description of the oldest open MR that should block a new issue,
 # or empty. Prefers AI implement labels; falls back to source_branch ai/issue-*
-# when labels were not applied. Example: "!12 (ai/issue-3, ai-pr)"
+# when labels were not applied. Only MRs created by the configured GitLab user
+# block. Example: "!12 (ai/issue-3, ai-pr)"
 gitlab_find_open_mr() {
     local project_path="$1"
-    local encoded label body
+    local encoded label body uid
     local best_created="" best_desc=""
     local created desc
+
+    uid="$(gitlab_current_user_id)" || {
+        printf '%s' ''
+        return 0
+    }
 
     encoded="$(gitlab_encode_path "$project_path")"
     for label in "${GITLAB_AI_IN_FLIGHT_MR_LABELS[@]}"; do
         body="$(
             gitlab_api GET \
-                "/projects/${encoded}/merge_requests?labels=${label}&state=opened&order_by=created_at&sort=asc&per_page=1"
+                "/projects/${encoded}/merge_requests?labels=${label}&state=opened&author_id=${uid}&order_by=created_at&sort=asc&per_page=1"
         )" || continue
 
         created="$(jq -r '.[0].created_at // empty' <<<"$body")"
         [[ -n "$created" ]] || continue
 
         desc="$(
-            jq -r --arg label "$label" '
+            jq -r --arg lbl "$label" '
                 .[0]
-                | if . then "!\(.iid) (\(.source_branch // "unknown"), \($label))" else empty end
+                | if . == null then empty
+                  else
+                    "!" + (.iid | tostring)
+                    + " (" + (.source_branch // "unknown") + ", " + $lbl + ")"
+                  end
             ' <<<"$body"
         )"
         [[ -n "$desc" ]] || continue
@@ -247,10 +285,11 @@ gitlab_find_open_mr() {
         return 0
     fi
 
-    # Safety net: unlabeled AI branches still block (parity with GitHub).
+    # Safety net: unlabeled AI branches still block (parity with GitHub),
+    # but only when authored by the configured GitLab user.
     body="$(
         gitlab_api GET \
-            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=50"
+            "/projects/${encoded}/merge_requests?state=opened&author_id=${uid}&order_by=created_at&sort=asc&per_page=50"
     )" || {
         printf '%s' ''
         return 0
@@ -681,33 +720,43 @@ gitlab_search_open_mrs_with_label() {
     ' <<<"$body" 2>/dev/null || true
 }
 
-# Print oldest open MR iid with label "ai" (implement on branch), or empty.
+# Print oldest open MR iid with label "ai" assigned to the authenticated user, or empty.
+# Assignee is required — AI label alone is not enough to implement.
+# Also sets GITLAB_FIND_CREATED_AT for global chronological launch ordering.
 gitlab_find_ai_mr() {
     local project_path="$1"
-    local encoded body iid
+    local uid encoded body iid
 
+    GITLAB_FIND_CREATED_AT=""
+    uid="$(gitlab_current_user_id)" || return 1
     encoded="$(gitlab_encode_path "$project_path")"
     body="$(
         gitlab_api GET \
-            "/projects/${encoded}/merge_requests?labels=ai&state=opened&order_by=created_at&sort=asc&per_page=1"
+            "/projects/${encoded}/merge_requests?labels=ai&state=opened&assignee_id=${uid}&order_by=created_at&sort=asc&per_page=1"
     )" || return 1
 
     iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    GITLAB_FIND_CREATED_AT="$(jq -r '.[0].created_at // empty' <<<"$body")"
     printf '%s' "$iid"
 }
 
-# Print oldest open MR iid with label "ai-review", or empty.
+# Print oldest open MR iid with label "ai-review" assigned to the authenticated user, or empty.
+# Assignee is required — ai-review alone must never trigger a review.
+# Also sets GITLAB_FIND_CREATED_AT for global chronological launch ordering.
 gitlab_find_ai_review_mr() {
     local project_path="$1"
-    local encoded body iid
+    local uid encoded body iid
 
+    GITLAB_FIND_CREATED_AT=""
+    uid="$(gitlab_current_user_id)" || return 1
     encoded="$(gitlab_encode_path "$project_path")"
     body="$(
         gitlab_api GET \
-            "/projects/${encoded}/merge_requests?labels=ai-review&state=opened&order_by=created_at&sort=asc&per_page=1"
+            "/projects/${encoded}/merge_requests?labels=ai-review&state=opened&assignee_id=${uid}&order_by=created_at&sort=asc&per_page=1"
     )" || return 1
 
     iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    GITLAB_FIND_CREATED_AT="$(jq -r '.[0].created_at // empty' <<<"$body")"
     printf '%s' "$iid"
 }
 
