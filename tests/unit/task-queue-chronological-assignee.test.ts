@@ -479,6 +479,7 @@ describe('chronological order + assignee eligibility', () => {
         kind: 'pull_request',
         sourceBranch: 'ai/issue-1',
         assignees: [],
+        author: { id: '1', login: 'me' },
       },
     ])
 
@@ -498,5 +499,88 @@ describe('chronological order + assignee eligibility', () => {
     ) as { externalId: string, assignees: unknown[] }
     expect(pr.externalId).toBe('99')
     expect(pr.assignees).toEqual([])
+  })
+
+  it('does not keep unassigned ai-pr PR created by another user as a blocker', async () => {
+    vi.mocked(ensureConnectionAccount).mockResolvedValue({
+      token: 'tok',
+      row: { id: 'c1', accountId: '1', accountLogin: 'me', instanceUrl: 'https://github.com' },
+    } as never)
+    vi.mocked(listGitHubAiPullRequests).mockResolvedValue([
+      {
+        externalId: '88',
+        title: 'someone else',
+        url: 'https://github.com/a/b/pull/88',
+        labels: ['ai-pr'],
+        createdAt: '2026-01-01T00:00:00Z',
+        kind: 'pull_request',
+        sourceBranch: 'ai/issue-2',
+        assignees: [],
+        author: { id: '9', login: 'other' },
+      },
+    ])
+
+    const result = await syncRepositoryQueue({
+      id: 'r1',
+      name: 'a/b',
+      forgeType: 'github',
+      connectionId: 'c1',
+      canonicalProjectIdentifier: 'a/b',
+      providerRepoId: null,
+      remoteUrl: null,
+      instanceUrl: null,
+    } as never)
+    expect(result.ok).toBe(true)
+    const prs = inserted.filter((v) =>
+      v && typeof v === 'object' && (v as { kind?: string }).kind === 'pull_request',
+    )
+    expect(prs).toHaveLength(0)
+  })
+
+  it('keeps unassigned ai-pr MR by configured user as a blocker; drops other authors', async () => {
+    vi.mocked(ensureConnectionAccount).mockResolvedValue({
+      token: 'tok',
+      row: { id: 'c2', accountId: '42', accountLogin: 'me', instanceUrl: 'https://gitlab.example' },
+    } as never)
+    vi.mocked(listGitLabAiMergeRequests).mockResolvedValue([
+      {
+        externalId: '50',
+        title: 'ours',
+        url: 'https://gitlab.example/g/p/-/merge_requests/50',
+        labels: ['ai-pr'],
+        createdAt: '2026-01-01T00:00:00Z',
+        kind: 'merge_request',
+        sourceBranch: 'ai/issue-1',
+        assignees: [],
+        author: { id: '42', login: 'me' },
+      },
+      {
+        externalId: '51',
+        title: 'theirs',
+        url: 'https://gitlab.example/g/p/-/merge_requests/51',
+        labels: ['ai-pr'],
+        createdAt: '2026-01-02T00:00:00Z',
+        kind: 'merge_request',
+        sourceBranch: 'ai/issue-2',
+        assignees: [],
+        author: { id: '99', login: 'other' },
+      },
+    ])
+
+    const result = await syncRepositoryQueue({
+      id: 'r2',
+      name: 'g/p',
+      forgeType: 'gitlab',
+      connectionId: 'c2',
+      canonicalProjectIdentifier: 'g/p',
+      providerRepoId: null,
+      remoteUrl: null,
+      instanceUrl: 'https://gitlab.example',
+    } as never)
+    expect(result.ok).toBe(true)
+    const mrs = inserted.filter((v) =>
+      v && typeof v === 'object' && (v as { kind?: string }).kind === 'merge_request',
+    ) as Array<{ externalId: string }>
+    expect(mrs.map((m) => m.externalId)).toEqual(['50'])
   })
 })

@@ -163,6 +163,7 @@ describe('listGitHubAiPullRequests assignees', () => {
           created_at: '2026-01-01T00:00:00Z',
           labels: [{ name: 'ai-review' }],
           head: { ref: 'b' },
+          user: { id: 1, login: 'me' },
           assignees: [{ id: 1, login: 'me' }],
           assignee: { id: 1, login: 'me' },
         },
@@ -173,6 +174,7 @@ describe('listGitHubAiPullRequests assignees', () => {
           created_at: '2026-01-01T00:00:00Z',
           labels: [{ name: 'ai-review' }],
           head: { ref: 'a' },
+          user: { id: 9, login: 'other' },
           assignees: [],
           assignee: null,
         },
@@ -183,8 +185,14 @@ describe('listGitHubAiPullRequests assignees', () => {
     expect(items).toHaveLength(2)
     expect(items[0].externalId).toBe('1')
     expect(items[0].assignees).toEqual([])
+    expect(items[0].author).toEqual({ id: '9', login: 'other' })
     expect(items[1].assignees).toEqual([{ id: '1', login: 'me' }])
+    expect(items[1].author).toEqual({ id: '1', login: 'me' })
     expect(isAssignedToForgeAccount(items[1].assignees, {
+      accountId: '1',
+      accountLogin: 'me',
+    })).toBe(true)
+    expect(isAssignedToForgeAccount(items[1].author ? [items[1].author] : [], {
       accountId: '1',
       accountLogin: 'me',
     })).toBe(true)
@@ -246,6 +254,7 @@ describe('listGitLabAiMergeRequests assignees', () => {
           created_at: '2026-01-02T00:00:00Z',
           source_branch: 'feat',
           labels: ['ai-review'],
+          author: { id: 42, username: 'samirahimi' },
           assignees: [{ id: 42, username: 'samirahimi' }],
           assignee: { id: 42, username: 'samirahimi' },
         },
@@ -257,8 +266,13 @@ describe('listGitLabAiMergeRequests assignees', () => {
     expect(items[0]).toMatchObject({
       externalId: '5',
       assignees: [{ id: '42', login: 'samirahimi' }],
+      author: { id: '42', login: 'samirahimi' },
     })
     expect(isAssignedToForgeAccount(items[0].assignees, {
+      accountId: '42',
+      accountLogin: 'samirahimi',
+    })).toBe(true)
+    expect(isAssignedToForgeAccount(items[0].author ? [items[0].author] : [], {
       accountId: '42',
       accountLogin: 'samirahimi',
     })).toBe(true)
@@ -277,6 +291,7 @@ describe('listGitLabAiMergeRequests assignees', () => {
           created_at: '2026-01-03T00:00:00Z',
           source_branch: 'ai/issue-9',
           labels: [],
+          author: { id: 7, username: 'other' },
           assignees: [{ id: 7, username: 'other' }],
           assignee: null,
         },
@@ -289,6 +304,7 @@ describe('listGitLabAiMergeRequests assignees', () => {
       externalId: '9',
       sourceBranch: 'ai/issue-9',
       assignees: [{ id: '7', login: 'other' }],
+      author: { id: '7', login: 'other' },
     })
   })
 })
