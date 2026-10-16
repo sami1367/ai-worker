@@ -92,6 +92,21 @@ ai_isolation_bwrap_usable() {
     return 1
 }
 
+# Provider CLIs (Codex, Cursor, Claude Code, Copilot, Gemini) may start their own
+# OS sandbox. That nests another user namespace inside ai_isolation_exec and
+# fails file writes / shell tools. Returns 0 when those sandboxes must stay off.
+ai_provider_nested_sandbox_blocked() {
+    local mode
+    mode="$(ai_isolation_resolved_mode 2>/dev/null || echo unknown)"
+    if [[ "$mode" == "bwrap" ]]; then
+        return 0
+    fi
+    if ! ai_isolation_userns_usable; then
+        return 0
+    fi
+    return 1
+}
+
 # Resolve whether bubblewrap should be used for this run.
 # Prints: bwrap | env | off
 ai_isolation_resolved_mode() {

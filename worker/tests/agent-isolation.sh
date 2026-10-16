@@ -329,5 +329,31 @@ if ai_isolation_userns_usable; then
 fi
 pass "userns probe reports blocked when bwrap cannot create namespaces"
 
+# Every provider must treat a broken nested namespace as "sandbox blocked".
+if ! ai_provider_nested_sandbox_blocked; then
+    fail "provider nested sandbox should be blocked when bwrap cannot create namespaces"
+fi
+pass "provider nested sandbox blocked for all providers when userns fail"
+
+# Claude must force sandbox.enabled=false without calling the real CLI.
+STUB="$TMP/stub-claude"
+cat >"$STUB" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$STUB_ARGS"
+exit 0
+EOF
+chmod +x "$STUB"
+export STUB_ARGS="$TMP/claude.args"
+export AI_PROVIDER_BIN="$STUB"
+# shellcheck source=lib/ai/claude.sh
+source "$ROOT/lib/ai/claude.sh"
+AI_ISOLATION_MODE=env
+AI_ISOLATION_USERNS_USABLE=""
+AI_ISOLATION_BWRAP_USABLE=""
+printf 'hello\n' >"$TMP/claude-prompt.txt"
+ai_claude_run "$WS" "$TMP/claude-prompt.txt" "$TMP/out.log" "$TMP/err.log" implement >/dev/null
+grep -a -F -q '{"sandbox":{"enabled":false}}' "$STUB_ARGS" || fail "claude did not force sandbox.enabled=false"
+pass "claude disables its bubblewrap sandbox when nested namespaces are blocked"
+
 echo
 echo "agent-isolation.sh: all checks passed (mode was $MODE for primary probes)"

@@ -58,6 +58,14 @@ ai_claude_run() {
         cmd+=(--allowedTools "$allowed_tools")
     fi
 
+    # Claude Code's Bash sandbox is bubblewrap (settings sandbox.enabled).
+    # Default is off, but force it off whenever a nested namespace would fail
+    # so file edits and shell tools keep working inside ai_isolation_exec.
+    if ai_provider_nested_sandbox_blocked; then
+        echo "WARNING: Claude Code nested sandbox unavailable; forcing sandbox.enabled=false (OS isolation via ai_isolation_exec remains)." >&2
+        cmd+=(--settings '{"sandbox":{"enabled":false}}')
+    fi
+
     if [[ -n "${AI_CLAUDE_EXTRA_ARGS:-}" ]]; then
         # shellcheck disable=SC2206
         local extra=($AI_CLAUDE_EXTRA_ARGS)

@@ -49,13 +49,11 @@ ai_cursor_run() {
             sandbox_mode="enabled"
             ;;
     esac
-    if [[ "$sandbox_mode" == "enabled" ]]; then
+    if [[ "$sandbox_mode" == "enabled" ]] && ai_provider_nested_sandbox_blocked; then
         local isolation_mode
         isolation_mode="$(ai_isolation_resolved_mode 2>/dev/null || echo unknown)"
-        if [[ "$isolation_mode" == "bwrap" ]] || ! ai_isolation_userns_usable; then
-            echo "WARNING: Cursor nested sandbox unavailable (isolation=$isolation_mode); using --sandbox disabled (OS isolation via ai_isolation_exec remains)." >&2
-            sandbox_mode="disabled"
-        fi
+        echo "WARNING: Cursor nested sandbox unavailable (isolation=$isolation_mode); using --sandbox disabled (OS isolation via ai_isolation_exec remains)." >&2
+        sandbox_mode="disabled"
     fi
     if [[ -n "$sandbox_mode" ]]; then
         cmd+=(--sandbox "$sandbox_mode")
