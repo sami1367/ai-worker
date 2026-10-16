@@ -8,7 +8,41 @@ const messageError = ref(false)
 type Draft = {
   secret: string
   credentialType: 'anthropic_api_key' | 'claude_oauth_token'
+  model: string
   showConnect: boolean
+}
+
+/** Common model ids per provider; empty value = CLI default. */
+const PROVIDER_MODEL_OPTIONS: Record<string, Array<{ label: string, value: string }>> = {
+  cursor: [
+    { label: 'Default (CLI)', value: '' },
+    { label: 'Composer 1', value: 'composer-1' },
+    { label: 'Sonnet 4', value: 'sonnet-4' },
+    { label: 'GPT-5', value: 'gpt-5' },
+    { label: 'Opus 4.1', value: 'opus-4.1' },
+  ],
+  claude: [
+    { label: 'Default (CLI)', value: '' },
+    { label: 'Sonnet', value: 'sonnet' },
+    { label: 'Opus', value: 'opus' },
+    { label: 'Haiku', value: 'haiku' },
+  ],
+  codex: [
+    { label: 'Default (CLI)', value: '' },
+    { label: 'GPT-5', value: 'gpt-5' },
+    { label: 'o3', value: 'o3' },
+    { label: 'o4-mini', value: 'o4-mini' },
+  ],
+  gemini: [
+    { label: 'Default (CLI)', value: '' },
+    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
+    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
+  ],
+  copilot: [
+    { label: 'Default (CLI)', value: '' },
+    { label: 'GPT-4.1', value: 'gpt-4.1' },
+    { label: 'Claude Sonnet 4', value: 'claude-sonnet-4' },
+  ],
 }
 
 const drafts = reactive<Record<string, Draft>>({})
@@ -18,10 +52,19 @@ function draftFor(providerType: string): Draft {
     drafts[providerType] = {
       secret: '',
       credentialType: 'anthropic_api_key',
+      model: '',
       showConnect: false,
     }
   }
   return drafts[providerType]
+}
+
+function modelOptionsFor(providerType: string, selected: string) {
+  const base = PROVIDER_MODEL_OPTIONS[providerType] || [{ label: 'Default (CLI)', value: '' }]
+  if (selected && !base.some((item) => item.value === selected)) {
+    return [...base, { label: selected, value: selected }]
+  }
+  return base
 }
 
 watchEffect(() => {
@@ -31,6 +74,8 @@ watchEffect(() => {
     if (existing === 'claude_oauth_token' || existing === 'anthropic_api_key') {
       d.credentialType = existing
     }
+    const model = typeof p.config?.model === 'string' ? p.config.model.trim() : ''
+    d.model = model
   }
 })
 
@@ -152,12 +197,15 @@ async function save(p: any) {
     const config = {
       ...(p.config || {}),
       ...(p.providerType === 'claude' ? { credentialType: d.credentialType } : {}),
+      model: d.model.trim(),
     }
     await api(`/api/v1/providers/${p.providerType}`, {
       method: 'PATCH',
       body: { config },
     })
-    message.value = `Saved ${p.displayName}`
+    message.value = d.model.trim()
+      ? `Saved ${p.displayName} (model: ${d.model.trim()})`
+      : `Saved ${p.displayName} (default model)`
     await refresh()
   } catch (e: any) {
     message.value = e?.data?.message || 'Save failed'
@@ -189,6 +237,7 @@ async function connect(p: any) {
     const config = {
       ...(p.config || {}),
       credentialType: credentialTypeForConnect(p, d),
+      model: d.model.trim(),
     }
     await api(`/api/v1/providers/${p.providerType}`, {
       method: 'PATCH',
@@ -267,6 +316,7 @@ function secretLabel(p: any): string {
       <p class="mt-1 text-sm opacity-70">
         Providers start disabled. Enable and connect the ones you want to use.
         After the first successful connect, exactly one provider stays the default — switch it anytime, or uncheck it when another connected provider can take over.
+        Choose a model per provider (default uses the CLI default), then Save or Connect.
         Cursor, Claude, Codex, Gemini, and GitHub Copilot CLIs are installed in the Docker image. Set
         <code class="text-xs">CURSOR_API_KEY</code> /
         <code class="text-xs">ANTHROPIC_API_KEY</code> /
@@ -331,6 +381,17 @@ function secretLabel(p: any): string {
             @update:model-value="(v: boolean) => setDefault(p, v)"
           />
         </div>
+
+        <UFormField
+          label="Model"
+          hint="Default uses the provider CLI model. Save to apply."
+        >
+          <USelect
+            v-model="draftFor(p.providerType).model"
+            :items="modelOptionsFor(p.providerType, draftFor(p.providerType).model)"
+            class="w-full"
+          />
+        </UFormField>
 
         <div v-if="draftFor(p.providerType).showConnect" class="space-y-3 border-t border-default/40 pt-3">
           <UFormField
