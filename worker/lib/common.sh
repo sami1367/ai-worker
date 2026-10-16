@@ -1530,7 +1530,8 @@ ai_pick_issue_despite_in_flight() {
 }
 
 # AI implement-workflow labels on an open PR that should block starting a new
-# `ai` issue (human PRs without these labels / ai/issue-* heads do not block).
+# `ai` issue when the PR was created by the configured GitHub user (other users'
+# PRs / human PRs without these labels do not block).
 # Exception: issues labeled ai + no-change (Q&A) may still start.
 GITHUB_AI_IN_FLIGHT_PR_LABELS=(ai ai-working ai-failed ai-pr)
 
@@ -1547,7 +1548,7 @@ github_list_open_prs_json() {
             --repo "$repo" \
             --state open \
             --limit "$limit" \
-            --json number,headRefName,createdAt,labels,assignees \
+            --json number,headRefName,createdAt,labels,assignees,author \
             2>/dev/null || true
     )"
     if [[ -z "$out" || "$out" == "null" ]]; then
@@ -1565,14 +1566,21 @@ github_is_ai_issue_branch() {
 
 # Print a short description of the oldest open PR that should block a new issue,
 # or empty. Matches AI implement labels OR head branch ai/issue-* (safety net when
-# label application failed). Example: "#12 (ai/issue-3, ai-pr)"
+# label application failed), but only when created by the configured GitHub user.
+# Example: "#12 (ai/issue-3, ai-pr)"
 github_find_open_pr() {
     local repo="$1"
-    local prs
+    local prs me
+
+    me="$(github_current_login | tr '[:upper:]' '[:lower:]')"
+    [[ -n "$me" ]] || {
+        printf '%s' ''
+        return 0
+    }
 
     prs="$(github_list_open_prs_json "$repo" 100)"
 
-    jq -r '
+    jq -r --arg me "$me" '
         def in_flight_labels: ["ai","ai-working","ai-failed","ai-pr"];
         def label_names:
             [(.labels // [])[] | (if type == "object" then (.name // "") else . end) | ascii_downcase]
@@ -1585,9 +1593,12 @@ github_find_open_pr() {
                | .[0] // null);
         def is_ai_branch:
             ((.headRefName // "") | test("^ai/issue-[0-9]+(-|$)"));
+        def author_login:
+            ((.author.login // .author.name // "") | ascii_downcase);
         [
             .[]
             | . as $pr
+            | select(($pr | author_login) == $me)
             | ($pr | matching_label) as $lbl
             | select(($lbl != null) or ($pr | is_ai_branch))
             | {

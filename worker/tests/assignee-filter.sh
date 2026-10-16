@@ -56,11 +56,13 @@ gitlab_api() {
             fi
             ;;
         /projects/*/merge_requests\?*)
-            # Unlabeled / any-open queries must not be used for in-flight checks.
-            if [[ "$path" != *labels=* ]]; then
-                printf '[{"iid":372,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z"}]'
+            # Open-MR gating requires author_id of the configured GitLab user.
+            if [[ "$path" != *author_id=42* ]]; then
+                printf '[]'
+            elif [[ "$path" != *labels=* ]]; then
+                printf '[{"iid":372,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z","author":{"id":42,"username":"ai-bot"}}]'
             elif [[ "$path" == *labels=ai-pr* ]]; then
-                printf '[{"iid":100,"source_branch":"ai/issue-1","created_at":"2026-02-01T00:00:00Z"}]'
+                printf '[{"iid":100,"source_branch":"ai/issue-1","created_at":"2026-02-01T00:00:00Z","author":{"id":42,"username":"ai-bot"}}]'
             else
                 printf '[]'
             fi
@@ -142,6 +144,7 @@ mr_desc="$(gitlab_find_open_mr "group/project" || true)"
 [[ "$mr_desc" == "!100 (ai/issue-1, ai-pr)" ]] \
     || fail "expected AI-labeled MR desc, got '$mr_desc'"
 grep -q 'labels=ai-pr' "$GITLAB_API_LOG" || fail "open MR check missing labels=ai-pr"
+grep -q 'author_id=42' "$GITLAB_API_LOG" || fail "open MR check must filter by author_id"
 # When a labeled MR is found, do not need the unlabeled fallback query.
 if grep 'merge_requests?' "$GITLAB_API_LOG" | grep -vq 'labels='; then
     fail "open MR check must not query unlabeled open MRs when labeled hits exist"
@@ -154,9 +157,14 @@ gitlab_api() {
     shift 2
     printf '%s %s\n' "$method" "$path" >> "$GITLAB_API_LOG"
     case "$path" in
+        /user)
+            printf '{"id":42,"username":"ai-bot"}'
+            ;;
         /projects/*/merge_requests\?*)
-            if [[ "$path" != *labels=* ]]; then
-                printf '[{"iid":372,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z"}]'
+            if [[ "$path" != *author_id=42* ]]; then
+                printf '[]'
+            elif [[ "$path" != *labels=* ]]; then
+                printf '[{"iid":372,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z","author":{"id":42,"username":"ai-bot"}}]'
             else
                 printf '[]'
             fi
@@ -170,6 +178,7 @@ gitlab_api() {
 mr_desc="$(gitlab_find_open_mr "group/project" || true)"
 [[ -z "$mr_desc" ]] || fail "human-only open MRs must not block, got '$mr_desc'"
 grep -q 'labels=ai-pr' "$GITLAB_API_LOG" || fail "expected labeled MR queries even when empty"
+grep -q 'author_id=42' "$GITLAB_API_LOG" || fail "human-only MR check must filter by author_id"
 # Unlabeled fallback runs only after labeled queries miss.
 grep 'merge_requests?' "$GITLAB_API_LOG" | grep -vq 'labels=' \
     || fail "expected unlabeled MR fallback query when labels miss"
@@ -181,9 +190,14 @@ gitlab_api() {
     shift 2
     printf '%s %s\n' "$method" "$path" >> "$GITLAB_API_LOG"
     case "$path" in
+        /user)
+            printf '{"id":42,"username":"ai-bot"}'
+            ;;
         /projects/*/merge_requests\?*)
-            if [[ "$path" != *labels=* ]]; then
-                printf '[{"iid":50,"source_branch":"ai/issue-9","created_at":"2026-03-01T00:00:00Z"},{"iid":51,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z"}]'
+            if [[ "$path" != *author_id=42* ]]; then
+                printf '[]'
+            elif [[ "$path" != *labels=* ]]; then
+                printf '[{"iid":50,"source_branch":"ai/issue-9","created_at":"2026-03-01T00:00:00Z","author":{"id":42,"username":"ai-bot"}},{"iid":51,"source_branch":"feat/human","created_at":"2026-01-01T00:00:00Z","author":{"id":42,"username":"ai-bot"}}]'
             else
                 printf '[]'
             fi
@@ -197,6 +211,31 @@ gitlab_api() {
 mr_desc="$(gitlab_find_open_mr "group/project" || true)"
 [[ "$mr_desc" == "!50 (ai/issue-9, ai-branch)" ]] \
     || fail "expected unlabeled ai/issue-* MR to block, got '$mr_desc'"
+
+# Other-user ai-pr MRs must not block even when labeled.
+gitlab_api() {
+    local method="$1"
+    local path="$2"
+    shift 2
+    printf '%s %s\n' "$method" "$path" >> "$GITLAB_API_LOG"
+    case "$path" in
+        /user)
+            printf '{"id":42,"username":"ai-bot"}'
+            ;;
+        /projects/*/merge_requests\?*)
+            # Simulate forge returning nothing for author_id=42; other-user MRs
+            # are excluded server-side by the author_id filter.
+            printf '[]'
+            ;;
+        *)
+            printf '{}'
+            ;;
+    esac
+}
+: > "$GITLAB_API_LOG"
+mr_desc="$(gitlab_find_open_mr "group/project" || true)"
+[[ -z "$mr_desc" ]] || fail "other-user ai-pr MRs must not block, got '$mr_desc'"
+grep -q 'author_id=42' "$GITLAB_API_LOG" || fail "other-user MR check must filter by author_id"
 
 # Restore create-issue mock for following tests.
 gitlab_api() {
@@ -241,18 +280,35 @@ grep -q -- '--label' "$TMP/gh.log" || fail "github_find_ai_issue missing --label
 # client-side; unlabeled ai/issue-* heads still block; human PRs do not.
 gh() {
     printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "api" && "$2" == "user" ]]; then
+        printf 'ai-bot\n'
+        return 0
+    fi
     if [[ "$1" == "pr" && "$2" == "list" ]]; then
         local arg
         for arg in "$@"; do
             if [[ "$arg" == "--label" || "$arg" == -l ]]; then
                 fail "github_list_open_prs_json must not use --label (Search API)"
             fi
+            if [[ "$arg" == *author* ]]; then
+                : # author field is required for configured-user gating
+            fi
         done
+        # Require author in --json fields
+        local json_fields=""
+        local prev=""
+        for arg in "$@"; do
+            if [[ "$prev" == "--json" ]]; then
+                json_fields="$arg"
+            fi
+            prev="$arg"
+        done
+        [[ "$json_fields" == *author* ]] || fail "github_list_open_prs_json must request author"
         cat <<'EOF'
 [
-  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}]},
-  {"number":12,"headRefName":"ai/issue-3","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"ai-pr"}]},
-  {"number":15,"headRefName":"ai/issue-9-retry","createdAt":"2026-03-01T00:00:00Z","labels":[]}
+  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}],"author":{"login":"ai-bot"}},
+  {"number":12,"headRefName":"ai/issue-3","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"ai-pr"}],"author":{"login":"ai-bot"}},
+  {"number":15,"headRefName":"ai/issue-9-retry","createdAt":"2026-03-01T00:00:00Z","labels":[],"author":{"login":"ai-bot"}}
 ]
 EOF
         return 0
@@ -262,18 +318,22 @@ EOF
 : > "$TMP/gh.log"
 pr_desc="$(github_find_open_pr "owner/repo" || true)"
 [[ "$pr_desc" == "#12 (ai/issue-3, ai-pr)" ]] \
-    || fail "expected oldest AI-labeled PR, got '$pr_desc'"
+    || fail "expected oldest AI-labeled PR by configured user, got '$pr_desc'"
 if grep -q -- '--label' "$TMP/gh.log"; then
     fail "github_find_open_pr must not use gh pr list --label"
 fi
 
 gh() {
     printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "api" && "$2" == "user" ]]; then
+        printf 'ai-bot\n'
+        return 0
+    fi
     if [[ "$1" == "pr" && "$2" == "list" ]]; then
         cat <<'EOF'
 [
-  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}]},
-  {"number":15,"headRefName":"ai/issue-9","createdAt":"2026-03-01T00:00:00Z","labels":[]}
+  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}],"author":{"login":"someone"}},
+  {"number":15,"headRefName":"ai/issue-9","createdAt":"2026-03-01T00:00:00Z","labels":[],"author":{"login":"ai-bot"}}
 ]
 EOF
         return 0
@@ -283,14 +343,19 @@ EOF
 : > "$TMP/gh.log"
 pr_desc="$(github_find_open_pr "owner/repo" || true)"
 [[ "$pr_desc" == "#15 (ai/issue-9, ai-branch)" ]] \
-    || fail "expected unlabeled ai/issue-* PR to block, got '$pr_desc'"
+    || fail "expected unlabeled ai/issue-* PR by configured user to block, got '$pr_desc'"
 
 gh() {
     printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "api" && "$2" == "user" ]]; then
+        printf 'ai-bot\n'
+        return 0
+    fi
     if [[ "$1" == "pr" && "$2" == "list" ]]; then
         cat <<'EOF'
 [
-  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}]}
+  {"number":3,"headRefName":"feat/human","createdAt":"2026-01-01T00:00:00Z","labels":[{"name":"bug"}],"author":{"login":"someone"}},
+  {"number":99,"headRefName":"ai/issue-7","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"ai-pr"}],"author":{"login":"other-user"}}
 ]
 EOF
         return 0
@@ -299,7 +364,7 @@ EOF
 }
 : > "$TMP/gh.log"
 pr_desc="$(github_find_open_pr "owner/repo" || true)"
-[[ -z "$pr_desc" ]] || fail "human-only open PRs must not block, got '$pr_desc'"
+[[ -z "$pr_desc" ]] || fail "other-user ai-pr PRs must not block, got '$pr_desc'"
 
 gh() {
     printf '%s\n' "$*" >> "$TMP/gh.log"

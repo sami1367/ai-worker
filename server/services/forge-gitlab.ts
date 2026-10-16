@@ -336,6 +336,8 @@ export type ForgeLabeledItem = {
   sourceBranch?: string | null
   /** Issue/MR assignees from the forge (login = GitLab username). */
   assignees?: ForgeAssignee[]
+  /** MR author (login = GitLab username); used for open-MR gating. */
+  author?: ForgeAssignee | null
 }
 
 const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr', 'ai-answered'] as const
@@ -372,6 +374,16 @@ function gitlabAssignees(
   }
   push(assignee)
   return [...byId.values()]
+}
+
+function gitlabAuthor(
+  author: { id?: number, username?: string } | null | undefined,
+): ForgeAssignee | null {
+  if (!author?.username) return null
+  return {
+    id: author.id != null ? String(author.id) : String(author.username),
+    login: String(author.username),
+  }
 }
 
 /** Open issues carrying any AI implement workflow label. */
@@ -450,6 +462,7 @@ export async function listGitLabAiMergeRequests(
         created_at?: string
         source_branch?: string
         labels?: unknown
+        author?: { id?: number, username?: string } | null
         assignees?: Array<{ id?: number, username?: string }>
         assignee?: { id?: number, username?: string } | null
       }>>(
@@ -471,6 +484,7 @@ export async function listGitLabAiMergeRequests(
           kind: 'merge_request',
           sourceBranch: mr.source_branch || null,
           assignees: gitlabAssignees(mr.assignees, mr.assignee),
+          author: gitlabAuthor(mr.author),
         })
       }
       if (batch.length < 100) break
@@ -488,6 +502,7 @@ export async function listGitLabAiMergeRequests(
       created_at?: string
       source_branch?: string
       labels?: unknown
+      author?: { id?: number, username?: string } | null
       assignees?: Array<{ id?: number, username?: string }>
       assignee?: { id?: number, username?: string } | null
     }>>(
@@ -511,6 +526,7 @@ export async function listGitLabAiMergeRequests(
         kind: 'merge_request',
         sourceBranch,
         assignees: gitlabAssignees(mr.assignees, mr.assignee),
+        author: gitlabAuthor(mr.author),
       })
     }
     if (batch.length < 100) break

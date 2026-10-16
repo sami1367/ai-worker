@@ -106,10 +106,11 @@ echo "============================================================"
 #   - an agent running, or
 #   - an open issue labeled ai-working, or
 #   - an open PR/MR labeled ai / ai-working / ai-failed / ai-pr
-#     (or head/source branch ai/issue-*), unless the project sets
-#     "block_on_open_pr": false — except ai + no-change (Q&A) issues,
-#     which may still start while an AI PR/MR is open.
-# Human open PRs/MRs without those labels / AI branches do not block.
+#     (or head/source branch ai/issue-*) created by the configured
+#     Git user, unless the project sets "block_on_open_pr": false —
+#     except ai + no-change (Q&A) issues, which may still start while
+#     an AI PR/MR is open.
+# Open PRs/MRs from other users (even with ai-pr) do not block.
 # Updating or reviewing an existing PR/MR is still allowed when
 # that repository's agent is idle.
 # ============================================================

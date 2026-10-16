@@ -352,6 +352,8 @@ export type ForgeLabeledItem = {
   sourceBranch?: string | null
   /** Issue/PR assignees from the forge (login = GitHub login). */
   assignees?: ForgeAssignee[]
+  /** PR author (login = GitHub login); used for open-PR gating. */
+  author?: ForgeAssignee | null
 }
 
 const ISSUE_AI_LABELS = ['ai', 'ai-working', 'ai-failed', 'ai-pr', 'ai-answered'] as const
@@ -466,6 +468,7 @@ export async function listGitHubAiPullRequests(
       created_at?: string
       labels?: Array<{ name?: string } | string>
       head?: { ref?: string }
+      user?: { id?: number, login?: string } | null
       assignees?: Array<{ id?: number, login?: string }>
       assignee?: { id?: number, login?: string } | null
     }>>(
@@ -478,6 +481,12 @@ export async function listGitHubAiPullRequests(
       const sourceBranch = pr.head?.ref || null
       if (!hasAnyLabel(labels, PR_AI_LABELS) && !isAiIssueBranchName(sourceBranch)) continue
       const id = String(pr.number)
+      const author = pr.user?.login
+        ? {
+            id: pr.user.id != null ? String(pr.user.id) : String(pr.user.login),
+            login: String(pr.user.login),
+          }
+        : null
       byId.set(id, {
         externalId: id,
         title: String(pr.title || `#${pr.number}`),
@@ -487,6 +496,7 @@ export async function listGitHubAiPullRequests(
         kind: 'pull_request',
         sourceBranch,
         assignees: githubAssignees(pr.assignees, pr.assignee),
+        author,
       })
     }
     if (batch.length < 100) break

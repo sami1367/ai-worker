@@ -232,24 +232,31 @@ gitlab_label_open_issue_mrs_ai_pr() {
 }
 
 # AI implement-workflow labels on an open MR that should block starting a new
-# `ai` issue (human MRs without these labels / ai/issue-* sources do not block).
+# `ai` issue when the MR was created by the configured GitLab user (other users'
+# MRs / human MRs without these labels do not block).
 # Exception: issues labeled ai + no-change (Q&A) may still start.
 GITLAB_AI_IN_FLIGHT_MR_LABELS=(ai ai-working ai-failed ai-pr)
 
 # Print a short description of the oldest open MR that should block a new issue,
 # or empty. Prefers AI implement labels; falls back to source_branch ai/issue-*
-# when labels were not applied. Example: "!12 (ai/issue-3, ai-pr)"
+# when labels were not applied. Only MRs created by the configured GitLab user
+# block. Example: "!12 (ai/issue-3, ai-pr)"
 gitlab_find_open_mr() {
     local project_path="$1"
-    local encoded label body
+    local encoded label body uid
     local best_created="" best_desc=""
     local created desc
+
+    uid="$(gitlab_current_user_id)" || {
+        printf '%s' ''
+        return 0
+    }
 
     encoded="$(gitlab_encode_path "$project_path")"
     for label in "${GITLAB_AI_IN_FLIGHT_MR_LABELS[@]}"; do
         body="$(
             gitlab_api GET \
-                "/projects/${encoded}/merge_requests?labels=${label}&state=opened&order_by=created_at&sort=asc&per_page=1"
+                "/projects/${encoded}/merge_requests?labels=${label}&state=opened&author_id=${uid}&order_by=created_at&sort=asc&per_page=1"
         )" || continue
 
         created="$(jq -r '.[0].created_at // empty' <<<"$body")"
@@ -278,10 +285,11 @@ gitlab_find_open_mr() {
         return 0
     fi
 
-    # Safety net: unlabeled AI branches still block (parity with GitHub).
+    # Safety net: unlabeled AI branches still block (parity with GitHub),
+    # but only when authored by the configured GitLab user.
     body="$(
         gitlab_api GET \
-            "/projects/${encoded}/merge_requests?state=opened&order_by=created_at&sort=asc&per_page=50"
+            "/projects/${encoded}/merge_requests?state=opened&author_id=${uid}&order_by=created_at&sort=asc&per_page=50"
     )" || {
         printf '%s' ''
         return 0

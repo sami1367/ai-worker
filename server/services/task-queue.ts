@@ -518,7 +518,12 @@ async function fetchRepoForgeItems(
     }
     for (const pr of prs) {
       const assigned = isAssignedToForgeAccount(pr.assignees, account)
-      const blocking = isBlockingOpenPrMr({
+      // Open-PR gating only applies to PRs created by the configured Git user.
+      const createdByUs = isAssignedToForgeAccount(
+        pr.author ? [pr.author] : [],
+        account,
+      )
+      const blocking = createdByUs && isBlockingOpenPrMr({
         kind: 'pull_request',
         labels: pr.labels,
         sourceBranch: pr.sourceBranch || null,
@@ -566,7 +571,12 @@ async function fetchRepoForgeItems(
     }
     for (const mr of mrs) {
       const assigned = isAssignedToForgeAccount(mr.assignees, account)
-      const blocking = isBlockingOpenPrMr({
+      // Open-MR gating only applies to MRs created by the configured Git user.
+      const createdByUs = isAssignedToForgeAccount(
+        mr.author ? [mr.author] : [],
+        account,
+      )
+      const blocking = createdByUs && isBlockingOpenPrMr({
         kind: 'merge_request',
         labels: mr.labels,
         sourceBranch: mr.sourceBranch || null,
