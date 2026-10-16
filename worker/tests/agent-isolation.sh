@@ -315,10 +315,19 @@ EOF
 chmod +x "$FAKE_BIN/bwrap"
 AI_ISOLATION_MODE=auto
 AI_ISOLATION_BWRAP_USABLE=""
+AI_ISOLATION_USERNS_USABLE=""
 PATH="$FAKE_BIN:$PATH"
 FALLBACK_MODE="$(ai_isolation_resolved_mode 2>/dev/null)" || fail "auto resolve failed with broken bwrap"
 [[ "$FALLBACK_MODE" == "env" ]] || fail "auto should fall back to env when bwrap is unusable (got $FALLBACK_MODE)"
 pass "auto falls back to env when bubblewrap namespaces are blocked"
+
+# Provider sandboxes must detect the same userns failure (Codex/Cursor fallbacks).
+AI_ISOLATION_USERNS_USABLE=""
+AI_ISOLATION_BWRAP_USABLE=""
+if ai_isolation_userns_usable; then
+    fail "userns probe should fail with broken bwrap on PATH"
+fi
+pass "userns probe reports blocked when bwrap cannot create namespaces"
 
 echo
 echo "agent-isolation.sh: all checks passed (mode was $MODE for primary probes)"

@@ -45,11 +45,35 @@ AI_ISOLATION_STRIP_VARS=(
     INITIAL_ADMIN_PASSWORD
 )
 
-# Probe whether bubblewrap can create the namespaces it needs.
-# Docker AppArmor/seccomp (and some host kernels) install `bwrap` but block
-# CLONE_NEWUSER — selecting bwrap then aborts every agent at start.
+# Probe whether unprivileged user namespaces work in this runtime.
+# Docker AppArmor/seccomp (and some host kernels) block CLONE_NEWUSER — that
+# breaks outer bubblewrap *and* provider sandboxes (Codex workspace-write,
+# Cursor --sandbox enabled), which then fail file writes / shell tools.
 # Cached per process so we only pay the cost once per worker shell.
+AI_ISOLATION_USERNS_USABLE=""
 AI_ISOLATION_BWRAP_USABLE=""
+
+ai_isolation_userns_usable() {
+    if [[ -n "${AI_ISOLATION_USERNS_USABLE:-}" ]]; then
+        [[ "$AI_ISOLATION_USERNS_USABLE" == "1" ]]
+        return $?
+    fi
+    # Prefer bwrap when present — same path the agent sandbox uses.
+    if command -v bwrap >/dev/null 2>&1; then
+        if bwrap --ro-bind / / --dev /dev --proc /proc --die-with-parent -- true >/dev/null 2>&1; then
+            AI_ISOLATION_USERNS_USABLE=1
+            return 0
+        fi
+        AI_ISOLATION_USERNS_USABLE=0
+        return 1
+    fi
+    if command -v unshare >/dev/null 2>&1 && unshare --user -- true >/dev/null 2>&1; then
+        AI_ISOLATION_USERNS_USABLE=1
+        return 0
+    fi
+    AI_ISOLATION_USERNS_USABLE=0
+    return 1
+}
 
 ai_isolation_bwrap_usable() {
     if [[ -n "${AI_ISOLATION_BWRAP_USABLE:-}" ]]; then
@@ -60,8 +84,7 @@ ai_isolation_bwrap_usable() {
         AI_ISOLATION_BWRAP_USABLE=0
         return 1
     fi
-    # Minimal probe: same namespace path as a real agent sandbox.
-    if bwrap --ro-bind / / --dev /dev --proc /proc --die-with-parent -- true >/dev/null 2>&1; then
+    if ai_isolation_userns_usable; then
         AI_ISOLATION_BWRAP_USABLE=1
         return 0
     fi

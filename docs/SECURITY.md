@@ -124,8 +124,8 @@ AI agents (Cursor CLI / Claude Code / Codex CLI / Gemini CLI / GitHub Copilot CL
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `AI_ISOLATION_MODE` | `auto` | `auto` (bwrap if usable else env), `bwrap` (require working bubblewrap), `env` (scrub only), `off` (insecure escape hatch) |
-| `AI_CURSOR_SANDBOX` | `enabled` | Passed to Cursor CLI `--sandbox` |
-| `AI_CODEX_SANDBOX` | `workspace-write` | Passed to Codex CLI `exec --sandbox` |
+| `AI_CURSOR_SANDBOX` | `enabled` | Passed to Cursor CLI `--sandbox`; auto-falls back to `disabled` when user namespaces are blocked |
+| `AI_CODEX_SANDBOX` | `workspace-write` | Passed to Codex CLI `exec --sandbox`; auto-falls back to `danger-full-access` when user namespaces are blocked |
 | `AI_GEMINI_APPROVAL_MODE` | (unset → `--yolo`) | Gemini `--approval-mode` (`default` \| `auto_edit` \| `yolo`); when unset, `--yolo` is used |
 | `AI_GEMINI_MODEL` | (unset) | Optional Gemini `--model` override |
 | `AI_COPILOT_PERMISSION_MODE` | (unset → `--yolo`) | Copilot permission mode (`yolo` \| `allow-all` \| `allow-all-tools` \| `default`) |
@@ -146,6 +146,7 @@ CodeGraph maintains a local `.codegraph/` index inside workspaces when enabled f
 - Worker forge auth is process-global for the **orchestration** process (`GH_TOKEN` / `GITLAB_TOKEN`). Multiple simultaneous GitHub identities are not supported; the most recently validated active connection is exported. These tokens are **not** exported into the AI agent phase.
 - Agent network namespace is shared (AI provider APIs must be reachable). Without forge tokens / SSH keys / credential helpers, authenticated forge writes still fail; unauthenticated public HTTP is not blocked.
 - Bubblewrap is unavailable (or present but blocked from creating user namespaces) on some host kernels or restricted container runtimes → `auto` falls back to `AI_ISOLATION_MODE=env` behavior; credential **files** may remain readable though tokens are scrubbed from the environment. Prefer Compose (`docker-compose.yml` worker `security_opt`) so bwrap userns work; recreate the worker after changing compose security options.
+- Provider sandboxes (Codex `workspace-write`, Cursor `--sandbox enabled`) also need user namespaces. When blocked, the worker auto-falls back to Codex `danger-full-access` / Cursor `disabled` so file writes succeed; `ai_isolation_exec` remains the OS security boundary.
 - Provider tool allowlists / Cursor sandbox can be widened by operator env (`AI_CLAUDE_*`, `AI_CURSOR_*`); OS isolation remains the boundary.
 - OAuth user tokens may lack org SSO authorization or fine-grained permissions required for some org repos — reconnect or grant access in the provider UI.
 - Successful OAuth does not guarantee every worker write action (labels, releases) if an admin later reduces scopes.

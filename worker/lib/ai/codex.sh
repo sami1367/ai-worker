@@ -43,6 +43,15 @@ ai_codex_run() {
             ;;
     esac
 
+    # Codex read-only / workspace-write sandboxes need user namespaces. When the
+    # runtime blocks them (common under default Docker AppArmor/seccomp), Codex
+    # reports "sandbox namespace error" and "Failed to write file". Rely on
+    # ai_isolation_exec for the security boundary and open the Codex sandbox.
+    if [[ "$sandbox_mode" != "danger-full-access" ]] && ! ai_isolation_userns_usable; then
+        echo "WARNING: User namespaces unavailable; Codex sandbox '$sandbox_mode' cannot write files. Using danger-full-access (OS isolation via ai_isolation_exec remains)." >&2
+        sandbox_mode="danger-full-access"
+    fi
+
     local -a cmd=("$AI_PROVIDER_BIN" exec)
     cmd+=(--cd "$workspace")
     cmd+=(--sandbox "$sandbox_mode")
