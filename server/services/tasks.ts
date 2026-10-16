@@ -501,47 +501,79 @@ export function extractTaskTokenUsage(resultMetadata: unknown): TaskTokenUsage |
   }
 }
 
-/** Finished task runs for dashboards (status + token usage). */
+const FINISHED_STATUSES = ['succeeded', 'failed', 'cancelled', 'interrupted'] as const
+
+/** Parse windowHours query: omit/`all` → all finished runs; otherwise clamp 1–168. */
+export function parseFinishedTaskRunsWindowHours(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === '' || raw === 'all') return null
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 24
+  return Math.min(168, Math.max(1, n))
+}
+
+function mapFinishedTaskRun(run: typeof taskRuns.$inferSelect, repositoryName: string | null) {
+  const usage = extractTaskTokenUsage(run.resultMetadata)
+  return {
+    id: run.id,
+    title: run.title,
+    externalId: run.externalId,
+    externalUrl: run.externalUrl,
+    taskType: run.taskType,
+    forgeType: run.forgeType,
+    provider: run.provider,
+    status: run.status,
+    repositoryName,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    durationMs: run.durationMs,
+    exitCode: run.exitCode,
+    errorSummary: run.errorSummary,
+    branch: typeof run.resultMetadata?.branch === 'string' ? run.resultMetadata.branch : null,
+    usage,
+  }
+}
+
+/** Finished task runs for dashboards and usage page (status + token usage). */
 export async function listFinishedTaskRuns(opts: {
-  windowHours?: number
+  /** Hours to look back; omit or pass null for all finished runs. */
+  windowHours?: number | null
   limit?: number
+  page?: number
+  pageSize?: number
 } = {}) {
   const db = getDb()
-  const windowHours = Math.min(168, Math.max(1, opts.windowHours ?? 24))
-  const limit = Math.min(100, Math.max(1, opts.limit ?? 50))
-  const since = new Date(Date.now() - windowHours * 3600 * 1000)
+  const windowHours = opts.windowHours == null
+    ? null
+    : Math.min(168, Math.max(1, opts.windowHours))
+  const page = Math.max(1, opts.page ?? 1)
+  const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? opts.limit ?? 50))
+  const offset = (page - 1) * pageSize
+
+  const conditions = [
+    inArray(taskRuns.status, [...FINISHED_STATUSES]),
+  ]
+  if (windowHours != null) {
+    conditions.push(gte(taskRuns.finishedAt, new Date(Date.now() - windowHours * 3600 * 1000)))
+  }
+  const where = and(...conditions)
 
   const rows = await db.select({
     run: taskRuns,
     repositoryName: repositories.name,
   }).from(taskRuns)
     .leftJoin(repositories, eq(taskRuns.repositoryId, repositories.id))
-    .where(and(
-      inArray(taskRuns.status, ['succeeded', 'failed', 'cancelled', 'interrupted']),
-      gte(taskRuns.finishedAt, since),
-    ))
+    .where(where)
     .orderBy(desc(taskRuns.finishedAt))
-    .limit(limit)
+    .limit(pageSize)
+    .offset(offset)
 
-  return rows.map(({ run, repositoryName }) => {
-    const usage = extractTaskTokenUsage(run.resultMetadata)
-    return {
-      id: run.id,
-      title: run.title,
-      externalId: run.externalId,
-      externalUrl: run.externalUrl,
-      taskType: run.taskType,
-      forgeType: run.forgeType,
-      provider: run.provider,
-      status: run.status,
-      repositoryName,
-      startedAt: run.startedAt,
-      finishedAt: run.finishedAt,
-      durationMs: run.durationMs,
-      exitCode: run.exitCode,
-      errorSummary: run.errorSummary,
-      branch: typeof run.resultMetadata?.branch === 'string' ? run.resultMetadata.branch : null,
-      usage,
-    }
-  })
+  const [totalRow] = await db.select({ c: count() }).from(taskRuns).where(where)
+
+  return {
+    items: rows.map(({ run, repositoryName }) => mapFinishedTaskRun(run, repositoryName)),
+    page,
+    pageSize,
+    total: totalRow?.c ?? 0,
+    windowHours,
+  }
 }
