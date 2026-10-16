@@ -1,6 +1,5 @@
 import { chmod, mkdir, rename, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
 import { providerConfigs } from '#db/schema'
 import { getDb } from '#utils/db'
 import { workerBaseDir } from '#utils/paths'
@@ -11,22 +10,40 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** Mirrors PROVIDER_MODEL_ENV_VARS in providers.ts — kept local to avoid import cycles. */
+const PROVIDER_MODEL_ENV: Array<{ providerType: string, envName: string }> = [
+  { providerType: 'cursor', envName: 'AI_CURSOR_MODEL' },
+  { providerType: 'claude', envName: 'AI_CLAUDE_MODEL' },
+  { providerType: 'codex', envName: 'AI_CODEX_MODEL' },
+  { providerType: 'gemini', envName: 'AI_GEMINI_MODEL' },
+  { providerType: 'copilot', envName: 'AI_COPILOT_MODEL' },
+]
+
+function modelFromConfig(config: Record<string, unknown> | null | undefined): string {
+  if (typeof config?.model !== 'string') return ''
+  return config.model.trim().slice(0, 128)
+}
+
 /**
  * Materialize UI settings the Bash worker must honor without a compose recreate:
- * default AI provider, poll interval, and config version.
+ * default AI provider, per-provider model overrides, poll interval, and config version.
  */
 export async function exportWorkerRuntimeEnv(): Promise<{
   path: string
   aiProvider: string
   checkInterval: number
   configVersion: number
+  models: Record<string, string>
 }> {
   const settings = await getSettings()
   const db = getDb()
-  const [defaultProvider] = await db.select({
+  const providerRows = await db.select({
     providerType: providerConfigs.providerType,
-  }).from(providerConfigs).where(eq(providerConfigs.isDefault, true)).limit(1)
+    isDefault: providerConfigs.isDefault,
+    config: providerConfigs.config,
+  }).from(providerConfigs)
 
+  const defaultProvider = providerRows.find((r) => r.isDefault)
   const aiProvider = (
     defaultProvider?.providerType === 'cursor'
     || defaultProvider?.providerType === 'claude'
@@ -40,6 +57,16 @@ export async function exportWorkerRuntimeEnv(): Promise<{
   const checkInterval = settings.pollIntervalSeconds
   const configVersion = settings.configVersion
 
+  const models: Record<string, string> = {}
+  const modelLines: string[] = []
+  for (const { providerType, envName } of PROVIDER_MODEL_ENV) {
+    const row = providerRows.find((r) => r.providerType === providerType)
+    const model = modelFromConfig(row?.config)
+    models[providerType] = model
+    // Empty export clears a previously selected model (and compose override) so the CLI default applies.
+    modelLines.push(`export ${envName}=${shellQuote(model)}`)
+  }
+
   const base = workerBaseDir()
   await mkdir(base, { recursive: true })
   const target = join(base, 'worker-runtime.env')
@@ -51,6 +78,7 @@ export async function exportWorkerRuntimeEnv(): Promise<{
     `export AI_PROVIDER=${shellQuote(aiProvider)}`,
     `export CHECK_INTERVAL=${shellQuote(String(checkInterval))}`,
     `export CONFIG_VERSION=${shellQuote(String(configVersion))}`,
+    ...modelLines,
     '',
   ]
 
@@ -64,6 +92,7 @@ export async function exportWorkerRuntimeEnv(): Promise<{
     aiProvider,
     checkInterval,
     configVersion,
+    models,
   }
 }
 

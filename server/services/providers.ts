@@ -21,8 +21,41 @@ const KNOWN = [
 
 const KNOWN_TYPES = new Set(KNOWN.map((k) => k.providerType))
 
-function isKnownProviderType(providerType: string): providerType is typeof KNOWN[number]['providerType'] {
-  return KNOWN_TYPES.has(providerType as typeof KNOWN[number]['providerType'])
+/** Env vars the Bash worker reads for optional `--model` overrides (empty = CLI default). */
+export const PROVIDER_MODEL_ENV_VARS = {
+  cursor: 'AI_CURSOR_MODEL',
+  claude: 'AI_CLAUDE_MODEL',
+  codex: 'AI_CODEX_MODEL',
+  gemini: 'AI_GEMINI_MODEL',
+  copilot: 'AI_COPILOT_MODEL',
+} as const
+
+export type KnownProviderType = typeof KNOWN[number]['providerType']
+
+function isKnownProviderType(providerType: string): providerType is KnownProviderType {
+  return KNOWN_TYPES.has(providerType as KnownProviderType)
+}
+
+/** Trim and cap model ids stored in provider config. Empty string means CLI default. */
+export function normalizeProviderModel(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.trim().slice(0, 128)
+}
+
+export function providerModelFromConfig(config: Record<string, unknown> | null | undefined): string {
+  return normalizeProviderModel(config?.model)
+}
+
+/** Merge provider config patches; omit `model` when empty so the CLI default is used. */
+export function mergeProviderConfig(
+  existing: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...existing, ...patch }
+  const model = normalizeProviderModel(merged.model)
+  if (model) merged.model = model
+  else delete merged.model
+  return merged
 }
 
 export async function ensureProviderRows() {
@@ -226,7 +259,13 @@ export async function updateProvider(
     await db.update(providerConfigs).set({ isDefault: false })
   }
 
-  const nextConfig = input.config ?? existing.config
+  const configChanged = input.config !== undefined
+  const nextConfig = configChanged
+    ? mergeProviderConfig(
+      (existing.config && typeof existing.config === 'object') ? existing.config : {},
+      input.config || {},
+    )
+    : existing.config
   const [updated] = await db.update(providerConfigs).set({
     isEnabled: nextEnabled,
     isDefault: nextDefault,
@@ -266,13 +305,16 @@ export async function updateProvider(
     await syncDefaultAiProviderSetting(reconciled.providerType, actor, ipHash)
   }
 
-  if (secretChanged || input.isDefault !== undefined || input.isEnabled !== undefined) {
+  // Config (including selected model) must refresh worker-runtime.env like enable/default/secret.
+  if (secretChanged || configChanged || input.isDefault !== undefined || input.isEnabled !== undefined) {
     try {
       const { applyWorkerRuntimeChange } = await import('./worker-runtime')
       await applyWorkerRuntimeChange('provider.update', {
         providerType,
         secretChanged,
+        configChanged,
         isDefault: row.isDefault,
+        model: providerModelFromConfig(nextConfig),
       })
     } catch (err) {
       console.warn(
@@ -293,6 +335,7 @@ export async function updateProvider(
       isDefault: row.isDefault,
       secretChanged,
       credentialType: typeof nextConfig?.credentialType === 'string' ? nextConfig.credentialType : undefined,
+      model: providerModelFromConfig(nextConfig) || undefined,
     },
     ipHash,
   })
