@@ -96,7 +96,9 @@ export async function listRepositories(opts: {
   }
 
   const where = conditions.length ? and(...conditions) : undefined
-  const items = await db.select().from(repositories).where(where).orderBy(desc(repositories.updatedAt)).limit(pageSize).offset(offset)
+  const items = await db.select().from(repositories).where(where)
+    .orderBy(desc(repositories.isEnabled), desc(repositories.updatedAt))
+    .limit(pageSize).offset(offset)
   const [totalRow] = await db.select({ c: count() }).from(repositories).where(where)
 
   return { items: items.map(publicRepo), page, pageSize, total: totalRow?.c ?? 0 }
