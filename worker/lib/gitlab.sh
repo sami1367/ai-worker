@@ -144,7 +144,7 @@ gitlab_current_user_id() {
 }
 
 # Print oldest open issue iid with the given label, or empty.
-# Label-only: does not filter by assignee.
+# Label-only: does not filter by assignee (used for in-flight ai-working checks).
 gitlab_find_open_issue_with_label() {
     local project_path="$1"
     local label="$2"
@@ -160,17 +160,38 @@ gitlab_find_open_issue_with_label() {
     printf '%s' "$iid"
 }
 
-# Print oldest open issue iid with label "ai", or empty.
+# Print oldest open issue iid with label "ai" assigned to the authenticated user, or empty.
+# Assignee is checked first: AI label alone is not enough to pick up work.
 gitlab_find_ai_issue() {
     local project_path="$1"
-    gitlab_find_open_issue_with_label "$project_path" "ai"
+    local uid encoded body iid
+
+    uid="$(gitlab_current_user_id)" || return 1
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/issues?labels=ai&state=opened&assignee_id=${uid}&order_by=created_at&sort=asc&per_page=1"
+    )" || return 1
+
+    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    printf '%s' "$iid"
 }
 
-# Print oldest open issue iid with both "ai" and "no-change" (Q&A), or empty.
-# GitLab labels= is AND when comma-separated.
+# Print oldest open issue iid with both "ai" and "no-change" (Q&A) assigned to the
+# authenticated user, or empty. GitLab labels= is AND when comma-separated.
 gitlab_find_ai_no_change_issue() {
     local project_path="$1"
-    gitlab_find_open_issue_with_label "$project_path" "ai,no-change"
+    local uid encoded body iid
+
+    uid="$(gitlab_current_user_id)" || return 1
+    encoded="$(gitlab_encode_path "$project_path")"
+    body="$(
+        gitlab_api GET \
+            "/projects/${encoded}/issues?labels=ai,no-change&state=opened&assignee_id=${uid}&order_by=created_at&sort=asc&per_page=1"
+    )" || return 1
+
+    iid="$(jq -r '.[0].iid // empty' <<<"$body")"
+    printf '%s' "$iid"
 }
 
 # Label open MRs whose source_branch is ai/issue-N or ai/issue-N-* with ai-pr.

@@ -45,10 +45,11 @@ gitlab_api() {
             if [[ "$path" == *labels=ai-working* ]]; then
                 printf '[]'
             elif [[ "$path" == *labels=ai* && "$path" != *labels=ai-* ]]; then
-                if [[ "$path" == *assignee_id=* ]]; then
-                    printf '[]'
-                else
+                # Pickup requires assignee_id of the connected user.
+                if [[ "$path" == *assignee_id=42* ]]; then
                     printf '[{"iid":7,"title":"ai issue"}]'
+                else
+                    printf '[]'
                 fi
             else
                 printf '[]'
@@ -87,7 +88,8 @@ gh() {
                 has_label=1
             fi
         done
-        if [[ "$has_assignee" -eq 0 && "$has_label" -eq 1 ]]; then
+        # Only return an issue when both AI label and @me assignee are requested.
+        if [[ "$has_assignee" -eq 1 && "$has_label" -eq 1 ]]; then
             printf '12'
         else
             printf ''
@@ -105,12 +107,8 @@ grep -q '^GET /user$' "$GITLAB_API_LOG" || fail "expected /user call"
 iid="$(gitlab_find_ai_issue "group/project")" || fail "gitlab_find_ai_issue failed"
 [[ "$iid" == "7" ]] || fail "expected iid 7, got '$iid'"
 grep -q 'labels=ai' "$GITLAB_API_LOG" || fail "ai issue query missing labels=ai"
-if grep -q 'assignee_id=' "$GITLAB_API_LOG"; then
-    fail "ai issue pickup must not filter by assignee"
-fi
-if grep -q '^GET /user$' "$GITLAB_API_LOG"; then
-    fail "find_ai_issue should not resolve current user"
-fi
+grep -q 'assignee_id=42' "$GITLAB_API_LOG" || fail "ai issue pickup must filter by assignee_id"
+grep -q '^GET /user$' "$GITLAB_API_LOG" || fail "find_ai_issue must resolve current user for assignee filter"
 
 # In-flight label lookup must not require assignee.
 : > "$GITLAB_API_LOG"
@@ -218,12 +216,8 @@ fi
 : > "$TMP/gh.log"
 num="$(github_find_ai_issue "owner/repo")"
 [[ "$num" == "12" ]] || fail "expected github issue 12, got '$num'"
-if grep -q -- '--assignee' "$TMP/gh.log"; then
-    fail "github_find_ai_issue must not use --assignee"
-fi
-if grep -q -- '@me' "$TMP/gh.log"; then
-    fail "github_find_ai_issue must not use @me"
-fi
+grep -q -- '--assignee' "$TMP/gh.log" || fail "github_find_ai_issue must use --assignee"
+grep -q -- '@me' "$TMP/gh.log" || fail "github_find_ai_issue must use @me"
 grep -q -- '--label' "$TMP/gh.log" || fail "github_find_ai_issue missing --label"
 
 # Open-PR in-flight check must list PRs without --label (Search API) and filter
