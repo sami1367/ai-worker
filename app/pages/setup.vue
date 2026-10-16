@@ -53,21 +53,21 @@ async function submit() {
 
     <form class="mt-8 space-y-4" @submit.prevent="submit">
       <UFormField
-        label="Admin email"
-        hint="Used for CodeGraph Pro waitlist signup when the worker configures CodeGraph."
-        required
-      >
-        <UInput v-model="email" type="email" autocomplete="email" class="w-full" />
-      </UFormField>
-      <UFormField label="Admin username" required>
-        <UInput v-model="username" autocomplete="username" class="w-full" />
-      </UFormField>
-      <UFormField
         label="Bootstrap secret"
         hint="cat INITIAL_ADMIN_BOOTSTRAP_SECRET.txt  (or grep INITIAL_ADMIN_BOOTSTRAP_SECRET .env)"
         required
       >
         <UInput v-model="bootstrapSecret" type="password" class="w-full" />
+      </UFormField>
+      <UFormField label="Admin username" required>
+        <UInput v-model="username" autocomplete="username" class="w-full" />
+      </UFormField>
+      <UFormField
+        label="Admin email"
+        hint="Used for CodeGraph Pro waitlist signup when the worker configures CodeGraph."
+        required
+      >
+        <UInput v-model="email" type="email" autocomplete="email" class="w-full" />
       </UFormField>
       <UFormField label="Password (min 12)" required>
         <UInput v-model="password" type="password" autocomplete="new-password" class="w-full" />
