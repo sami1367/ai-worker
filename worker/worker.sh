@@ -461,6 +461,7 @@ launch_repo_job() {
 
 # When POLL_LAUNCH_QUEUE is set (parallel poll), enqueue a launch for the parent
 # shell. Otherwise launch immediately (sequential poll / tests).
+# Optional POLL_CANDIDATE_CREATED_AT (ISO timestamp) is stored for global oldest-first drain.
 # Usage: same as launch_repo_job
 queue_or_launch_repo_job() {
     local project_dir="$1"
@@ -481,11 +482,13 @@ queue_or_launch_repo_job() {
         --arg arg1 "${4:-}" \
         --arg arg2 "${5:-}" \
         --arg arg3 "${6:-}" \
+        --arg created_at "${POLL_CANDIDATE_CREATED_AT:-}" \
         '{
             project_dir: $project_dir,
             project_name: $project_name,
             job_fn: $job_fn,
-            args: [$arg1, $arg2, $arg3]
+            args: [$arg1, $arg2, $arg3],
+            created_at: $created_at
         }')" || return 1
 
     (
@@ -495,11 +498,32 @@ queue_or_launch_repo_job() {
     return 0
 }
 
+# Sort launch queue oldest-first (created_at), then by project_name+job_fn for ties.
+sort_poll_launch_queue() {
+    local queue_file="$1"
+    local sorted
+
+    [[ -f "$queue_file" ]] || return 0
+    [[ -s "$queue_file" ]] || return 0
+
+    sorted="$(mktemp "$STATE_DIR/poll-launch-sorted.XXXXXX")"
+    if jq -sc '
+        sort_by(.created_at // "", .project_name // "", .job_fn // "", (.args[2] // ""))
+        | .[]
+    ' "$queue_file" >"$sorted" 2>/dev/null; then
+        mv "$sorted" "$queue_file"
+    else
+        rm -f "$sorted"
+    fi
+}
+
 drain_poll_launch_queue() {
     local queue_file="$1"
     local line project_dir project_name job_fn a1 a2 a3
 
     [[ -f "$queue_file" ]] || return 0
+
+    sort_poll_launch_queue "$queue_file"
 
     while IFS= read -r line || [[ -n "${line:-}" ]]; do
         [[ -z "$line" ]] && continue
@@ -518,23 +542,33 @@ drain_poll_launch_queue() {
 }
 
 # Run one poll pass over all projects with up to POLL_CONCURRENCY parallel
-# forge checks; drain queued launches in the parent afterward.
+# forge checks. When POLL_LAUNCH_QUEUE is already set (shared cycle queue),
+# enqueue into it and do not drain — the caller drains once after all forges.
+# Otherwise create a private queue, drain, and remove it (legacy / single-pass).
 poll_projects_parallel() {
     local projects_file="$1"
     local callback="$2"
     local queue_file
+    local own_queue=0
 
     if [[ ! -f "$projects_file" ]]; then
         return 0
     fi
 
     mkdir -p "$STATE_DIR"
-    queue_file="$(mktemp "$STATE_DIR/poll-launch.XXXXXX")"
-    POLL_LAUNCH_QUEUE="$queue_file"
+    if [[ -z "${POLL_LAUNCH_QUEUE:-}" ]]; then
+        queue_file="$(mktemp "$STATE_DIR/poll-launch.XXXXXX")"
+        POLL_LAUNCH_QUEUE="$queue_file"
+        own_queue=1
+    else
+        queue_file="$POLL_LAUNCH_QUEUE"
+    fi
     ai_foreach_project_parallel "$projects_file" "$callback" "$POLL_CONCURRENCY" || true
-    POLL_LAUNCH_QUEUE=""
-    drain_poll_launch_queue "$queue_file"
-    rm -f "$queue_file" "${queue_file}.lock"
+    if [[ "$own_queue" -eq 1 ]]; then
+        POLL_LAUNCH_QUEUE=""
+        drain_poll_launch_queue "$queue_file"
+        rm -f "$queue_file" "${queue_file}.lock"
+    fi
 }
 
 consume_wake_poll() {
@@ -1444,6 +1478,7 @@ process_github_project() {
     fi
 
     ISSUE_NUMBER="$(github_find_ai_issue "$REPO")"
+    POLL_CANDIDATE_CREATED_AT="${GITHUB_FIND_CREATED_AT:-}"
 
     if [[ -z "$ISSUE_NUMBER" ]]; then
         return 0
@@ -1460,6 +1495,10 @@ process_github_project() {
             echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
         fi
         return 0
+    fi
+    # no-change pick may refresh createdAt via github_find_ai_no_change_issue
+    if [[ -n "${GITHUB_FIND_CREATED_AT:-}" ]]; then
+        POLL_CANDIDATE_CREATED_AT="$GITHUB_FIND_CREATED_AT"
     fi
 
     if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "github" "$ENTRY"; then
@@ -1503,6 +1542,7 @@ process_gitlab_project() {
     fi
 
     ISSUE_NUMBER="$(gitlab_find_ai_issue "$REPO_PATH" 2>/dev/null || true)"
+    POLL_CANDIDATE_CREATED_AT="${GITLAB_FIND_CREATED_AT:-}"
 
     if [[ -z "$ISSUE_NUMBER" ]]; then
         return 0
@@ -1519,6 +1559,9 @@ process_gitlab_project() {
             echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Not starting a new issue in this repo ($in_flight)."
         fi
         return 0
+    fi
+    if [[ -n "${GITLAB_FIND_CREATED_AT:-}" ]]; then
+        POLL_CANDIDATE_CREATED_AT="$GITLAB_FIND_CREATED_AT"
     fi
 
     if ! ensure_entry_workspace "$PROJECT" "$PROJECT_DIR" "gitlab" "$ENTRY"; then
@@ -1552,8 +1595,9 @@ process_github_pr_implement() {
         return 0
     fi
 
-    # Avoid `gh pr list --label` (GitHub Search API); filter labels client-side.
+    # Avoid `gh pr list --label` (GitHub Search API); filter labels + assignee client-side.
     PR_NUMBER="$(github_find_open_pr_with_label "$REPO" "ai")"
+    POLL_CANDIDATE_CREATED_AT="${GITHUB_FIND_CREATED_AT:-}"
 
     if [[ -z "$PR_NUMBER" ]]; then
         return 0
@@ -1590,8 +1634,9 @@ process_github_pr_review() {
         return 0
     fi
 
-    # Avoid `gh pr list --label` (GitHub Search API); filter labels client-side.
+    # Avoid `gh pr list --label` (GitHub Search API); filter labels + assignee client-side.
     PR_NUMBER="$(github_find_open_pr_with_label "$REPO" "ai-review")"
+    POLL_CANDIDATE_CREATED_AT="${GITHUB_FIND_CREATED_AT:-}"
 
     if [[ -z "$PR_NUMBER" ]]; then
         return 0
@@ -1637,6 +1682,7 @@ process_gitlab_mr_implement() {
     fi
 
     MR_IID="$(gitlab_find_ai_mr "$REPO_PATH" 2>/dev/null || true)"
+    POLL_CANDIDATE_CREATED_AT="${GITLAB_FIND_CREATED_AT:-}"
 
     if [[ -z "$MR_IID" ]]; then
         return 0
@@ -1682,6 +1728,7 @@ process_gitlab_mr_review() {
     fi
 
     MR_IID="$(gitlab_find_ai_review_mr "$REPO_PATH" 2>/dev/null || true)"
+    POLL_CANDIDATE_CREATED_AT="${GITLAB_FIND_CREATED_AT:-}"
 
     if [[ -z "$MR_IID" ]]; then
         return 0
@@ -1724,9 +1771,13 @@ while true; do
     reset_repo_busy_log
     reap_repo_agents
 
-    # Priority inside one repository: issues, then PR/MR implement,
-    # then reviews. A launch marks that repository busy, so later
-    # handlers in this cycle skip it. Other repositories still start.
+    # Discover eligible work across GitHub and GitLab into one launch queue,
+    # then start oldest-first by forge created_at (global chronological order).
+    # A launch marks that repository busy, so later candidates for the same
+    # repo are skipped at drain time.
+    mkdir -p "$STATE_DIR"
+    _cycle_queue="$(mktemp "$STATE_DIR/poll-launch-cycle.XXXXXX")"
+    POLL_LAUNCH_QUEUE="$_cycle_queue"
     if [[ -f "$PROJECTS_FILE" ]]; then
         poll_projects_parallel "$PROJECTS_FILE" process_github_project
         poll_projects_parallel "$PROJECTS_FILE" process_github_pr_implement
@@ -1738,6 +1789,10 @@ while true; do
         poll_projects_parallel "$GITLAB_PROJECTS_FILE" process_gitlab_mr_implement
         poll_projects_parallel "$GITLAB_PROJECTS_FILE" process_gitlab_mr_review
     fi
+    POLL_LAUNCH_QUEUE=""
+    drain_poll_launch_queue "$_cycle_queue"
+    rm -f "$_cycle_queue" "${_cycle_queue}.lock"
+    unset _cycle_queue
 
     if [[ "${#REPO_AGENT_PIDS[@]}" -eq 0 ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] No queued AI issues or PR/MR reviews. Sleeping ${CHECK_INTERVAL}s (or until webhook)."

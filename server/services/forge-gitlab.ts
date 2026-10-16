@@ -419,7 +419,9 @@ export async function listGitLabAiIssues(
     }
   }
 
-  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.externalId.localeCompare(b.externalId),
+  )
 }
 
 function isAiIssueBranchName(branch: string | null | undefined): boolean {
@@ -448,6 +450,8 @@ export async function listGitLabAiMergeRequests(
         created_at?: string
         source_branch?: string
         labels?: unknown
+        assignees?: Array<{ id?: number, username?: string }>
+        assignee?: { id?: number, username?: string } | null
       }>>(
         instanceUrl,
         `/projects/${encoded}/merge_requests?state=opened&labels=${encodeURIComponent(label)}`
@@ -466,6 +470,7 @@ export async function listGitLabAiMergeRequests(
           createdAt: String(mr.created_at || new Date(0).toISOString()),
           kind: 'merge_request',
           sourceBranch: mr.source_branch || null,
+          assignees: gitlabAssignees(mr.assignees, mr.assignee),
         })
       }
       if (batch.length < 100) break
@@ -483,6 +488,8 @@ export async function listGitLabAiMergeRequests(
       created_at?: string
       source_branch?: string
       labels?: unknown
+      assignees?: Array<{ id?: number, username?: string }>
+      assignee?: { id?: number, username?: string } | null
     }>>(
       instanceUrl,
       `/projects/${encoded}/merge_requests?state=opened`
@@ -503,13 +510,16 @@ export async function listGitLabAiMergeRequests(
         createdAt: String(mr.created_at || new Date(0).toISOString()),
         kind: 'merge_request',
         sourceBranch,
+        assignees: gitlabAssignees(mr.assignees, mr.assignee),
       })
     }
     if (batch.length < 100) break
     page += 1
   }
 
-  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.externalId.localeCompare(b.externalId),
+  )
 }
 
 /** Create missing labels on a GitLab project. Idempotent; skips labels that already exist. */

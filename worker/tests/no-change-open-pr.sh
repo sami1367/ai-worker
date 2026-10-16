@@ -32,11 +32,14 @@ gitlab_api() {
     printf '%s %s\n' "$method" "$path" >> "$GITLAB_API_LOG"
 
     case "$path" in
+        /user)
+            printf '{"id":42,"username":"ai-bot"}'
+            ;;
         /projects/*/issues\?*)
             if [[ "$path" == *labels=ai,no-change* ]]; then
-                printf '[{"iid":33,"title":"qa"}]'
+                printf '[{"iid":33,"title":"qa","created_at":"2026-01-01T00:00:00Z"}]'
             elif [[ "$path" == *labels=ai* && "$path" != *labels=ai-* && "$path" != *labels=ai,* ]]; then
-                printf '[{"iid":7,"title":"implement"}]'
+                printf '[{"iid":7,"title":"implement","created_at":"2026-01-02T00:00:00Z"}]'
             else
                 printf '[]'
             fi
@@ -49,22 +52,37 @@ gitlab_api() {
 
 gh() {
     printf '%s\n' "$*" >> "$TMP/gh.log"
+    if [[ "$1" == "api" && "$2" == "user" ]]; then
+        printf 'ai-bot\n'
+        return 0
+    fi
     if [[ "$1" == "issue" && "$2" == "list" ]]; then
         local labels=()
         local i=0
         local args=("$@")
+        local jq_expr=""
+        local prev=""
         for ((i = 0; i < ${#args[@]}; i++)); do
             if [[ "${args[$i]}" == "--label" ]]; then
                 labels+=("${args[$((i + 1))]}")
             fi
+            if [[ "$prev" == "--jq" ]]; then
+                jq_expr="${args[$i]}"
+            fi
+            prev="${args[$i]}"
         done
         local joined
         joined="$(IFS=,; echo "${labels[*]}")"
-        # gh --jq is mocked away; return the number (or empty) directly.
+        local payload='[]'
         if [[ "$joined" == "ai,no-change" || "$joined" == "no-change,ai" ]]; then
-            printf '33'
+            payload='[{"number":33,"createdAt":"2026-01-01T00:00:00Z"}]'
         elif [[ "$joined" == "ai" ]]; then
-            printf '7'
+            payload='[{"number":7,"createdAt":"2026-01-02T00:00:00Z"}]'
+        fi
+        if [[ -n "$jq_expr" ]]; then
+            printf '%s' "$payload" | jq -r "$jq_expr"
+        elif [[ "$payload" != '[]' ]]; then
+            printf '%s' "$(jq -r '.[0].number // empty' <<<"$payload")"
         else
             printf ''
         fi

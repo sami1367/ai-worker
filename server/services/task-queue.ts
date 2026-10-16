@@ -180,22 +180,6 @@ function resolveTaskType(
   return forgeType === 'github' ? 'github_pr_implement' : 'gitlab_mr_implement'
 }
 
-function taskTypePriority(taskType: QueueTaskType): number {
-  switch (taskType) {
-    case 'github_issue':
-    case 'gitlab_issue':
-      return 0
-    case 'github_pr_implement':
-    case 'gitlab_mr_implement':
-      return 1
-    case 'github_pr_review':
-    case 'gitlab_mr_review':
-      return 2
-    default:
-      return 9
-  }
-}
-
 function matchActiveTask(
   item: Pick<QueueItem, 'repositoryName' | 'forgeType' | 'externalId' | 'taskType'>,
   active: ActiveTask,
@@ -282,6 +266,13 @@ export function computeNextTask(
     .filter((i) => {
       if (i.assignedWorker) return false
       if (!(i.phase === 'queued' || i.phase === 'review_queued')) return false
+      // PR/MR rows may be kept as open-PR blockers without our assignee; never start those.
+      if (
+        (i.kind === 'pull_request' || i.kind === 'merge_request')
+        && !(i.assignees?.length)
+      ) {
+        return false
+      }
       if (busyRepos.has(i.repositoryId)) return false
       if (i.kind === 'issue' && aiWorkingBlockedRepos.has(i.repositoryId)) return false
       if (i.kind === 'issue' && openPrBlockedRepos.has(i.repositoryId) && !isNoChangeIssue(i.labels)) {
@@ -290,9 +281,10 @@ export function computeNextTask(
       return true
     })
     .sort((a, b) => {
-      const p = taskTypePriority(a.taskType) - taskTypePriority(b.taskType)
-      if (p !== 0) return p
-      return a.createdAt.localeCompare(b.createdAt)
+      // Global oldest-first across GitHub and GitLab; deterministic tie-break on id.
+      const byCreated = a.createdAt.localeCompare(b.createdAt)
+      if (byCreated !== 0) return byCreated
+      return a.id.localeCompare(b.id)
     })
 
   return eligible[0] ?? null
@@ -525,6 +517,14 @@ async function fetchRepoForgeItems(
       })
     }
     for (const pr of prs) {
+      const assigned = isAssignedToForgeAccount(pr.assignees, account)
+      const blocking = isBlockingOpenPrMr({
+        kind: 'pull_request',
+        labels: pr.labels,
+        sourceBranch: pr.sourceBranch || null,
+      } as QueueItem)
+      // Label alone is not enough for review/implement; keep unassigned blockers for gating.
+      if (!assigned && !blocking) continue
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(pr.labels, 'pull_request')
       items.push({
         kind: 'pull_request',
@@ -535,7 +535,8 @@ async function fetchRepoForgeItems(
         title: pr.title,
         url: pr.url,
         labels: pr.labels,
-        assignees: pr.assignees || [],
+        // Empty assignees ⇒ not eligible to start (see computeNextTask); blockers may be empty.
+        assignees: assigned ? (pr.assignees || []) : [],
         sourceBranch: pr.sourceBranch || null,
         createdAt: pr.createdAt,
       })
@@ -564,6 +565,13 @@ async function fetchRepoForgeItems(
       })
     }
     for (const mr of mrs) {
+      const assigned = isAssignedToForgeAccount(mr.assignees, account)
+      const blocking = isBlockingOpenPrMr({
+        kind: 'merge_request',
+        labels: mr.labels,
+        sourceBranch: mr.sourceBranch || null,
+      } as QueueItem)
+      if (!assigned && !blocking) continue
       const { phase, phaseLabel, taskTypeHint } = classifyPhase(mr.labels, 'merge_request')
       items.push({
         kind: 'merge_request',
@@ -574,7 +582,7 @@ async function fetchRepoForgeItems(
         title: mr.title,
         url: mr.url,
         labels: mr.labels,
-        assignees: mr.assignees || [],
+        assignees: assigned ? (mr.assignees || []) : [],
         sourceBranch: mr.sourceBranch || null,
         createdAt: mr.createdAt,
       })
