@@ -35,13 +35,33 @@ async function action(path: string, label: string, body?: Record<string, unknown
   }
 }
 
+const acceptedReportersText = ref('')
+
+function parseAcceptedReporters(text: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of text.split(/[\n,]+/)) {
+    const login = part.trim()
+    if (!login) continue
+    const key = login.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(login)
+  }
+  return out
+}
+
 watch(() => data.value, (repo) => {
   if (!repo) return
   if (!repo.settings || typeof repo.settings !== 'object') {
-    repo.settings = { customPrompt: '' }
+    repo.settings = { customPrompt: '', acceptedReporters: [] }
   } else if (typeof repo.settings.customPrompt !== 'string') {
     repo.settings.customPrompt = ''
   }
+  if (!Array.isArray(repo.settings.acceptedReporters)) {
+    repo.settings.acceptedReporters = []
+  }
+  acceptedReportersText.value = (repo.settings.acceptedReporters as string[]).join('\n')
   if (typeof repo.forcePushToDefault !== 'boolean') {
     repo.forcePushToDefault = false
   }
@@ -54,6 +74,7 @@ async function save() {
   if (!data.value) return
   busy.value = 'Saving'
   try {
+    const acceptedReporters = parseAcceptedReporters(acceptedReportersText.value)
     await api(`/api/v1/repositories/${id.value}`, {
       method: 'PATCH',
       body: {
@@ -65,6 +86,7 @@ async function save() {
         defaultAiProvider: data.value.defaultAiProvider,
         settings: {
           customPrompt: data.value.settings?.customPrompt ?? '',
+          acceptedReporters,
         },
       },
     })
@@ -200,6 +222,18 @@ onBeforeUnmount(() => stopPoll.value?.())
               rows="8"
               class="mt-1 w-full rounded-lg border border-black/10 bg-transparent p-3 font-mono text-xs leading-relaxed outline-none focus:border-black/30 dark:border-white/10 dark:focus:border-white/30"
               placeholder="e.g. Prefer existing service patterns in src/…; never change billing migrations without…"
+              spellcheck="false"
+            />
+          </UFormField>
+          <UFormField
+            label="Accepted reporters"
+            hint="Optional. GitHub logins or GitLab usernames allowed to open issues the system will work on. Leave empty to accept all members. One per line (or comma-separated). Issues must still be assigned to the connected forge account."
+          >
+            <textarea
+              v-model="acceptedReportersText"
+              rows="4"
+              class="mt-1 w-full rounded-lg border border-black/10 bg-transparent p-3 font-mono text-xs leading-relaxed outline-none focus:border-black/30 dark:border-white/10 dark:focus:border-white/30"
+              placeholder="alice&#10;bob"
               spellcheck="false"
             />
           </UFormField>

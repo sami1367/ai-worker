@@ -10,7 +10,7 @@ vi.mock('../../server/utils/safe-fetch', () => ({
 import { safeFetch } from '../../server/utils/safe-fetch'
 import { listGitHubAiIssues, listGitHubAiPullRequests } from '../../server/services/forge-github'
 import { listGitLabAiIssues, listGitLabAiMergeRequests } from '../../server/services/forge-gitlab'
-import { isAssignedToForgeAccount } from '../../server/services/forge-types'
+import { isAcceptedReporter, isAssignedToForgeAccount } from '../../server/services/forge-types'
 
 const mock = safeFetch as unknown as ReturnType<typeof vi.fn>
 
@@ -57,12 +57,42 @@ describe('isAssignedToForgeAccount', () => {
   })
 })
 
+describe('isAcceptedReporter', () => {
+  it('allows all reporters when the allowlist is empty or missing', () => {
+    expect(isAcceptedReporter({ id: '1', login: 'alice' }, [])).toBe(true)
+    expect(isAcceptedReporter({ id: '1', login: 'alice' }, null)).toBe(true)
+    expect(isAcceptedReporter({ id: '1', login: 'alice' }, undefined)).toBe(true)
+    expect(isAcceptedReporter(null, [])).toBe(true)
+  })
+
+  it('matches author login case-insensitively against the allowlist', () => {
+    expect(isAcceptedReporter(
+      { id: '1', login: 'Alice' },
+      ['bob', 'alice'],
+    )).toBe(true)
+    expect(isAcceptedReporter(
+      { id: '1', login: 'carol' },
+      ['bob', 'alice'],
+    )).toBe(false)
+  })
+
+  it('rejects missing author when an allowlist is set', () => {
+    expect(isAcceptedReporter(null, ['alice'])).toBe(false)
+    expect(isAcceptedReporter(undefined, ['alice'])).toBe(false)
+    expect(isAcceptedReporter({ id: '1', login: '  ' }, ['alice'])).toBe(false)
+  })
+
+  it('treats whitespace-only allowlist entries as empty (allow all)', () => {
+    expect(isAcceptedReporter({ id: '1', login: 'anyone' }, ['  ', ''])).toBe(true)
+  })
+})
+
 describe('listGitHubAiIssues assignees', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('parses assignees from GitHub issue payloads', async () => {
+  it('parses assignees and author from GitHub issue payloads', async () => {
     mock.mockImplementation(async (url: string) => {
       const u = String(url)
       if (!u.includes('/issues?') || !u.includes('labels=ai') || u.includes('labels=ai-')) {
@@ -75,6 +105,7 @@ describe('listGitHubAiIssues assignees', () => {
           html_url: 'https://github.com/acme/app/issues/36',
           created_at: '2026-01-02T00:00:00Z',
           labels: [{ name: 'ai' }],
+          user: { id: 7, login: 'reporter' },
           assignees: [{ id: 28010102, login: 'sami1367' }],
           assignee: { id: 28010102, login: 'sami1367' },
         },
@@ -84,6 +115,7 @@ describe('listGitHubAiIssues assignees', () => {
           html_url: 'https://github.com/acme/app/issues/37',
           created_at: '2026-01-03T00:00:00Z',
           labels: [{ name: 'ai' }],
+          user: { id: 8, login: 'other' },
           assignees: [],
           assignee: null,
         },
@@ -95,8 +127,10 @@ describe('listGitHubAiIssues assignees', () => {
     expect(items[0]).toMatchObject({
       externalId: '36',
       assignees: [{ id: '28010102', login: 'sami1367' }],
+      author: { id: '7', login: 'reporter' },
     })
     expect(items[1].assignees).toEqual([])
+    expect(items[1].author).toEqual({ id: '8', login: 'other' })
     expect(isAssignedToForgeAccount(items[0].assignees, {
       accountId: '28010102',
       accountLogin: 'sami1367',
@@ -113,7 +147,7 @@ describe('listGitLabAiIssues assignees', () => {
     vi.restoreAllMocks()
   })
 
-  it('parses assignees from GitLab issue payloads', async () => {
+  it('parses assignees and author from GitLab issue payloads', async () => {
     mock.mockImplementation(async (url: string) => {
       const u = String(url)
       if (!u.includes('/issues?') || !u.includes('labels=ai') || u.includes('labels=ai-')) {
@@ -126,6 +160,7 @@ describe('listGitLabAiIssues assignees', () => {
           web_url: 'https://gitlab.example/g/p/-/issues/1',
           created_at: '2026-01-02T00:00:00Z',
           labels: ['ai'],
+          author: { id: 11, username: 'reporter' },
           assignees: [{ id: 42, username: 'samirahimi' }],
           assignee: { id: 42, username: 'samirahimi' },
         },
@@ -137,6 +172,7 @@ describe('listGitLabAiIssues assignees', () => {
     expect(items[0]).toMatchObject({
       externalId: '1',
       assignees: [{ id: '42', login: 'samirahimi' }],
+      author: { id: '11', login: 'reporter' },
     })
     expect(isAssignedToForgeAccount(items[0].assignees, {
       accountId: '42',

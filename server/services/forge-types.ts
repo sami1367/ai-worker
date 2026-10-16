@@ -45,6 +45,25 @@ export function isAssignedToForgeAccount(
   })
 }
 
+/**
+ * True when the issue reporter (author) is allowed by the repository allowlist.
+ * Empty / missing list means all reporters are accepted.
+ * When the list is non-empty, the author login must match (case-insensitive).
+ */
+export function isAcceptedReporter(
+  author: ForgeAssignee | null | undefined,
+  acceptedLogins: string[] | undefined | null,
+): boolean {
+  if (!acceptedLogins?.length) return true
+  const login = author?.login?.trim().toLowerCase()
+  if (!login) return false
+  const allowed = new Set(
+    acceptedLogins.map((l) => l.trim().toLowerCase()).filter(Boolean),
+  )
+  if (!allowed.size) return true
+  return allowed.has(login)
+}
+
 export interface TokenBundle {
   accessToken: string
   refreshToken?: string | null

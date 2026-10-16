@@ -21,6 +21,11 @@ export const bulkSetEnabledSchema = z.object({
 export const repositorySettingsSchema = z.object({
   /** Optional instructions appended to every AI prompt for this repository. Default empty. */
   customPrompt: z.string().max(100_000).optional(),
+  /**
+   * Forge usernames (GitHub login / GitLab username) allowed to open issues the
+   * system will work on. Empty / omitted = all reporters accepted.
+   */
+  acceptedReporters: z.array(z.string().min(1).max(128)).max(200).optional(),
 }).passthrough()
 
 export const createRepositorySchema = z.object({
@@ -50,6 +55,26 @@ export const updateRepositorySchema = createRepositorySchema.partial().omit({ na
 export function customPromptFromSettings(settings: Record<string, unknown> | null | undefined): string {
   const value = settings?.customPrompt
   return typeof value === 'string' ? value : ''
+}
+
+/** Read accepted issue reporters from settings (empty = all members accepted). */
+export function acceptedReportersFromSettings(
+  settings: Record<string, unknown> | null | undefined,
+): string[] {
+  const value = settings?.acceptedReporters
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const login = item.trim()
+    if (!login) continue
+    const key = login.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(login)
+  }
+  return out
 }
 
 export async function listRepositories(opts: {
@@ -230,6 +255,10 @@ export async function updateRepository(
         customPrompt: typeof parsed.settings.customPrompt === 'string'
           ? parsed.settings.customPrompt
           : customPromptFromSettings(existing.settings),
+        // Always persist acceptedReporters as a string[] (empty = all reporters)
+        acceptedReporters: Array.isArray(parsed.settings.acceptedReporters)
+          ? acceptedReportersFromSettings({ acceptedReporters: parsed.settings.acceptedReporters })
+          : acceptedReportersFromSettings(existing.settings),
       }
 
   const [row] = await db.update(repositories).set({
