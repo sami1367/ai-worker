@@ -56,7 +56,7 @@ You need: **Docker Engine**, **Docker Compose v2** (`docker compose`), `curl`, `
 
 ### Linux (Ubuntu / Debian / most VPS) — one paste
 
-Official convenience script ([get.docker.com](https://get.docker.com)) installs Engine + Compose, then starts the daemon:
+Run **only this** (official [get.docker.com](https://get.docker.com) script). Do **not** also run the fallback below if this succeeds.
 
 ```bash
 curl -fsSL https://get.docker.com | sudo sh && \
@@ -67,7 +67,7 @@ sudo docker --version && sudo docker compose version
 
 Log out and back in (or reboot) so `docker` works without `sudo`. Until then use `sudo docker …`.
 
-**If that fails**, Ubuntu/Debian packages (also one paste):
+**Fallback — only if the command above failed** (never run both; mixing `docker-ce` and `docker.io` breaks packages):
 
 ```bash
 sudo apt-get update && \
@@ -431,7 +431,8 @@ docker compose down
 | Problem | Fix |
 |---------|-----|
 | `docker: command not found` or `docker compose: command not found` | Run the one-paste install under [Install requirements](#install-requirements-before-you-start-the-service). Quick start does not install Docker. |
-| `get.docker.com` / Docker CE install fails | Use the Ubuntu/Debian fallback paste in Install requirements (`docker.io` + `docker-compose-v2`). |
+| `get.docker.com` / Docker CE install fails | Use the Ubuntu/Debian **fallback only** (do not run both pastes). |
+| `Cannot connect to the Docker daemon` / `docker.sock` | Start it: `sudo systemctl enable --now docker` then `sudo docker info`. If you installed both CE and `docker.io`, re-run only `curl -fsSL https://get.docker.com \| sudo sh`. |
 | `curl` 404 on GitHub raw URL | Repo must be **public** (Settings → Danger Zone → Change visibility) |
 | Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
