@@ -2,14 +2,19 @@
 
 ## Prerequisites
 
-Install these **before** the fresh-install command. That command downloads Compose files and starts containers; it does **not** install Docker.
+Required on the host before the fresh-install command (that command does **not** install them):
 
-- Docker Engine + Docker Compose v2+ (`docker compose` plugin) — [Engine](https://docs.docker.com/engine/install/) · [Compose](https://docs.docker.com/compose/install/)
+- Docker Engine (daemon running)
+- Docker Compose v2+ (`docker compose` plugin)
 - `curl` and `bash`
 - Outbound network for Docker Hub, GitHub/GitLab, and AI provider APIs
 - At least 2 GB RAM recommended for concurrent agents
 
-Verify: `docker --version && docker compose version`
+Verify:
+
+```bash
+docker --version && docker compose version && curl --version && docker info
+```
 
 ## Fresh install (no git clone — Hub image only)
 
