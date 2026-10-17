@@ -4,7 +4,7 @@ Self-hosted AI agent platform for **GitHub** and **GitLab**. Label an issue or m
 
 AI Worker is designed for teams that want automation **on their own infrastructure**—including companies running **GitLab Self-Managed**—without sending repositories to a third-party hosted agent service.
 
-**You do not need to clone this repository** for a standard deployment. Only Docker is required. The app image is pulled from Docker Hub.
+**You do not need to clone this repository** for a standard deployment. Install Docker first, then run the quick-start command below. The app image is pulled from Docker Hub.
 
 | | |
 |---|---|
@@ -48,9 +48,80 @@ Services are scoped per engagement. Contact details are below; no public price l
 
 ---
 
+## Install requirements (before you start the service)
+
+Complete this section **before** [Quick start](#quick-start). The start command downloads Compose files and runs containers; it does **not** install Docker or Compose for you.
+
+### What you need
+
+| Requirement | Why |
+|-------------|-----|
+| **Docker Engine** | Runs the AI Worker and PostgreSQL containers |
+| **Docker Compose v2** | Plugin form: `docker compose` (space, not hyphen) |
+| `curl` + `bash` | Download compose/env files and run `generate-env.sh` |
+| Outbound network | Pull `sami1367/ai-worker` from Docker Hub; later call GitHub/GitLab and AI APIs |
+| ~2 GB RAM | Recommended when coding agents run concurrently |
+
+Official install guides: [Docker Engine](https://docs.docker.com/engine/install/) · [Compose plugin](https://docs.docker.com/compose/install/) (Compose is included with Docker Desktop and with the `docker-compose-plugin` package on Linux).
+
+### 1. Install Docker Engine + Compose (Linux)
+
+**Ubuntu / Debian** (common VPS setup):
+
+```bash
+# Packages needed for the Docker apt repository
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Use "debian" instead of "ubuntu" on Debian hosts
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+```
+
+On **Debian**, replace `linux/ubuntu` with `linux/debian` in the key URL and the `deb` line (see [Docker’s Debian guide](https://docs.docker.com/engine/install/debian/)).
+
+**Other platforms**
+
+| Platform | Install |
+|----------|---------|
+| Fedora / RHEL / CentOS | [Docker Engine — Fedora](https://docs.docker.com/engine/install/fedora/) / [RHEL](https://docs.docker.com/engine/install/rhel/) |
+| macOS / Windows | [Docker Desktop](https://docs.docker.com/desktop/) (includes Compose) |
+
+### 2. Start Docker and allow your user (Linux)
+
+```bash
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+```
+
+Log out and back in (or reboot) so the `docker` group applies. Until then you can use `sudo docker …`.
+
+### 3. Verify before starting AI Worker
+
+```bash
+docker --version
+docker compose version
+curl --version
+```
+
+All three should print a version. If `docker` or `docker compose` is missing, finish the install above — do not run Quick start yet.
+
+More deployment notes: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+---
+
 ## Quick start
 
-One command — creates the folder, downloads Compose + `.env`, **auto-generates secure secrets**, and starts the stack:
+Run this only after [Install requirements](#install-requirements-before-you-start-the-service) pass. One command — creates the folder, downloads Compose + `.env`, **auto-generates secure secrets**, and starts the stack:
 
 ```bash
 mkdir -p ai-worker && cd ai-worker && \
@@ -390,6 +461,7 @@ docker compose down
 
 | Problem | Fix |
 |---------|-----|
+| `docker: command not found` or `docker compose: command not found` | Finish [Install requirements](#install-requirements-before-you-start-the-service) first. The quick-start command does not install Docker. |
 | `curl` 404 on GitHub raw URL | Repo must be **public** (Settings → Danger Zone → Change visibility) |
 | Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
