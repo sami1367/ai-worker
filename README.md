@@ -4,7 +4,7 @@ Self-hosted AI agent platform for **GitHub** and **GitLab**. Label an issue or m
 
 AI Worker is designed for teams that want automation **on their own infrastructure**—including companies running **GitLab Self-Managed**—without sending repositories to a third-party hosted agent service.
 
-**You do not need to clone this repository** for a standard deployment. Install Docker first, then run the quick-start command below. The app image is pulled from Docker Hub.
+**You do not need to clone this repository** for a standard deployment. Docker and Compose must already be on the host; then run the quick-start command below. The app image is pulled from Docker Hub.
 
 | | |
 |---|---|
@@ -48,49 +48,34 @@ Services are scoped per engagement. Contact details are below; no public price l
 
 ---
 
-## Install requirements (before you start the service)
+## Requirements (before you start the service)
 
-Complete this **before** [Quick start](#quick-start). Quick start does **not** install Docker.
+Quick start assumes these are already available on the host. It does **not** install them.
 
-You need: **Docker Engine**, **Docker Compose v2** (`docker compose`), `curl`, `bash`, outbound network, ~2 GB RAM.
+| Requirement | Notes |
+|-------------|--------|
+| **Docker Engine** | Daemon must be running |
+| **Docker Compose v2** | `docker compose` (plugin form, with a space) |
+| `curl` and `bash` | Used by the quick-start downloads and `generate-env.sh` |
+| Outbound network | Docker Hub, and later GitHub/GitLab + AI provider APIs |
+| ~2 GB RAM | Recommended when agents run concurrently |
 
-### Linux (Ubuntu / Debian / most VPS) — one paste
-
-Run **only this** (official [get.docker.com](https://get.docker.com) script). Do **not** also run the fallback below if this succeeds.
-
-```bash
-curl -fsSL https://get.docker.com | sudo sh && \
-sudo systemctl enable --now docker && \
-sudo usermod -aG docker "$USER" && \
-sudo docker --version && sudo docker compose version
-```
-
-Log out and back in (or reboot) so `docker` works without `sudo`. Until then use `sudo docker …`.
-
-**Fallback — only if the command above failed** (never run both; mixing `docker-ce` and `docker.io` breaks packages):
+### Verify
 
 ```bash
-sudo apt-get update && \
-sudo apt-get install -y docker.io docker-compose-v2 && \
-sudo systemctl enable --now docker && \
-sudo usermod -aG docker "$USER" && \
-sudo docker --version && sudo docker compose version
+docker --version
+docker compose version
+curl --version
+docker info
 ```
 
-### Other platforms
-
-| Platform | Install |
-|----------|---------|
-| macOS / Windows | [Docker Desktop](https://docs.docker.com/desktop/) (includes Compose) — one installer |
-| Manual Engine docs | [Docker Engine install](https://docs.docker.com/engine/install/) |
-
-Confirm `docker` and `docker compose` print versions before Quick start. More: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+All four should succeed (versions print; `docker info` reaches the daemon). If any fail, install or start Docker/Compose on the host, then continue. More: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ---
 
 ## Quick start
 
-Run this only after [Install requirements](#install-requirements-before-you-start-the-service) pass. One command — creates the folder, downloads Compose + `.env`, **auto-generates secure secrets**, and starts the stack:
+Run this only after [Requirements](#requirements-before-you-start-the-service) verify. One command — creates the folder, downloads Compose + `.env`, **auto-generates secure secrets**, and starts the stack:
 
 ```bash
 mkdir -p ai-worker && cd ai-worker && \
@@ -430,9 +415,8 @@ docker compose down
 
 | Problem | Fix |
 |---------|-----|
-| `docker: command not found` or `docker compose: command not found` | Run the one-paste install under [Install requirements](#install-requirements-before-you-start-the-service). Quick start does not install Docker. |
-| `get.docker.com` / Docker CE install fails | Use the Ubuntu/Debian **fallback only** (do not run both pastes). |
-| `Cannot connect to the Docker daemon` / `docker.sock` | Start it: `sudo systemctl enable --now docker` then `sudo docker info`. If you installed both CE and `docker.io`, re-run only `curl -fsSL https://get.docker.com \| sudo sh`. |
+| `docker: command not found` or `docker compose: command not found` | Install Docker Engine and Compose v2 on the host, then re-check [Requirements](#requirements-before-you-start-the-service). Quick start does not install them. |
+| `Cannot connect to the Docker daemon` / `docker.sock` | Start the Docker daemon, then confirm with `docker info`. |
 | `curl` 404 on GitHub raw URL | Repo must be **public** (Settings → Danger Zone → Change visibility) |
 | Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
