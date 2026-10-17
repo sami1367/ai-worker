@@ -66,10 +66,13 @@ Official install guides: [Docker Engine](https://docs.docker.com/engine/install/
 
 ### 1. Install Docker Engine + Compose (Linux)
 
-**Ubuntu / Debian** (common VPS setup):
+**Ubuntu** (common VPS setup) — follow every step; skipping the apt-source line leaves `docker-ce` with “no installation candidate”.
 
 ```bash
-# Packages needed for the Docker apt repository
+# Optional: remove conflicting distro packages
+sudo apt-get remove -y docker.io docker-doc docker-compose docker-compose-v2 \
+  podman-docker containerd runc 2>/dev/null || true
+
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
 
@@ -77,17 +80,33 @@ sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-# Use "debian" instead of "ubuntu" on Debian hosts
+# REQUIRED: add Docker's apt repository (must appear in the next apt-get update)
+. /etc/os-release
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-  https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  https://download.docker.com/linux/ubuntu ${UBUNTU_CODENAME:-$VERSION_CODENAME} stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list
 
+# Confirm the file exists and apt can see download.docker.com
+cat /etc/apt/sources.list.d/docker.list
 sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+# Expect a line like: Get/Hit: https://download.docker.com/linux/ubuntu ...
+
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
 ```
 
-On **Debian**, replace `linux/ubuntu` with `linux/debian` in the key URL and the `deb` line (see [Docker’s Debian guide](https://docs.docker.com/engine/install/debian/)).
+**If `docker-ce` is still “not available”** (apt source missing, or your Ubuntu codename not published yet):
+
+```bash
+# A) Re-check the Docker source is present, then retry update + install above
+cat /etc/apt/sources.list.d/docker.list
+
+# B) Or fall back to Ubuntu's packages (enough for AI Worker):
+sudo apt-get install -y docker.io docker-compose-v2
+sudo systemctl enable --now docker
+```
+
+On **Debian**, use `linux/debian` and Debian’s codename in the key URL and `deb` line (see [Docker’s Debian guide](https://docs.docker.com/engine/install/debian/)).
 
 **Other platforms**
 
@@ -462,6 +481,7 @@ docker compose down
 | Problem | Fix |
 |---------|-----|
 | `docker: command not found` or `docker compose: command not found` | Finish [Install requirements](#install-requirements-before-you-start-the-service) first. The quick-start command does not install Docker. |
+| `Package docker-ce is not available` / `Unable to locate package containerd.io` | Docker’s apt source was not added. Check `cat /etc/apt/sources.list.d/docker.list`, re-run the `echo "deb …" \| sudo tee …` step, then `sudo apt-get update` (must show `download.docker.com`). Or install Ubuntu packages: `sudo apt-get install -y docker.io docker-compose-v2`. |
 | `curl` 404 on GitHub raw URL | Repo must be **public** (Settings → Danger Zone → Change visibility) |
 | Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
