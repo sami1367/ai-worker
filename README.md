@@ -50,91 +50,41 @@ Services are scoped per engagement. Contact details are below; no public price l
 
 ## Install requirements (before you start the service)
 
-Complete this section **before** [Quick start](#quick-start). The start command downloads Compose files and runs containers; it does **not** install Docker or Compose for you.
+Complete this **before** [Quick start](#quick-start). Quick start does **not** install Docker.
 
-### What you need
+You need: **Docker Engine**, **Docker Compose v2** (`docker compose`), `curl`, `bash`, outbound network, ~2 GB RAM.
 
-| Requirement | Why |
-|-------------|-----|
-| **Docker Engine** | Runs the AI Worker and PostgreSQL containers |
-| **Docker Compose v2** | Plugin form: `docker compose` (space, not hyphen) |
-| `curl` + `bash` | Download compose/env files and run `generate-env.sh` |
-| Outbound network | Pull `sami1367/ai-worker` from Docker Hub; later call GitHub/GitLab and AI APIs |
-| ~2 GB RAM | Recommended when coding agents run concurrently |
+### Linux (Ubuntu / Debian / most VPS) — one paste
 
-Official install guides: [Docker Engine](https://docs.docker.com/engine/install/) · [Compose plugin](https://docs.docker.com/compose/install/) (Compose is included with Docker Desktop and with the `docker-compose-plugin` package on Linux).
-
-### 1. Install Docker Engine + Compose (Linux)
-
-**Ubuntu** (common VPS setup) — follow every step; skipping the apt-source line leaves `docker-ce` with “no installation candidate”.
+Official convenience script ([get.docker.com](https://get.docker.com)) installs Engine + Compose, then starts the daemon:
 
 ```bash
-# Optional: remove conflicting distro packages
-sudo apt-get remove -y docker.io docker-doc docker-compose docker-compose-v2 \
-  podman-docker containerd runc 2>/dev/null || true
-
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-# REQUIRED: add Docker's apt repository (must appear in the next apt-get update)
-. /etc/os-release
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-  https://download.docker.com/linux/ubuntu ${UBUNTU_CODENAME:-$VERSION_CODENAME} stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list
-
-# Confirm the file exists and apt can see download.docker.com
-cat /etc/apt/sources.list.d/docker.list
-sudo apt-get update
-# Expect a line like: Get/Hit: https://download.docker.com/linux/ubuntu ...
-
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin
+curl -fsSL https://get.docker.com | sudo sh && \
+sudo systemctl enable --now docker && \
+sudo usermod -aG docker "$USER" && \
+sudo docker --version && sudo docker compose version
 ```
 
-**If `docker-ce` is still “not available”** (apt source missing, or your Ubuntu codename not published yet):
+Log out and back in (or reboot) so `docker` works without `sudo`. Until then use `sudo docker …`.
+
+**If that fails**, Ubuntu/Debian packages (also one paste):
 
 ```bash
-# A) Re-check the Docker source is present, then retry update + install above
-cat /etc/apt/sources.list.d/docker.list
-
-# B) Or fall back to Ubuntu's packages (enough for AI Worker):
-sudo apt-get install -y docker.io docker-compose-v2
-sudo systemctl enable --now docker
+sudo apt-get update && \
+sudo apt-get install -y docker.io docker-compose-v2 && \
+sudo systemctl enable --now docker && \
+sudo usermod -aG docker "$USER" && \
+sudo docker --version && sudo docker compose version
 ```
 
-On **Debian**, use `linux/debian` and Debian’s codename in the key URL and `deb` line (see [Docker’s Debian guide](https://docs.docker.com/engine/install/debian/)).
-
-**Other platforms**
+### Other platforms
 
 | Platform | Install |
 |----------|---------|
-| Fedora / RHEL / CentOS | [Docker Engine — Fedora](https://docs.docker.com/engine/install/fedora/) / [RHEL](https://docs.docker.com/engine/install/rhel/) |
-| macOS / Windows | [Docker Desktop](https://docs.docker.com/desktop/) (includes Compose) |
+| macOS / Windows | [Docker Desktop](https://docs.docker.com/desktop/) (includes Compose) — one installer |
+| Manual Engine docs | [Docker Engine install](https://docs.docker.com/engine/install/) |
 
-### 2. Start Docker and allow your user (Linux)
-
-```bash
-sudo systemctl enable --now docker
-sudo usermod -aG docker "$USER"
-```
-
-Log out and back in (or reboot) so the `docker` group applies. Until then you can use `sudo docker …`.
-
-### 3. Verify before starting AI Worker
-
-```bash
-docker --version
-docker compose version
-curl --version
-```
-
-All three should print a version. If `docker` or `docker compose` is missing, finish the install above — do not run Quick start yet.
-
-More deployment notes: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Confirm `docker` and `docker compose` print versions before Quick start. More: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ---
 
@@ -480,8 +430,8 @@ docker compose down
 
 | Problem | Fix |
 |---------|-----|
-| `docker: command not found` or `docker compose: command not found` | Finish [Install requirements](#install-requirements-before-you-start-the-service) first. The quick-start command does not install Docker. |
-| `Package docker-ce is not available` / `Unable to locate package containerd.io` | Docker’s apt source was not added. Check `cat /etc/apt/sources.list.d/docker.list`, re-run the `echo "deb …" \| sudo tee …` step, then `sudo apt-get update` (must show `download.docker.com`). Or install Ubuntu packages: `sudo apt-get install -y docker.io docker-compose-v2`. |
+| `docker: command not found` or `docker compose: command not found` | Run the one-paste install under [Install requirements](#install-requirements-before-you-start-the-service). Quick start does not install Docker. |
+| `get.docker.com` / Docker CE install fails | Use the Ubuntu/Debian fallback paste in Install requirements (`docker.io` + `docker-compose-v2`). |
 | `curl` 404 on GitHub raw URL | Repo must be **public** (Settings → Danger Zone → Change visibility) |
 | Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
