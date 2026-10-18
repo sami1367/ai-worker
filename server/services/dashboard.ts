@@ -139,6 +139,9 @@ export async function getDashboard(windowHours = 24) {
     return a.displayName.localeCompare(b.displayName)
   })
 
+  // Dashboard UI lists only healthy AI services; warnings still use the full list.
+  const healthyAiServices = aiServices.filter((s) => s.healthStatus === 'healthy')
+
   const decided = metrics.succeeded + metrics.failed
   const successRate = decided > 0 ? Math.round((metrics.succeeded / decided) * 1000) / 10 : null
 
@@ -157,7 +160,7 @@ export async function getDashboard(windowHours = 24) {
       pollIntervalSeconds: settings.pollIntervalSeconds,
       configVersion: settings.configVersion,
     },
-    aiServices,
+    aiServices: healthyAiServices,
     providers: Object.fromEntries(
       providers.map((p) => [p.providerType, {
         healthStatus: p.healthStatus,
