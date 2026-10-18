@@ -157,7 +157,7 @@ export async function getDashboard(windowHours = 24) {
       pollIntervalSeconds: settings.pollIntervalSeconds,
       configVersion: settings.configVersion,
     },
-    aiServices,
+    aiServices: aiServices.filter((s) => s.healthStatus === 'healthy'),
     providers: Object.fromEntries(
       providers.map((p) => [p.providerType, {
         healthStatus: p.healthStatus,
