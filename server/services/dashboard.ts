@@ -190,16 +190,6 @@ export async function getDashboard(windowHours = 24) {
       ...(worker.heartbeatStale ? ['Worker heartbeat is stale or unavailable'] : []),
       ...(!dbHealth.ok ? ['Database connectivity issue'] : []),
       ...aiServices
-        .filter((s) => (
-          s.providerType === 'cursor'
-          || s.providerType === 'claude'
-          || s.providerType === 'codex'
-          || s.providerType === 'gemini'
-          || s.providerType === 'copilot'
-        ))
-        .filter((s) => s.isEnabled && !s.hasSecret)
-        .map((s) => `${s.displayName} is enabled but has no credentials`),
-      ...aiServices
         .filter((s) => s.plan?.error && s.hasSecret)
         .map((s) => `${s.displayName}: ${s.plan!.error}`),
     ],
