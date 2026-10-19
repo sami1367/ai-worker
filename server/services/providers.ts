@@ -84,6 +84,8 @@ export async function listProviders() {
   await ensureProviderRows()
   const db = getDb()
   const rows = await db.select().from(providerConfigs)
+  const order = new Map(KNOWN.map((k, i) => [k.providerType, i]))
+  rows.sort((a, b) => (order.get(a.providerType as KnownProviderType) ?? 99) - (order.get(b.providerType as KnownProviderType) ?? 99))
   return rows.map(publicProvider)
 }
 

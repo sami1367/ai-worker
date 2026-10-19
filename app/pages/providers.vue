@@ -52,6 +52,19 @@ const CLAUDE_CREDENTIAL_ITEMS = [
   { label: 'Claude OAuth token (subscription)', value: 'claude_oauth_token' },
 ]
 
+/** Fixed display order so enable/disable never reorders cards. */
+const PROVIDER_ORDER = ['cursor', 'claude', 'codex', 'gemini', 'copilot']
+
+const providers = computed(() => {
+  const items = [...(data.value?.items || [])]
+  items.sort((a: { providerType: string }, b: { providerType: string }) => {
+    const ai = PROVIDER_ORDER.indexOf(a.providerType)
+    const bi = PROVIDER_ORDER.indexOf(b.providerType)
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+  })
+  return items
+})
+
 const drafts = reactive<Record<string, Draft>>({})
 
 function draftFor(providerType: string): Draft {
@@ -434,167 +447,173 @@ function claudeAuthSummary(p: any): string {
       :color="messageError ? 'error' : 'success'"
       variant="subtle"
     />
-    <div v-if="pending && !data" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      <div v-for="i in 5" :key="i" class="aw-panel h-48 animate-pulse rounded-xl" />
+    <div v-if="pending && !data" class="space-y-3">
+      <div v-for="i in 5" :key="i" class="aw-panel h-28 animate-pulse rounded-xl" />
     </div>
-    <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      <div v-for="p in data?.items || []" :key="p.id" class="aw-panel space-y-3 rounded-xl p-4">
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <h2 class="font-display text-xl">{{ p.displayName }}</h2>
+    <div v-else class="space-y-3">
+      <article
+        v-for="p in providers"
+        :key="p.providerType"
+        class="aw-panel rounded-xl p-4"
+      >
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-start">
+          <div class="min-w-0 shrink-0 xl:w-56">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="font-display text-xl">{{ p.displayName }}</h2>
+              <UBadge
+                :color="p.healthStatus === 'healthy' ? 'success' : p.healthStatus === 'degraded' ? 'warning' : 'neutral'"
+                variant="subtle"
+              >
+                {{ p.healthStatus }}
+              </UBadge>
+            </div>
             <p class="text-sm opacity-60">{{ p.providerType }}</p>
+            <p class="mt-2 text-sm">
+              <span class="opacity-60">Connected:</span>
+              <template v-if="p.secretSource === 'stored'"> yes (secret stored)</template>
+              <template v-else-if="p.secretSource === 'env'"> yes (from environment)</template>
+              <template v-else> no</template>
+            </p>
+            <p class="text-sm"><span class="opacity-60">Version:</span> {{ p.detectedVersion || 'unavailable' }}</p>
           </div>
-          <UBadge
-            :color="p.healthStatus === 'healthy' ? 'success' : p.healthStatus === 'degraded' ? 'warning' : 'neutral'"
-            variant="subtle"
-          >
-            {{ p.healthStatus }}
-          </UBadge>
-        </div>
-        <p class="text-sm opacity-70">{{ p.healthMessage || 'No health check yet' }}</p>
-        <p class="text-sm"><span class="opacity-60">Version:</span> {{ p.detectedVersion || 'unavailable' }}</p>
-        <p class="text-sm">
-          <span class="opacity-60">Connected:</span>
-          <template v-if="p.secretSource === 'stored'">yes (secret stored)</template>
-          <template v-else-if="p.secretSource === 'env'">yes (from environment / .env)</template>
-          <template v-else>no</template>
-        </p>
-        <p v-if="p.providerType === 'claude'" class="text-sm opacity-70">
-          {{ claudeAuthSummary(p) }}
-        </p>
-        <div class="flex flex-col gap-2">
-          <USwitch
-            :model-value="p.isEnabled"
-            :loading="isToggling(p.providerType)"
-            :disabled="isToggling(p.providerType)"
-            label="Enabled"
-            @update:model-value="(v: boolean) => setEnabled(p, v)"
-          />
-          <USwitch
-            :model-value="p.isDefault"
-            :loading="isToggling(p.providerType)"
-            :disabled="isToggling(p.providerType) || !canSetDefault(p) || (p.isDefault && !canUnsetDefault(p))"
-            label="Default provider"
-            :description="p.isDefault && !canUnsetDefault(p)
-              ? 'Required while this is the only connected provider'
-              : !p.hasSecret
-                ? 'Connect credentials first'
-                : !p.isEnabled
-                  ? 'Enable this provider first'
-                  : undefined"
-            @update:model-value="(v: boolean) => setDefault(p, v)"
-          />
-        </div>
 
-        <UFormField
-          label="Model"
-          hint="Default uses the provider CLI model. Save to apply."
-        >
-          <USelect
-            v-model="draftFor(p.providerType).model"
-            :items="modelOptionsFor(p.providerType, draftFor(p.providerType).model)"
-            class="w-full"
-          />
-        </UFormField>
+          <div class="min-w-0 flex-1 space-y-3">
+            <p class="text-sm opacity-70">{{ p.healthMessage || 'No health check yet' }}</p>
+            <p v-if="p.providerType === 'claude'" class="text-sm opacity-70">
+              {{ claudeAuthSummary(p) }}
+            </p>
+            <div class="grid gap-3 md:grid-cols-2">
+              <UFormField
+                label="Model"
+                hint="Default uses the provider CLI model. Save to apply."
+              >
+                <USelect
+                  v-model="draftFor(p.providerType).model"
+                  :items="modelOptionsFor(p.providerType, draftFor(p.providerType).model)"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField
+                v-if="p.providerType === 'claude' && draftFor(p.providerType).credentialType === 'anthropic_api_key' && !draftFor(p.providerType).showConnect"
+                label="Anthropic workspace ID"
+                hint="Optional unless the API key is not workspace-scoped (wrkspc_…)."
+              >
+                <UInput
+                  v-model="draftFor(p.providerType).anthropicWorkspaceId"
+                  autocomplete="off"
+                  class="w-full"
+                  placeholder="wrkspc_…"
+                />
+              </UFormField>
+            </div>
 
-        <!-- Claude workspace id is editable without re-pasting the secret -->
-        <template v-if="p.providerType === 'claude' && !draftFor(p.providerType).showConnect">
-          <UFormField
-            v-if="draftFor(p.providerType).credentialType === 'anthropic_api_key'"
-            label="Anthropic workspace ID"
-            hint="Optional. Required when the API key is not workspace-scoped (wrkspc_… from Console → Workspaces)."
-          >
-            <UInput
-              v-model="draftFor(p.providerType).anthropicWorkspaceId"
-              autocomplete="off"
-              class="w-full"
-              placeholder="wrkspc_…"
-            />
-          </UFormField>
-        </template>
+            <div v-if="draftFor(p.providerType).showConnect" class="space-y-3 border-t border-default/40 pt-3">
+              <UFormField
+                v-if="p.providerType === 'claude'"
+                label="Credential type"
+                hint="API key is best for headless workers. OAuth is for Claude Pro/Max setup-token."
+              >
+                <USelect
+                  v-model="draftFor(p.providerType).credentialType"
+                  :items="CLAUDE_CREDENTIAL_ITEMS"
+                />
+              </UFormField>
+              <UFormField :label="secretLabel(p)" :hint="secretHint(p)">
+                <UInput
+                  v-model="draftFor(p.providerType).secret"
+                  type="password"
+                  autocomplete="off"
+                  class="w-full"
+                  :placeholder="p.hasSecret ? 'Replace existing secret…' : 'Paste secret…'"
+                />
+              </UFormField>
+              <UFormField
+                v-if="showClaudeWorkspaceField(p)"
+                label="Anthropic workspace ID"
+                hint="Leave empty for workspace-scoped keys. Fill wrkspc_… if Anthropic asks for anthropic-workspace-id."
+              >
+                <UInput
+                  v-model="draftFor(p.providerType).anthropicWorkspaceId"
+                  autocomplete="off"
+                  class="w-full"
+                  placeholder="wrkspc_…"
+                />
+              </UFormField>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  size="sm"
+                  :loading="busy === `connect-${p.providerType}`"
+                  @click="connect(p)"
+                >
+                  {{ p.hasSecret ? 'Replace & connect' : 'Connect' }}
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="ghost"
+                  @click="draftFor(p.providerType).showConnect = false"
+                >
+                  Cancel
+                </UButton>
+              </div>
+            </div>
+          </div>
 
-        <div v-if="draftFor(p.providerType).showConnect" class="space-y-3 border-t border-default/40 pt-3">
-          <UFormField
-            v-if="p.providerType === 'claude'"
-            label="Credential type"
-            hint="API key is best for headless workers. OAuth is for Claude Pro/Max setup-token."
-          >
-            <USelect
-              v-model="draftFor(p.providerType).credentialType"
-              :items="CLAUDE_CREDENTIAL_ITEMS"
+          <div class="flex shrink-0 flex-col gap-3 border-t border-default/40 pt-3 xl:w-52 xl:border-s xl:border-t-0 xl:ps-4 xl:pt-0">
+            <USwitch
+              :model-value="p.isEnabled"
+              :loading="isToggling(p.providerType)"
+              :disabled="isToggling(p.providerType)"
+              label="Enabled"
+              @update:model-value="(v: boolean) => setEnabled(p, v)"
             />
-          </UFormField>
-          <UFormField :label="secretLabel(p)" :hint="secretHint(p)">
-            <UInput
-              v-model="draftFor(p.providerType).secret"
-              type="password"
-              autocomplete="off"
-              class="w-full"
-              :placeholder="p.hasSecret ? 'Replace existing secret…' : 'Paste secret…'"
+            <USwitch
+              :model-value="p.isDefault"
+              :loading="isToggling(p.providerType)"
+              :disabled="isToggling(p.providerType) || !canSetDefault(p) || (p.isDefault && !canUnsetDefault(p))"
+              label="Default"
+              :description="p.isDefault && !canUnsetDefault(p)
+                ? 'Required while this is the only connected provider'
+                : !p.hasSecret
+                  ? 'Connect credentials first'
+                  : !p.isEnabled
+                    ? 'Enable this provider first'
+                    : undefined"
+              @update:model-value="(v: boolean) => setDefault(p, v)"
             />
-          </UFormField>
-          <UFormField
-            v-if="showClaudeWorkspaceField(p)"
-            label="Anthropic workspace ID"
-            hint="Leave empty for workspace-scoped keys. Fill wrkspc_… if Anthropic asks for anthropic-workspace-id."
-          >
-            <UInput
-              v-model="draftFor(p.providerType).anthropicWorkspaceId"
-              autocomplete="off"
-              class="w-full"
-              placeholder="wrkspc_…"
-            />
-          </UFormField>
-          <div class="flex flex-wrap gap-2">
-            <UButton
-              size="sm"
-              :loading="busy === `connect-${p.providerType}`"
-              @click="connect(p)"
-            >
-              {{ p.hasSecret ? 'Replace & connect' : 'Connect' }}
-            </UButton>
-            <UButton
-              size="sm"
-              variant="ghost"
-              @click="draftFor(p.providerType).showConnect = false"
-            >
-              Cancel
-            </UButton>
+            <div class="flex flex-wrap gap-2">
+              <UButton size="sm" :loading="busy === `save-${p.providerType}`" @click="save(p)">
+                Save
+              </UButton>
+              <UButton
+                size="sm"
+                variant="soft"
+                :loading="busy === p.providerType"
+                @click="test(p.providerType)"
+              >
+                Test
+              </UButton>
+              <UButton
+                v-if="!draftFor(p.providerType).showConnect"
+                size="sm"
+                variant="soft"
+                @click="draftFor(p.providerType).showConnect = true"
+              >
+                {{ p.hasSecret ? 'Update secret' : 'Connect' }}
+              </UButton>
+              <UButton
+                v-if="p.hasStoredSecret"
+                size="sm"
+                color="error"
+                variant="ghost"
+                :loading="busy === `disconnect-${p.providerType}`"
+                @click="disconnect(p)"
+              >
+                Disconnect
+              </UButton>
+            </div>
           </div>
         </div>
-
-        <div class="flex flex-wrap gap-2">
-          <UButton size="sm" :loading="busy === `save-${p.providerType}`" @click="save(p)">
-            Save
-          </UButton>
-          <UButton
-            size="sm"
-            variant="soft"
-            :loading="busy === p.providerType"
-            @click="test(p.providerType)"
-          >
-            Test provider
-          </UButton>
-          <UButton
-            v-if="!draftFor(p.providerType).showConnect"
-            size="sm"
-            variant="soft"
-            @click="draftFor(p.providerType).showConnect = true"
-          >
-            {{ p.hasSecret ? 'Update secret' : 'Connect' }}
-          </UButton>
-          <UButton
-            v-if="p.hasStoredSecret"
-            size="sm"
-            color="error"
-            variant="ghost"
-            :loading="busy === `disconnect-${p.providerType}`"
-            @click="disconnect(p)"
-          >
-            Disconnect
-          </UButton>
-        </div>
-      </div>
+      </article>
     </div>
   </div>
 </template>
