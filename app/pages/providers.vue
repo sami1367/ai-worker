@@ -4,10 +4,12 @@ const { data, pending, refresh } = await useAsyncData('providers', () => api<any
 const busy = ref('')
 const message = ref('')
 const messageError = ref(false)
+const showAuthGuide = ref(true)
 
 type Draft = {
   secret: string
   credentialType: 'anthropic_api_key' | 'claude_oauth_token'
+  anthropicWorkspaceId: string
   model: string
   showConnect: boolean
 }
@@ -45,6 +47,11 @@ const PROVIDER_MODEL_OPTIONS: Record<string, Array<{ label: string, value: strin
   ],
 }
 
+const CLAUDE_CREDENTIAL_ITEMS = [
+  { label: 'Anthropic API key (recommended)', value: 'anthropic_api_key' },
+  { label: 'Claude OAuth token (subscription)', value: 'claude_oauth_token' },
+]
+
 const drafts = reactive<Record<string, Draft>>({})
 
 function draftFor(providerType: string): Draft {
@@ -52,6 +59,7 @@ function draftFor(providerType: string): Draft {
     drafts[providerType] = {
       secret: '',
       credentialType: 'anthropic_api_key',
+      anthropicWorkspaceId: '',
       model: '',
       showConnect: false,
     }
@@ -67,6 +75,15 @@ function modelOptionsFor(providerType: string, selected: string) {
   return base
 }
 
+function claudeConfigPatch(d: Draft): Record<string, unknown> {
+  return {
+    credentialType: d.credentialType,
+    anthropicWorkspaceId: d.credentialType === 'anthropic_api_key'
+      ? d.anthropicWorkspaceId.trim()
+      : '',
+  }
+}
+
 watchEffect(() => {
   for (const p of data.value?.items || []) {
     const d = draftFor(p.providerType)
@@ -76,6 +93,10 @@ watchEffect(() => {
     }
     const model = typeof p.config?.model === 'string' ? p.config.model.trim() : ''
     d.model = model
+    const workspaceId = typeof p.config?.anthropicWorkspaceId === 'string'
+      ? p.config.anthropicWorkspaceId.trim()
+      : ''
+    d.anthropicWorkspaceId = workspaceId
   }
 })
 
@@ -196,7 +217,7 @@ async function save(p: any) {
     const d = draftFor(p.providerType)
     const config = {
       ...(p.config || {}),
-      ...(p.providerType === 'claude' ? { credentialType: d.credentialType } : {}),
+      ...(p.providerType === 'claude' ? claudeConfigPatch(d) : {}),
       model: d.model.trim(),
     }
     await api(`/api/v1/providers/${p.providerType}`, {
@@ -238,6 +259,7 @@ async function connect(p: any) {
       ...(p.config || {}),
       credentialType: credentialTypeForConnect(p, d),
       model: d.model.trim(),
+      ...(p.providerType === 'claude' ? claudeConfigPatch(d) : {}),
     }
     await api(`/api/v1/providers/${p.providerType}`, {
       method: 'PATCH',
@@ -283,7 +305,7 @@ async function disconnect(p: any) {
 
 function secretHint(p: any): string {
   if (p.providerType === 'cursor') {
-    return 'Cursor API key (CURSOR_API_KEY). Create one in Cursor dashboard settings.'
+    return 'Cursor API key (CURSOR_API_KEY). Create one in Cursor dashboard → Settings → API Keys.'
   }
   if (p.providerType === 'codex') {
     return 'OpenAI API key (OPENAI_API_KEY / CODEX_API_KEY) from platform.openai.com/api-keys'
@@ -296,8 +318,8 @@ function secretHint(p: any): string {
   }
   const d = draftFor(p.providerType)
   return d.credentialType === 'claude_oauth_token'
-    ? 'Claude Code OAuth token (CLAUDE_CODE_OAUTH_TOKEN)'
-    : 'Anthropic API key (ANTHROPIC_API_KEY) from console.anthropic.com'
+    ? 'Output of `claude setup-token` (CLAUDE_CODE_OAUTH_TOKEN). Do not paste an sk-ant API key here.'
+    : 'Anthropic API key (ANTHROPIC_API_KEY) from platform.claude.com — prefer a workspace-scoped key.'
 }
 
 function secretLabel(p: any): string {
@@ -305,7 +327,24 @@ function secretLabel(p: any): string {
   if (p.providerType === 'codex') return 'OpenAI API key'
   if (p.providerType === 'gemini') return 'Gemini API key'
   if (p.providerType === 'copilot') return 'Copilot GitHub token'
-  return 'Secret'
+  const d = draftFor(p.providerType)
+  return d.credentialType === 'claude_oauth_token' ? 'Claude OAuth token' : 'Anthropic API key'
+}
+
+function showClaudeWorkspaceField(p: any): boolean {
+  return p.providerType === 'claude' && draftFor(p.providerType).credentialType === 'anthropic_api_key'
+}
+
+function claudeAuthSummary(p: any): string {
+  const kind = p.config?.credentialType
+  const ws = typeof p.config?.anthropicWorkspaceId === 'string' ? p.config.anthropicWorkspaceId.trim() : ''
+  if (kind === 'claude_oauth_token') return 'Auth: OAuth token (subscription)'
+  if (kind === 'anthropic_api_key' || p.hasSecret) {
+    return ws
+      ? `Auth: API key · workspace ${ws}`
+      : 'Auth: API key · no workspace id (optional unless Anthropic requires it)'
+  }
+  return 'Auth: not connected'
 }
 </script>
 
@@ -314,19 +353,81 @@ function secretLabel(p: any): string {
     <div>
       <h1 class="font-display text-3xl tracking-tight">AI providers</h1>
       <p class="mt-1 text-sm opacity-70">
-        Providers start disabled. Enable and connect the ones you want to use.
-        After the first successful connect, exactly one provider stays the default — switch it anytime, or uncheck it when another connected provider can take over.
-        Choose a model per provider (default uses the CLI default), then Save or Connect.
-        Cursor, Claude, Codex, Gemini, and GitHub Copilot CLIs are installed in the Docker image. Set
-        <code class="text-xs">CURSOR_API_KEY</code> /
-        <code class="text-xs">ANTHROPIC_API_KEY</code> /
-        <code class="text-xs">CLAUDE_CODE_OAUTH_TOKEN</code> /
-        <code class="text-xs">OPENAI_API_KEY</code> /
-        <code class="text-xs">GEMINI_API_KEY</code> /
-        <code class="text-xs">COPILOT_GITHUB_TOKEN</code>
-        in the compose <code class="text-xs">.env</code>, or paste secrets here (encrypted at rest, never shown again).
+        Enable and connect at least one agent, then set a default.
+        Secrets are encrypted at rest and never shown again after save.
+        You can also set the matching variables in compose
+        <code class="text-xs">.env</code> (UI/DB values override env when both are set).
+        See <code class="text-xs">docs/AI_PROVIDERS.md</code> in the repository for the full auth guide.
       </p>
     </div>
+
+    <div class="aw-panel rounded-xl p-4 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-display text-xl">How to connect each auth type</h2>
+        <UButton size="xs" variant="ghost" @click="showAuthGuide = !showAuthGuide">
+          {{ showAuthGuide ? 'Hide' : 'Show' }}
+        </UButton>
+      </div>
+      <div v-if="showAuthGuide" class="space-y-4 text-sm opacity-80">
+        <section class="space-y-1.5">
+          <h3 class="font-medium text-base opacity-100">Claude Code</h3>
+          <p>
+            <strong class="opacity-100">Recommended — Anthropic API key:</strong>
+            In
+            <a href="https://platform.claude.com" class="underline" target="_blank" rel="noopener noreferrer">platform.claude.com</a>,
+            open Workspaces, create or pick a workspace, then create an API key
+            <em>scoped to that workspace</em>. On this page choose
+            <strong class="opacity-100">Anthropic API key</strong>, paste
+            <code class="text-xs">sk-ant-…</code>, and Connect.
+          </p>
+          <p>
+            If Anthropic returns
+            <em>“API key is not scoped to a workspace”</em>, paste the workspace id
+            (<code class="text-xs">wrkspc_…</code> from the Workspaces table) into
+            <strong class="opacity-100">Anthropic workspace ID</strong>, then Save or Connect again.
+            That exports <code class="text-xs">ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: …</code>
+            for the worker.
+          </p>
+          <p>
+            <strong class="opacity-100">Alternative — Claude OAuth token:</strong>
+            On a machine with Claude Code logged in, run
+            <code class="text-xs">claude setup-token</code>, choose
+            <strong class="opacity-100">Claude OAuth token</strong> here, and paste the token.
+            Do <em>not</em> put an API key in the OAuth field. Headless runs omit
+            <code class="text-xs">--bare</code> for OAuth so Claude Code can use the token.
+          </p>
+        </section>
+        <section class="space-y-1.5">
+          <h3 class="font-medium text-base opacity-100">Cursor / Codex / Gemini / Copilot</h3>
+          <ul class="list-disc space-y-1 ps-5">
+            <li>
+              <strong class="opacity-100">Cursor</strong> —
+              API key from Cursor dashboard settings →
+              <code class="text-xs">CURSOR_API_KEY</code>.
+            </li>
+            <li>
+              <strong class="opacity-100">Codex</strong> —
+              OpenAI API key from platform.openai.com →
+              <code class="text-xs">OPENAI_API_KEY</code> /
+              <code class="text-xs">CODEX_API_KEY</code>.
+            </li>
+            <li>
+              <strong class="opacity-100">Gemini</strong> —
+              key from aistudio.google.com/apikey →
+              <code class="text-xs">GEMINI_API_KEY</code>.
+            </li>
+            <li>
+              <strong class="opacity-100">GitHub Copilot</strong> —
+              fine-grained PAT with <em>Copilot Requests</em> →
+              <code class="text-xs">COPILOT_GITHUB_TOKEN</code>
+              (classic <code class="text-xs">ghp_</code> tokens are not supported; do not reuse forge
+              <code class="text-xs">GITHUB_TOKEN</code>).
+            </li>
+          </ul>
+        </section>
+      </div>
+    </div>
+
     <UAlert
       v-if="message"
       :title="message"
@@ -357,6 +458,9 @@ function secretLabel(p: any): string {
           <template v-if="p.secretSource === 'stored'">yes (secret stored)</template>
           <template v-else-if="p.secretSource === 'env'">yes (from environment / .env)</template>
           <template v-else>no</template>
+        </p>
+        <p v-if="p.providerType === 'claude'" class="text-sm opacity-70">
+          {{ claudeAuthSummary(p) }}
         </p>
         <div class="flex flex-col gap-2">
           <USwitch
@@ -393,17 +497,31 @@ function secretLabel(p: any): string {
           />
         </UFormField>
 
+        <!-- Claude workspace id is editable without re-pasting the secret -->
+        <template v-if="p.providerType === 'claude' && !draftFor(p.providerType).showConnect">
+          <UFormField
+            v-if="draftFor(p.providerType).credentialType === 'anthropic_api_key'"
+            label="Anthropic workspace ID"
+            hint="Optional. Required when the API key is not workspace-scoped (wrkspc_… from Console → Workspaces)."
+          >
+            <UInput
+              v-model="draftFor(p.providerType).anthropicWorkspaceId"
+              autocomplete="off"
+              class="w-full"
+              placeholder="wrkspc_…"
+            />
+          </UFormField>
+        </template>
+
         <div v-if="draftFor(p.providerType).showConnect" class="space-y-3 border-t border-default/40 pt-3">
           <UFormField
             v-if="p.providerType === 'claude'"
             label="Credential type"
+            hint="API key is best for headless workers. OAuth is for Claude Pro/Max setup-token."
           >
             <USelect
               v-model="draftFor(p.providerType).credentialType"
-              :items="[
-                { label: 'Anthropic API key', value: 'anthropic_api_key' },
-                { label: 'Claude OAuth token', value: 'claude_oauth_token' },
-              ]"
+              :items="CLAUDE_CREDENTIAL_ITEMS"
             />
           </UFormField>
           <UFormField :label="secretLabel(p)" :hint="secretHint(p)">
@@ -413,6 +531,18 @@ function secretLabel(p: any): string {
               autocomplete="off"
               class="w-full"
               :placeholder="p.hasSecret ? 'Replace existing secret…' : 'Paste secret…'"
+            />
+          </UFormField>
+          <UFormField
+            v-if="showClaudeWorkspaceField(p)"
+            label="Anthropic workspace ID"
+            hint="Leave empty for workspace-scoped keys. Fill wrkspc_… if Anthropic asks for anthropic-workspace-id."
+          >
+            <UInput
+              v-model="draftFor(p.providerType).anthropicWorkspaceId"
+              autocomplete="off"
+              class="w-full"
+              placeholder="wrkspc_…"
             />
           </UFormField>
           <div class="flex flex-wrap gap-2">

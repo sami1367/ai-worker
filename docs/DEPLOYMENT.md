@@ -78,12 +78,14 @@ All five CLIs are installed in the image via `scripts/install-ai-clis.sh`. Conne
 | Provider | Env vars |
 |----------|----------|
 | Cursor | `CURSOR_API_KEY` |
-| Claude Code | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` |
+| Claude Code | `ANTHROPIC_API_KEY` and optional `ANTHROPIC_WORKSPACE_ID` (or `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: wrkspc_…`), or `CLAUDE_CODE_OAUTH_TOKEN` |
 | Codex | `OPENAI_API_KEY` or `CODEX_API_KEY` |
 | Gemini | `GEMINI_API_KEY` |
 | GitHub Copilot | `COPILOT_GITHUB_TOKEN` (fine-grained PAT with **Copilot Requests**; not a classic `ghp_` token) |
 
 DB-stored secrets from the Providers UI override env when both are set. Enable at least one provider and set a default before tasks can run.
+
+Step-by-step auth (Claude API key vs OAuth, workspace ids, Copilot PAT): [AI_PROVIDERS.md](AI_PROVIDERS.md).
 
 ### CodeGraph
 

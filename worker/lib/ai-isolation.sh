@@ -18,9 +18,9 @@ AI_ISOLATION_EMPTY_FILE="${AI_ISOLATION_EMPTY_FILE:-}"
 
 # Privileged env vars that must never reach the agent process.
 # Keep CURSOR_API_KEY / ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN /
-# OPENAI_API_KEY / CODEX_API_KEY / GEMINI_API_KEY / COPILOT_GITHUB_TOKEN —
-# those are required for the AI CLIs and are not forge publishing credentials.
-# (Copilot must use COPILOT_GITHUB_TOKEN, not GH_TOKEN/GITHUB_TOKEN.)
+# ANTHROPIC_CUSTOM_HEADERS / OPENAI_API_KEY / CODEX_API_KEY / GEMINI_API_KEY /
+# COPILOT_GITHUB_TOKEN — those are required for the AI CLIs and are not forge
+# publishing credentials. (Copilot must use COPILOT_GITHUB_TOKEN, not GH_TOKEN.)
 AI_ISOLATION_STRIP_VARS=(
     GH_TOKEN
     GITHUB_TOKEN

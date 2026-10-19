@@ -138,13 +138,15 @@ AI Worker ships five coding agents in the Docker image. Connect at least one und
 | Provider | Credential | Env vars |
 |----------|------------|----------|
 | **Cursor CLI** | Cursor API key | `CURSOR_API_KEY` |
-| **Claude Code** | Anthropic API key or Claude Code OAuth token | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` |
+| **Claude Code** | Anthropic API key (+ optional workspace id) or Claude OAuth token | `ANTHROPIC_API_KEY`, optional `ANTHROPIC_WORKSPACE_ID` / `ANTHROPIC_CUSTOM_HEADERS`, or `CLAUDE_CODE_OAUTH_TOKEN` |
 | **Codex CLI** | OpenAI API key | `OPENAI_API_KEY` or `CODEX_API_KEY` |
 | **Gemini CLI** | Gemini API key | `GEMINI_API_KEY` |
 | **GitHub Copilot CLI** | Fine-grained GitHub PAT with **Copilot Requests** | `COPILOT_GITHUB_TOKEN` |
 
 Notes:
 
+- Full step-by-step auth guide (especially Claude API key vs OAuth and workspace ids): [docs/AI_PROVIDERS.md](docs/AI_PROVIDERS.md).
+- Claude org keys that are not workspace-scoped need **Anthropic workspace ID** on the Providers page (or `ANTHROPIC_WORKSPACE_ID` in `.env`).
 - Copilot requires a **fine-grained** PAT with the Copilot Requests permission. Classic `ghp_` tokens are not supported. Use `COPILOT_GITHUB_TOKEN` — do not reuse forge `GITHUB_TOKEN` / `GH_TOKEN` for the agent.
 - Per-repository you can override the default provider on the repository page.
 - Use **Test** on the Providers page to confirm the CLI binary and credential wiring.

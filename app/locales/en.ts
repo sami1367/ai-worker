@@ -55,7 +55,7 @@ export const en = {
   'howItWorks.providers.cursor':
     'Cursor CLI — Cursor API key (CURSOR_API_KEY) from Cursor dashboard settings.',
   'howItWorks.providers.claude':
-    'Claude Code — Anthropic API key (ANTHROPIC_API_KEY) from console.anthropic.com, or a Claude Code OAuth token (CLAUDE_CODE_OAUTH_TOKEN).',
+    'Claude Code — prefer a workspace-scoped Anthropic API key (ANTHROPIC_API_KEY) from platform.claude.com; if the key is not workspace-scoped, set Anthropic workspace ID (wrkspc_…) on Providers (exports ANTHROPIC_CUSTOM_HEADERS). Or use a Claude OAuth token from `claude setup-token` (CLAUDE_CODE_OAUTH_TOKEN) — do not paste an API key into the OAuth field. See docs/AI_PROVIDERS.md.',
   'howItWorks.providers.codex':
     'Codex CLI — OpenAI API key (OPENAI_API_KEY or CODEX_API_KEY) from platform.openai.com/api-keys.',
   'howItWorks.providers.gemini':

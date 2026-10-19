@@ -8,9 +8,13 @@ vi.mock('../../server/services/audit', () => ({
   writeAudit: vi.fn(async () => undefined),
 }))
 
-vi.mock('../../server/services/provider-credentials', () => ({
-  exportProviderCredentialsForWorker: vi.fn(async () => undefined),
-}))
+vi.mock('../../server/services/provider-credentials', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../server/services/provider-credentials')>()
+  return {
+    ...actual,
+    exportProviderCredentialsForWorker: vi.fn(async () => undefined),
+  }
+})
 
 vi.mock('../../server/services/settings', () => ({
   getSettings: vi.fn(async () => ({ defaultAiProvider: 'cursor' })),
