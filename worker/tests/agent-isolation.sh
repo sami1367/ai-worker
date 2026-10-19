@@ -351,11 +351,26 @@ AI_ISOLATION_MODE=env
 AI_ISOLATION_USERNS_USABLE=""
 AI_ISOLATION_BWRAP_USABLE=""
 printf 'hello\n' >"$TMP/claude-prompt.txt"
+# API key path uses --bare (OAuth is ignored by Claude Code in bare mode).
+export ANTHROPIC_API_KEY="test-anthropic-key"
+unset CLAUDE_CODE_OAUTH_TOKEN || true
 ai_claude_run "$WS" "$TMP/claude-prompt.txt" "$TMP/out.log" "$TMP/err.log" implement >/dev/null
 grep -a -F -q '{"sandbox":{"enabled":false}}' "$STUB_ARGS" || fail "claude did not force sandbox.enabled=false"
 # Claude Code requires --verbose with -p + --output-format=stream-json
 grep -a -Fxq -- '--verbose' "$STUB_ARGS" || fail "claude did not pass --verbose for stream-json"
+grep -a -Fxq -- '--bare' "$STUB_ARGS" || fail "claude should pass --bare when ANTHROPIC_API_KEY is set"
 pass "claude disables its bubblewrap sandbox when nested namespaces are blocked"
+
+# OAuth-only: omit --bare so Claude Code can read CLAUDE_CODE_OAUTH_TOKEN.
+unset ANTHROPIC_API_KEY || true
+export CLAUDE_CODE_OAUTH_TOKEN="test-claude-oauth"
+: >"$STUB_ARGS"
+ai_claude_run "$WS" "$TMP/claude-prompt.txt" "$TMP/out-oauth.log" "$TMP/err-oauth.log" implement >/dev/null 2>"$TMP/claude-oauth.warn"
+if grep -a -Fxq -- '--bare' "$STUB_ARGS"; then
+    fail "claude must not pass --bare when only CLAUDE_CODE_OAUTH_TOKEN is set"
+fi
+grep -a -Fxq -- '-p' "$STUB_ARGS" || fail "claude oauth path should still use -p"
+pass "claude omits --bare for CLAUDE_CODE_OAUTH_TOKEN auth"
 
 echo
 echo "agent-isolation.sh: all checks passed (mode was $MODE for primary probes)"
