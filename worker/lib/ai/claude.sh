@@ -20,6 +20,7 @@ ai_claude_detect() {
 # Headless automation settings live here:
 # --bare              : skip local hooks/skills/MCP for reproducible CI runs
 # --permission-mode   : auto-approve edits without interactive prompts
+# --verbose           : required by Claude Code when -p + --output-format=stream-json
 # Tool allowlists are defense in depth; ai_isolation_exec is the security boundary.
 ai_claude_run() {
     local workspace="$1"
@@ -39,6 +40,10 @@ ai_claude_run() {
     cmd+=(--bare -p)
     cmd+=(--permission-mode "$permission_mode")
     cmd+=(--output-format "$output_format")
+    # Claude Code: --print + stream-json requires --verbose (else exits 1).
+    if [[ "$output_format" == "stream-json" ]]; then
+        cmd+=(--verbose)
+    fi
 
     if [[ -n "${AI_CLAUDE_MODEL:-}" ]]; then
         cmd+=(--model "$AI_CLAUDE_MODEL")

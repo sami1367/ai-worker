@@ -353,6 +353,8 @@ AI_ISOLATION_BWRAP_USABLE=""
 printf 'hello\n' >"$TMP/claude-prompt.txt"
 ai_claude_run "$WS" "$TMP/claude-prompt.txt" "$TMP/out.log" "$TMP/err.log" implement >/dev/null
 grep -a -F -q '{"sandbox":{"enabled":false}}' "$STUB_ARGS" || fail "claude did not force sandbox.enabled=false"
+# Claude Code requires --verbose with -p + --output-format=stream-json
+grep -a -Fxq -- '--verbose' "$STUB_ARGS" || fail "claude did not pass --verbose for stream-json"
 pass "claude disables its bubblewrap sandbox when nested namespaces are blocked"
 
 echo
