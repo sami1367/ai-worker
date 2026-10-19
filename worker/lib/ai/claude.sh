@@ -19,6 +19,8 @@ ai_claude_detect() {
 
 # Headless automation settings live here:
 # --bare              : skip local hooks/skills/MCP for reproducible CI runs
+#                       (Claude Code only accepts ANTHROPIC_API_KEY in bare mode;
+#                       CLAUDE_CODE_OAUTH_TOKEN requires omitting --bare)
 # --permission-mode   : auto-approve edits without interactive prompts
 # --verbose           : required by Claude Code when -p + --output-format=stream-json
 # Tool allowlists are defense in depth; ai_isolation_exec is the security boundary.
@@ -36,8 +38,26 @@ ai_claude_run() {
 
     local output_format="${AI_CLAUDE_OUTPUT_FORMAT:-stream-json}"
 
+    # Auth: --bare ignores OAuth/keychain and only reads ANTHROPIC_API_KEY (or apiKeyHelper).
+    # OAuth-connected providers export CLAUDE_CODE_OAUTH_TOKEN — omit --bare for those.
+    local use_bare=0
+    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        use_bare=1
+    elif [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+        echo "WARNING: Claude Code --bare ignores CLAUDE_CODE_OAUTH_TOKEN; running without --bare so OAuth auth works." >&2
+    else
+        echo "ERROR: Claude Code has no credentials in the agent environment." >&2
+        echo "Connect an Anthropic API key (preferred) or Claude Code OAuth token in Providers," >&2
+        echo "or set ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN for the worker." >&2
+        return 1
+    fi
+
     local -a cmd=("$AI_PROVIDER_BIN")
-    cmd+=(--bare -p)
+    if [[ "$use_bare" -eq 1 ]]; then
+        cmd+=(--bare -p)
+    else
+        cmd+=(-p)
+    fi
     cmd+=(--permission-mode "$permission_mode")
     cmd+=(--output-format "$output_format")
     # Claude Code: --print + stream-json requires --verbose (else exits 1).
