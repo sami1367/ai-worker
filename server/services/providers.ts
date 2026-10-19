@@ -6,7 +6,10 @@ import { AppError } from '#utils/errors'
 import { getDb } from '#utils/db'
 import { decryptSecret, encryptSecret } from '#utils/crypto'
 import { writeAudit } from './audit'
-import { exportProviderCredentialsForWorker } from './provider-credentials'
+import {
+  exportProviderCredentialsForWorker,
+  normalizeAnthropicWorkspaceId,
+} from './provider-credentials'
 import { getSettings, updateSettings } from './settings'
 
 const execFileAsync = promisify(execFile)
@@ -46,7 +49,7 @@ export function providerModelFromConfig(config: Record<string, unknown> | null |
   return normalizeProviderModel(config?.model)
 }
 
-/** Merge provider config patches; omit `model` when empty so the CLI default is used. */
+/** Merge provider config patches; omit empty optional fields (model, workspace id). */
 export function mergeProviderConfig(
   existing: Record<string, unknown>,
   patch: Record<string, unknown>,
@@ -55,6 +58,11 @@ export function mergeProviderConfig(
   const model = normalizeProviderModel(merged.model)
   if (model) merged.model = model
   else delete merged.model
+
+  const workspaceId = normalizeAnthropicWorkspaceId(merged.anthropicWorkspaceId)
+  if (workspaceId) merged.anthropicWorkspaceId = workspaceId
+  else delete merged.anthropicWorkspaceId
+
   return merged
 }
 
@@ -76,6 +84,8 @@ export async function listProviders() {
   await ensureProviderRows()
   const db = getDb()
   const rows = await db.select().from(providerConfigs)
+  const order = new Map(KNOWN.map((k, i) => [k.providerType, i]))
+  rows.sort((a, b) => (order.get(a.providerType as KnownProviderType) ?? 99) - (order.get(b.providerType as KnownProviderType) ?? 99))
   return rows.map(publicProvider)
 }
 
@@ -289,7 +299,8 @@ export async function updateProvider(
     if (fresh) row = fresh
   }
 
-  if (secretChanged) {
+  // Re-export on secret or config change so Claude workspace id / headers reach the worker.
+  if (secretChanged || configChanged) {
     try {
       await exportProviderCredentialsForWorker()
     } catch (err) {

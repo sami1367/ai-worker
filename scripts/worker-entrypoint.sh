@@ -61,7 +61,8 @@ if [[ -f "$DEST/forge-credentials.env" ]]; then
   source "$DEST/forge-credentials.env"
 fi
 
-# Load AI provider credentials (CURSOR_API_KEY / ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN).
+# Load AI provider credentials (CURSOR_API_KEY / ANTHROPIC_API_KEY /
+# ANTHROPIC_CUSTOM_HEADERS / CLAUDE_CODE_OAUTH_TOKEN / …).
 if [[ -f "$DEST/provider-credentials.env" ]]; then
   # shellcheck disable=SC1091
   source "$DEST/provider-credentials.env"

@@ -3,7 +3,11 @@ import { promisify } from 'node:util'
 import { providerConfigs } from '#db/schema'
 import { getDb } from '#utils/db'
 import { decryptSecret } from '#utils/crypto'
-import type { ClaudeCredentialType } from './provider-credentials'
+import {
+  resolveAnthropicCustomHeaders,
+  normalizeAnthropicWorkspaceId,
+  type ClaudeCredentialType,
+} from './provider-credentials'
 
 const execFileAsync = promisify(execFile)
 
@@ -27,6 +31,7 @@ type ResolvedSecrets = {
   cursorApiKey: string
   anthropicApiKey: string
   claudeOauthToken: string
+  anthropicCustomHeaders: string
   openaiApiKey: string
   geminiApiKey: string
   copilotGithubToken: string
@@ -43,6 +48,7 @@ async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
   let openaiApiKey = process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY || ''
   let geminiApiKey = process.env.GEMINI_API_KEY || ''
   let copilotGithubToken = process.env.COPILOT_GITHUB_TOKEN || ''
+  let anthropicWorkspaceId = normalizeAnthropicWorkspaceId(process.env.ANTHROPIC_WORKSPACE_ID)
 
   const cursor = rows.find((r) => r.providerType === 'cursor')
   const claude = rows.find((r) => r.providerType === 'claude')
@@ -73,6 +79,9 @@ async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
     }
   }
 
+  const configWorkspace = normalizeAnthropicWorkspaceId(claude?.config?.anthropicWorkspaceId)
+  if (configWorkspace) anthropicWorkspaceId = configWorkspace
+
   if (codex?.secretCiphertext && key) {
     try {
       openaiApiKey = decryptSecret(codex.secretCiphertext, key)
@@ -101,6 +110,12 @@ async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
     cursorApiKey,
     anthropicApiKey,
     claudeOauthToken,
+    anthropicCustomHeaders: resolveAnthropicCustomHeaders({
+      apiKeyPresent: Boolean(anthropicApiKey),
+      workspaceId: anthropicWorkspaceId,
+      envWorkspaceId: process.env.ANTHROPIC_WORKSPACE_ID,
+      envCustomHeaders: process.env.ANTHROPIC_CUSTOM_HEADERS,
+    }),
     openaiApiKey,
     geminiApiKey,
     copilotGithubToken,
@@ -252,6 +267,7 @@ async function fetchClaudePlan(secrets: ResolvedSecrets): Promise<ProviderPlanSn
       env: childEnv({
         ANTHROPIC_API_KEY: secrets.anthropicApiKey || undefined,
         CLAUDE_CODE_OAUTH_TOKEN: secrets.claudeOauthToken || undefined,
+        ANTHROPIC_CUSTOM_HEADERS: secrets.anthropicCustomHeaders || undefined,
       }),
     })
     base.cliVersion = (version.stdout || version.stderr).trim().split('\n')[0]?.slice(0, 80) || null
@@ -265,6 +281,7 @@ async function fetchClaudePlan(secrets: ResolvedSecrets): Promise<ProviderPlanSn
       env: childEnv({
         ANTHROPIC_API_KEY: secrets.anthropicApiKey || undefined,
         CLAUDE_CODE_OAUTH_TOKEN: secrets.claudeOauthToken || undefined,
+        ANTHROPIC_CUSTOM_HEADERS: secrets.anthropicCustomHeaders || undefined,
       }),
       maxBuffer: 512_000,
     })
