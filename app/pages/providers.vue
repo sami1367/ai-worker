@@ -14,34 +14,37 @@ type Draft = {
   showConnect: boolean
 }
 
-/** Common model ids per provider; empty value = CLI default. */
+/** Sentinel for the select; stored model stays '' so the CLI default is used. */
+const CLI_DEFAULT_MODEL = '__cli_default__'
+
+/** Common model ids per provider; CLI_DEFAULT_MODEL means the CLI default. */
 const PROVIDER_MODEL_OPTIONS: Record<string, Array<{ label: string, value: string }>> = {
   cursor: [
-    { label: 'Default (CLI)', value: '' },
+    { label: 'Default (CLI)', value: CLI_DEFAULT_MODEL },
     { label: 'Composer 1', value: 'composer-1' },
     { label: 'Sonnet 4', value: 'sonnet-4' },
     { label: 'GPT-5', value: 'gpt-5' },
     { label: 'Opus 4.1', value: 'opus-4.1' },
   ],
   claude: [
-    { label: 'Default (CLI)', value: '' },
+    { label: 'Default (CLI)', value: CLI_DEFAULT_MODEL },
     { label: 'Sonnet', value: 'sonnet' },
     { label: 'Opus', value: 'opus' },
     { label: 'Haiku', value: 'haiku' },
   ],
   codex: [
-    { label: 'Default (CLI)', value: '' },
+    { label: 'Default (CLI)', value: CLI_DEFAULT_MODEL },
     { label: 'GPT-5', value: 'gpt-5' },
     { label: 'o3', value: 'o3' },
     { label: 'o4-mini', value: 'o4-mini' },
   ],
   gemini: [
-    { label: 'Default (CLI)', value: '' },
+    { label: 'Default (CLI)', value: CLI_DEFAULT_MODEL },
     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
     { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
   ],
   copilot: [
-    { label: 'Default (CLI)', value: '' },
+    { label: 'Default (CLI)', value: CLI_DEFAULT_MODEL },
     { label: 'GPT-4.1', value: 'gpt-4.1' },
     { label: 'Claude Sonnet 4', value: 'claude-sonnet-4' },
   ],
@@ -81,11 +84,19 @@ function draftFor(providerType: string): Draft {
 }
 
 function modelOptionsFor(providerType: string, selected: string) {
-  const base = PROVIDER_MODEL_OPTIONS[providerType] || [{ label: 'Default (CLI)', value: '' }]
-  if (selected && !base.some((item) => item.value === selected)) {
+  const base = PROVIDER_MODEL_OPTIONS[providerType] || [{ label: 'Default (CLI)', value: CLI_DEFAULT_MODEL }]
+  if (selected && selected !== CLI_DEFAULT_MODEL && !base.some((item) => item.value === selected)) {
     return [...base, { label: selected, value: selected }]
   }
   return base
+}
+
+function modelSelectValue(providerType: string): string {
+  return draftFor(providerType).model || CLI_DEFAULT_MODEL
+}
+
+function setModelSelect(providerType: string, value: string) {
+  draftFor(providerType).model = !value || value === CLI_DEFAULT_MODEL ? '' : value
 }
 
 function claudeConfigPatch(d: Draft): Record<string, unknown> {
@@ -488,9 +499,10 @@ function claudeAuthSummary(p: any): string {
                 hint="Default uses the provider CLI model. Save to apply."
               >
                 <USelect
-                  v-model="draftFor(p.providerType).model"
+                  :model-value="modelSelectValue(p.providerType)"
                   :items="modelOptionsFor(p.providerType, draftFor(p.providerType).model)"
                   class="w-full"
+                  @update:model-value="(v: string) => setModelSelect(p.providerType, v)"
                 />
               </UFormField>
               <UFormField
