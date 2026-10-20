@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { applySelectDraft } from '../../utils/repository-detail-select'
+
 const route = useRoute()
 const { api } = useApi()
 const id = computed(() => String(route.params.id))
@@ -22,6 +24,8 @@ const messageError = ref(false)
 const branchOptions = ref<Array<{ label: string, value: string }>>([])
 const branchesLoading = ref(false)
 const branchesError = ref('')
+/** Local draft so USelect shows the chosen branch before Save. */
+const defaultBranch = ref('')
 
 async function loadBranches() {
   branchesLoading.value = true
@@ -31,7 +35,7 @@ async function loadBranches() {
       `/api/v1/repositories/${id.value}/branches`,
     )
     const names = Array.isArray(res.branches) ? res.branches : []
-    const current = data.value?.defaultBranch
+    const current = defaultBranch.value || data.value?.defaultBranch
     if (current && !names.includes(current)) names.unshift(current)
     branchOptions.value = names.map((name) => ({ label: name, value: name }))
   } catch (e: any) {
@@ -78,6 +82,10 @@ function parseAcceptedReporters(text: string): string[] {
   return out
 }
 
+function onDefaultBranchSelect(next: unknown) {
+  defaultBranch.value = applySelectDraft(next, defaultBranch.value)
+}
+
 watch(() => data.value, (repo) => {
   if (!repo) return
   if (!repo.settings || typeof repo.settings !== 'object') {
@@ -95,6 +103,7 @@ watch(() => data.value, (repo) => {
   if (typeof repo.codegraphEnabled !== 'boolean') {
     repo.codegraphEnabled = true
   }
+  defaultBranch.value = typeof repo.defaultBranch === 'string' ? repo.defaultBranch : ''
 }, { immediate: true })
 
 async function save() {
@@ -106,11 +115,10 @@ async function save() {
       method: 'PATCH',
       body: {
         remoteUrl: data.value.remoteUrl,
-        defaultBranch: data.value.defaultBranch,
+        defaultBranch: defaultBranch.value,
         blockOnOpenPr: data.value.blockOnOpenPr,
         forcePushToDefault: data.value.forcePushToDefault,
         codegraphEnabled: data.value.codegraphEnabled,
-        defaultAiProvider: data.value.defaultAiProvider,
         settings: {
           customPrompt: data.value.settings?.customPrompt ?? '',
           acceptedReporters,
@@ -208,14 +216,15 @@ onBeforeUnmount(() => stopPoll.value?.())
           >
             <USelect
               v-if="branchOptions.length"
-              v-model="data.defaultBranch"
+              :model-value="defaultBranch"
               :items="branchOptions"
               class="w-full"
               :loading="branchesLoading"
+              @update:model-value="onDefaultBranchSelect"
             />
             <UInput
               v-else
-              v-model="data.defaultBranch"
+              v-model="defaultBranch"
               class="w-full"
               placeholder="main"
               spellcheck="false"
@@ -225,18 +234,6 @@ onBeforeUnmount(() => stopPoll.value?.())
             <p v-else-if="branchesError" class="mt-1 text-xs opacity-60">
               {{ branchesError }} — enter the branch name manually, or reconnect the forge connection.
             </p>
-          </UFormField>
-          <UFormField label="Default AI provider">
-            <USelect
-              v-model="data.defaultAiProvider"
-              :items="[
-                { label: 'cursor', value: 'cursor' },
-                { label: 'claude', value: 'claude' },
-                { label: 'codex', value: 'codex' },
-                { label: 'gemini', value: 'gemini' },
-                { label: 'copilot', value: 'copilot' },
-              ]"
-            />
           </UFormField>
           <UCheckbox v-model="data.blockOnOpenPr" label="Block new issues while an AI-labeled PR/MR is open" />
           <UCheckbox
