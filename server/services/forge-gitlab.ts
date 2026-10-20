@@ -620,6 +620,47 @@ export async function ensureGitLabProjectLabels(
   return { created, existing: already }
 }
 
+export type CreatedForgeIssue = {
+  externalId: string
+  title: string
+  url: string
+}
+
+/** Create a GitLab issue with labels and optional assignee ids. */
+export async function createGitLabIssue(opts: {
+  instanceUrl: string
+  token: string
+  projectPath: string
+  title: string
+  body: string
+  labels?: string[]
+  assigneeIds?: number[]
+}): Promise<CreatedForgeIssue> {
+  const encoded = encodeURIComponent(normalizeGitLabProjectPath(opts.projectPath))
+  const payload: Record<string, unknown> = {
+    title: opts.title.slice(0, 255),
+    description: opts.body.slice(0, 65000),
+  }
+  if (opts.labels?.length) payload.labels = opts.labels.join(',')
+  if (opts.assigneeIds?.length) payload.assignee_ids = opts.assigneeIds
+
+  const { data: issue } = await gitlabApi<{
+    iid: number
+    title?: string
+    web_url?: string
+  }>(opts.instanceUrl, `/projects/${encoded}/issues`, opts.token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  return {
+    externalId: String(issue.iid),
+    title: String(issue.title || opts.title),
+    url: String(issue.web_url || ''),
+  }
+}
+
 export type GitLabWebhookHook = {
   id: number
   url: string
