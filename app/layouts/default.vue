@@ -15,6 +15,7 @@ const links = [
   { to: '/', labelKey: 'nav.dashboard', icon: 'i-lucide-layout-dashboard' },
   { to: '/connections', labelKey: 'nav.connections', icon: 'i-lucide-link' },
   { to: '/repositories', labelKey: 'nav.repositories', icon: 'i-lucide-git-branch' },
+  { to: '/create-tasks', labelKey: 'nav.createTasks', icon: 'i-lucide-messages-square' },
   { to: '/tasks', labelKey: 'nav.tasks', icon: 'i-lucide-list-checks' },
   { to: '/providers', labelKey: 'nav.providers', icon: 'i-lucide-bot' },
   { to: '/prompts', labelKey: 'nav.prompts', icon: 'i-lucide-scroll-text' },
