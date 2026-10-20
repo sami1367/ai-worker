@@ -33,7 +33,7 @@ x-env: &env
   REPO_CLAIM_TTL_SECONDS: ${REPO_CLAIM_TTL_SECONDS:-10}
 
 x-app: &app
-  image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:1.0.0}
+  image: ${AI_WORKER_IMAGE:-sami1367/ai-worker:latest}
   environment: *env
   volumes:
     - data:/data
