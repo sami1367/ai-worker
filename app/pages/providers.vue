@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { buildProviderToast } from '../utils/provider-toast'
+
 const { api } = useApi()
+const toast = useToast()
 const { data, pending, refresh } = await useAsyncData('providers', () => api<any>('/api/v1/providers'))
 const busy = ref('')
-const message = ref('')
-const messageError = ref(false)
 const showAuthGuide = ref(true)
+
+function notify(title: string, error = false) {
+  toast.add(buildProviderToast(title, error))
+}
 
 type Draft = {
   secret: string
@@ -126,15 +131,12 @@ watchEffect(() => {
 
 async function test(provider: string) {
   busy.value = provider
-  message.value = ''
-  messageError.value = false
   try {
     await api(`/api/v1/providers/${provider}/test`, { method: 'POST' })
-    message.value = `Health check completed for ${provider}`
+    notify(`Health check completed for ${provider}`)
     await refresh()
   } catch (e: any) {
-    message.value = e?.data?.message || 'Test failed'
-    messageError.value = true
+    notify(e?.data?.message || 'Test failed', true)
   } finally {
     busy.value = ''
   }
@@ -162,8 +164,6 @@ async function setEnabled(p: any, enabled: boolean) {
   const prevEnabled = p.isEnabled
   const prevDefault = p.isDefault
   busy.value = `toggle-${p.providerType}`
-  message.value = ''
-  messageError.value = false
   // Optimistic update so the control feels immediate
   p.isEnabled = enabled
   if (!enabled) p.isDefault = false
@@ -172,14 +172,13 @@ async function setEnabled(p: any, enabled: boolean) {
       method: 'PATCH',
       body: { isEnabled: enabled },
     })
-    message.value = enabled ? `${p.displayName} enabled` : `${p.displayName} disabled`
+    notify(enabled ? `${p.displayName} enabled` : `${p.displayName} disabled`)
     await refresh()
     await refreshNuxtData('setup-readiness')
   } catch (e: any) {
     p.isEnabled = prevEnabled
     p.isDefault = prevDefault
-    message.value = e?.data?.message || e?.statusMessage || `Failed to ${enabled ? 'enable' : 'disable'} ${p.displayName}`
-    messageError.value = true
+    notify(e?.data?.message || e?.statusMessage || `Failed to ${enabled ? 'enable' : 'disable'} ${p.displayName}`, true)
   } finally {
     busy.value = ''
   }
@@ -188,21 +187,17 @@ async function setEnabled(p: any, enabled: boolean) {
 async function setDefault(p: any, isDefault: boolean) {
   if (p.isDefault === isDefault || isToggling(p.providerType)) return
   if (isDefault && !canSetDefault(p)) {
-    message.value = `Enable and connect ${p.displayName} before making it the default`
-    messageError.value = true
+    notify(`Enable and connect ${p.displayName} before making it the default`, true)
     return
   }
   if (!isDefault && p.isDefault && !canUnsetDefault(p)) {
-    message.value = 'At least one connected provider must remain the default. Enable and select another provider first.'
-    messageError.value = true
+    notify('At least one connected provider must remain the default. Enable and select another provider first.', true)
     return
   }
   const prevByType = Object.fromEntries(
     (data.value?.items || []).map((item: any) => [item.providerType, item.isDefault]),
   )
   busy.value = `toggle-${p.providerType}`
-  message.value = ''
-  messageError.value = false
   // Optimistic radio-style update when selecting a new default
   if (isDefault) {
     for (const item of data.value?.items || []) {
@@ -216,9 +211,9 @@ async function setDefault(p: any, isDefault: boolean) {
       method: 'PATCH',
       body: { isDefault },
     })
-    message.value = isDefault
+    notify(isDefault
       ? `${p.displayName} set as default`
-      : `${p.displayName} no longer default`
+      : `${p.displayName} no longer default`)
     await refresh()
   } catch (e: any) {
     for (const item of data.value?.items || []) {
@@ -226,8 +221,7 @@ async function setDefault(p: any, isDefault: boolean) {
         item.isDefault = prevByType[item.providerType]
       }
     }
-    message.value = e?.data?.message || e?.statusMessage || 'Failed to update default provider'
-    messageError.value = true
+    notify(e?.data?.message || e?.statusMessage || 'Failed to update default provider', true)
   } finally {
     busy.value = ''
   }
@@ -235,8 +229,6 @@ async function setDefault(p: any, isDefault: boolean) {
 
 async function save(p: any) {
   busy.value = `save-${p.providerType}`
-  message.value = ''
-  messageError.value = false
   try {
     const d = draftFor(p.providerType)
     const config = {
@@ -248,13 +240,12 @@ async function save(p: any) {
       method: 'PATCH',
       body: { config },
     })
-    message.value = d.model.trim()
+    notify(d.model.trim()
       ? `Saved ${p.displayName} (model: ${d.model.trim()})`
-      : `Saved ${p.displayName} (default model)`
+      : `Saved ${p.displayName} (default model)`)
     await refresh()
   } catch (e: any) {
-    message.value = e?.data?.message || 'Save failed'
-    messageError.value = true
+    notify(e?.data?.message || 'Save failed', true)
   } finally {
     busy.value = ''
   }
@@ -271,13 +262,10 @@ function credentialTypeForConnect(p: any, d: Draft): string {
 async function connect(p: any) {
   const d = draftFor(p.providerType)
   if (!d.secret.trim()) {
-    message.value = 'Paste a credential before connecting'
-    messageError.value = true
+    notify('Paste a credential before connecting', true)
     return
   }
   busy.value = `connect-${p.providerType}`
-  message.value = ''
-  messageError.value = false
   try {
     const config = {
       ...(p.config || {}),
@@ -295,13 +283,12 @@ async function connect(p: any) {
     })
     d.secret = ''
     d.showConnect = false
-    message.value = `${p.displayName} connected. Credentials are encrypted and exported to the worker.`
+    notify(`${p.displayName} connected. Credentials are encrypted and exported to the worker.`)
     await refresh()
     await refreshNuxtData('setup-readiness')
     await test(p.providerType)
   } catch (e: any) {
-    message.value = e?.data?.message || 'Connect failed'
-    messageError.value = true
+    notify(e?.data?.message || 'Connect failed', true)
   } finally {
     busy.value = ''
   }
@@ -309,19 +296,16 @@ async function connect(p: any) {
 
 async function disconnect(p: any) {
   busy.value = `disconnect-${p.providerType}`
-  message.value = ''
-  messageError.value = false
   try {
     await api(`/api/v1/providers/${p.providerType}`, {
       method: 'PATCH',
       body: { secret: null },
     })
-    message.value = `${p.displayName} disconnected. Stored secret cleared.`
+    notify(`${p.displayName} disconnected. Stored secret cleared.`)
     await refresh()
     await refreshNuxtData('setup-readiness')
   } catch (e: any) {
-    message.value = e?.data?.message || 'Disconnect failed'
-    messageError.value = true
+    notify(e?.data?.message || 'Disconnect failed', true)
   } finally {
     busy.value = ''
   }
@@ -452,12 +436,6 @@ function claudeAuthSummary(p: any): string {
       </div>
     </div>
 
-    <UAlert
-      v-if="message"
-      :title="message"
-      :color="messageError ? 'error' : 'success'"
-      variant="subtle"
-    />
     <div v-if="pending && !data" class="space-y-3">
       <div v-for="i in 5" :key="i" class="aw-panel h-28 animate-pulse rounded-xl" />
     </div>
