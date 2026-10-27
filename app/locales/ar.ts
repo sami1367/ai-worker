@@ -39,6 +39,8 @@ export const ar: Messages = {
   'createTasks.providerHint': 'Uses Claude, Codex, or Gemini API (not Cursor/Copilot CLI).',
   'createTasks.codeContextOn': 'Live code context loaded',
   'createTasks.codeContextOff': 'Code context limited (workspace not ready)',
+  'createTasks.workspaceStatus': 'Workspace: {status}',
+  'createTasks.workspaceCloningHint': 'Cloning this repository in the background. Once ready, the assistant can answer codebase questions (for example whether a wallet refund API already exists).',
   'createTasks.you': 'You',
   'createTasks.assistant': 'Assistant',
   'createTasks.approveConfirm': 'Create {count} issue(s) on the forge with label “ai”, assigned to the connected git user?',
