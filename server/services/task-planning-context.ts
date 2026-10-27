@@ -117,6 +117,14 @@ async function tryCodegraphSummary(root: string, epicHint: string): Promise<stri
   }
 }
 
+/** True when a stored summary came from a readable workspace (not an unavailable stub). */
+export function isCodeContextSummaryAvailable(summary: string | null | undefined): boolean {
+  if (!summary) return false
+  if (summary.includes('Plan from the product description only')) return false
+  if (summary.includes('not a directory')) return false
+  return true
+}
+
 /**
  * Build a live code context summary from a cloned workspace for task planning.
  */
