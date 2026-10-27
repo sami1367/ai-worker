@@ -72,6 +72,13 @@ export const workspaceOperationStatusEnum = pgEnum('workspace_operation_status',
   'cancelled',
 ])
 export const promptKindEnum = pgEnum('prompt_kind', ['template', 'snippet'])
+export const taskPlanningStatusEnum = pgEnum('task_planning_status', [
+  'clarifying',
+  'ready_to_generate',
+  'draft',
+  'approved',
+  'created',
+])
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -431,4 +438,46 @@ export const promptTemplates = pgTable('prompt_templates', {
   uniqueIndex('prompt_templates_path_uidx').on(t.path),
   index('prompt_templates_kind_idx').on(t.kind),
   index('prompt_templates_task_type_idx').on(t.taskType),
+])
+
+/** Chat-driven epic → task planning for product managers (Create Tasks UI). */
+export type TaskPlanningMessage = {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  createdAt: string
+  /** Optional structured draft tasks attached to an assistant turn. */
+  tasks?: TaskPlanningDraftTask[]
+}
+
+export type TaskPlanningDraftTask = {
+  localId: string
+  title: string
+  body: string
+}
+
+export type TaskPlanningCreatedIssue = {
+  localId: string
+  externalId: string
+  title: string
+  url: string
+}
+
+export const taskPlanningSessions = pgTable('task_planning_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  repositoryId: uuid('repository_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  status: taskPlanningStatusEnum('status').notNull().default('clarifying'),
+  epicSummary: text('epic_summary'),
+  messages: jsonb('messages').$type<TaskPlanningMessage[]>().notNull().default([]),
+  draftTasks: jsonb('draft_tasks').$type<TaskPlanningDraftTask[]>().notNull().default([]),
+  createdIssues: jsonb('created_issues').$type<TaskPlanningCreatedIssue[]>().notNull().default([]),
+  providerType: varchar('provider_type', { length: 32 }),
+  codeContextSummary: text('code_context_summary'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('task_planning_sessions_repo_idx').on(t.repositoryId),
+  index('task_planning_sessions_status_idx').on(t.status),
+  index('task_planning_sessions_created_idx').on(t.createdAt),
 ])

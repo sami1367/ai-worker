@@ -594,6 +594,46 @@ export async function ensureGitHubRepoLabels(
   return { created, existing: already }
 }
 
+export type CreatedForgeIssue = {
+  externalId: string
+  title: string
+  url: string
+}
+
+/** Create a GitHub issue with labels and optional assignees. */
+export async function createGitHubIssue(opts: {
+  token: string
+  fullName: string
+  title: string
+  body: string
+  labels?: string[]
+  assignees?: string[]
+}): Promise<CreatedForgeIssue> {
+  const repo = normalizeGitHubRepoFullName(opts.fullName)
+  const payload: Record<string, unknown> = {
+    title: opts.title.slice(0, 256),
+    body: opts.body.slice(0, 65000),
+  }
+  if (opts.labels?.length) payload.labels = opts.labels
+  if (opts.assignees?.length) payload.assignees = opts.assignees
+
+  const issue = await githubApi<{
+    number: number
+    title?: string
+    html_url?: string
+  }>(`/repos/${repo}/issues`, opts.token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  return {
+    externalId: String(issue.number),
+    title: String(issue.title || opts.title),
+    url: String(issue.html_url || `https://github.com/${repo}/issues/${issue.number}`),
+  }
+}
+
 export type GitHubWebhookHook = {
   id: number
   url: string

@@ -189,6 +189,14 @@ onBeforeUnmount(() => stopPoll.value?.())
           <UButton :loading="busy==='Sync'" variant="soft" @click="action('sync', 'Sync')">Sync workspace</UButton>
           <UButton :loading="busy==='Test'" variant="soft" @click="action('test', 'Test')">Test</UButton>
           <UButton :loading="busy==='Labels'" variant="soft" @click="action('setup-labels', 'Labels')">Setup labels</UButton>
+          <UButton
+            variant="soft"
+            color="primary"
+            icon="i-lucide-messages-square"
+            :to="`/create-tasks/${id}`"
+          >
+            Create tasks
+          </UButton>
           <UButton :loading="busy==='Webhook'" variant="soft" @click="action('setup-webhook', 'Webhook')">Setup webhook</UButton>
           <UButton
             :loading="busy==='Enable' || busy==='Disable'"
