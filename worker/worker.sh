@@ -778,6 +778,7 @@ gitlab_in_flight_issue_reason() {
 # ============================================================
 
 github_issue_job() {
+    local EXIT_CODE=0
     local PROJECT="$1"
     local REPO="$2"
     local ISSUE_NUMBER="$3"
@@ -933,9 +934,11 @@ github_issue_job() {
         echo "The issue was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
+    return "$EXIT_CODE"
 }
 
 gitlab_issue_job() {
+    local EXIT_CODE=0
     local PROJECT="$1"
     local REPO_PATH="$2"
     local ISSUE_NUMBER="$3"
@@ -1085,9 +1088,11 @@ gitlab_issue_job() {
         echo "The issue was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
+    return "$EXIT_CODE"
 }
 
 github_pr_implement_job() {
+    local EXIT_CODE=0
     local PROJECT="$1"
     local REPO="$2"
     local PR_NUMBER="$3"
@@ -1182,9 +1187,11 @@ github_pr_implement_job() {
         echo "The pull request was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
+    return "$EXIT_CODE"
 }
 
 github_pr_review_job() {
+    local EXIT_CODE=0
     local PROJECT="$1"
     local REPO="$2"
     local PR_NUMBER="$3"
@@ -1276,9 +1283,11 @@ github_pr_review_job() {
         echo "The pull request was NOT automatically re-reviewed."
         echo "Review the logs first. When ready, add label: ai-review"
     fi
+    return "$EXIT_CODE"
 }
 
 gitlab_mr_implement_job() {
+    local EXIT_CODE=0
     local PROJECT="$1"
     local REPO_PATH="$2"
     local MR_IID="$3"
@@ -1365,9 +1374,11 @@ gitlab_mr_implement_job() {
         echo "The merge request was NOT automatically retried."
         echo "Review the logs first. When ready, add label: ai"
     fi
+    return "$EXIT_CODE"
 }
 
 gitlab_mr_review_job() {
+    local EXIT_CODE=0
     local PROJECT="$1"
     local REPO_PATH="$2"
     local MR_IID="$3"
@@ -1454,6 +1465,7 @@ gitlab_mr_review_job() {
         echo "The merge request was NOT automatically re-reviewed."
         echo "Review the logs first. When ready, add label: ai-review"
     fi
+    return "$EXIT_CODE"
 }
 
 # ============================================================

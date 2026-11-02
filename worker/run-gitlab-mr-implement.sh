@@ -232,7 +232,7 @@ echo "Linked issues: $LINKED_ISSUE_COUNT"
 echo "Prompt file:   $PROMPT_FILE"
 echo "============================================================"
 
-ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" implement
+ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" implement || true
 ai_log_agent_finish
 
 if [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then

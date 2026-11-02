@@ -268,6 +268,16 @@ rm -f "$NC/src.c"
 ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md" || fail "review artifact rejected"
 pass "8. review/answer-only workflows reject implementation file changes"
 
+# Untracked dirs (git porcelain "?? .codegraph/") must not crash on empty basename.
+mkdir -p "$NC/.codegraph"
+touch "$NC/.codegraph/.gitignore"
+if ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md"; then
+    fail "untracked tooling dir should be rejected"
+fi
+rm -rf "$NC/.codegraph"
+ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md" || fail "review artifact rejected after dir cleanup"
+pass "8b. untracked directory paths do not trigger bad array subscript"
+
 # ----- 9. failure cleanup does not leak credentials into logs we emit -----
 # Ensure our phase logger never prints token values.
 LOG_SNIP="$TMP/phase.log"

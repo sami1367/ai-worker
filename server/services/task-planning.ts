@@ -13,7 +13,7 @@ import { ensureConnectionAccount } from './connections'
 import { ensureRepositoryLabels } from './ai-labels'
 import { createGitHubIssue } from './forge-github'
 import { createGitLabIssue } from './forge-gitlab'
-import { buildRepoCodeContext } from './task-planning-context'
+import { buildRepoCodeContext, isCodeContextSummaryAvailable } from './task-planning-context'
 import {
   callPlanningLlm,
   planningProviderForRepo,
@@ -26,6 +26,7 @@ import {
   parsePlanningStatusLine,
   stripPlanningStatusLine,
 } from './task-planning-parse'
+import { queueWorkspaceOperation } from './workspace-manager'
 
 function resolveProjectRef(repo: typeof repositories.$inferSelect): string | null {
   return repo.canonicalProjectIdentifier
@@ -50,7 +51,7 @@ function publicSession(row: typeof taskPlanningSessions.$inferSelect) {
     draftTasks: row.draftTasks || [],
     createdIssues: row.createdIssues || [],
     providerType: row.providerType,
-    codeContextAvailable: Boolean(row.codeContextSummary && !row.codeContextSummary.includes('not cloned')),
+    codeContextAvailable: isCodeContextSummaryAvailable(row.codeContextSummary),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -59,11 +60,14 @@ function publicSession(row: typeof taskPlanningSessions.$inferSelect) {
 const SYSTEM_CHAT = `You are a senior technical product partner helping a non-technical product manager break an epic into implementable engineering tasks for an AI coding worker.
 
 Rules:
-- Ask clear, short clarifying questions when scope, users, acceptance criteria, platforms, or constraints are unclear.
-- Prefer 1–4 questions at a time, not a long questionnaire.
+- Answer the user's question first. If they ask whether something exists, fits this repo, or should be implemented here, give a direct answer from the live code context when present.
+- Ground codebase facts in the provided live repository code context (file tree, manifests, CodeGraph). Cite real paths/modules when known.
+- Never ask the user to inspect the codebase, docs, or UI for facts you should answer yourself. Do not ask "have you seen wallet/payment in the project?" — that is your job when code context is available.
+- If live code context is missing, say so in one short sentence (a clone may still be running), answer from what the user described, and continue planning. Do not ask clarifying questions that only the codebase can answer.
+- Ask clarifying questions only for product decisions that change scope (users, acceptance criteria, platforms, constraints). Prefer 1–3 questions at a time — not a long questionnaire.
+- Do not re-ask questions already answered, or that the user clearly cannot answer. Acknowledge their reply and move forward.
 - When you have enough detail to draft tasks, say so explicitly and invite the user to press "Generate tasks".
 - Do NOT invent a full task list until asked to generate (the UI has a Generate button). You may sketch themes verbally.
-- Ground answers in the provided live repository code context when present (file tree, manifests, CodeGraph). If context is missing, say so and avoid guessing file paths.
 - Write for a PM: plain language, no jargon unless explained.
 - Never claim you already created GitHub/GitLab issues; creation happens only after Approve.
 
@@ -71,6 +75,26 @@ Response style: conversational markdown. End with a short "Status:" line that is
 Status: need_clarification
 Status: ready_to_generate
 Status: refining_draft`
+
+/** Queue a clone when Create Tasks opens and the workspace is not usable yet. */
+async function ensurePlanningWorkspace(
+  repo: typeof repositories.$inferSelect,
+  actor: { id: string, username: string },
+): Promise<{ queued: boolean, workspaceStatus: string }> {
+  if (repo.workspaceStatus === 'ready') {
+    return { queued: false, workspaceStatus: repo.workspaceStatus }
+  }
+  if (['queued', 'cloning', 'syncing'].includes(repo.workspaceStatus)) {
+    return { queued: false, workspaceStatus: repo.workspaceStatus }
+  }
+  // not_cloned | failed | inaccessible — start (or retry) clone for code-aware planning
+  await queueWorkspaceOperation({
+    repositoryId: repo.id,
+    operationType: 'clone',
+    actor,
+  })
+  return { queued: true, workspaceStatus: 'queued' }
+}
 
 const SYSTEM_GENERATE = `You break an epic into concrete GitHub/GitLab issues for an AI coding agent.
 
@@ -134,10 +158,19 @@ export async function listPlanningSessions(repositoryId?: string) {
 
 export async function getPlanningSession(id: string) {
   const db = getDb()
-  const [row] = await db.select().from(taskPlanningSessions)
+  let [row] = await db.select().from(taskPlanningSessions)
     .where(eq(taskPlanningSessions.id, id)).limit(1)
   if (!row) throw new AppError(404, 'Planning session not found', 'not_found')
   const repo = await loadRepo(row.repositoryId)
+
+  // When a background clone finishes, hydrate code context for the open chat.
+  if (repo.workspaceStatus === 'ready' && !isCodeContextSummaryAvailable(row.codeContextSummary)) {
+    await refreshCodeContext(row.id, repo, row.epicSummary || undefined)
+    const [fresh] = await db.select().from(taskPlanningSessions)
+      .where(eq(taskPlanningSessions.id, id)).limit(1)
+    if (fresh) row = fresh
+  }
+
   return {
     session: publicSession(row),
     repository: {
@@ -157,13 +190,18 @@ export async function createPlanningSession(
   actor: { id: string, username: string },
   ipHash?: string,
 ) {
-  const repo = await loadRepo(repositoryId)
+  let repo = await loadRepo(repositoryId)
   if (!repo.connectionId) {
     throw new AppError(
       400,
       'Repository is not linked to a forge connection. Connect GitHub/GitLab and register the repo first.',
       'missing_connection',
     )
+  }
+
+  const workspace = await ensurePlanningWorkspace(repo, actor)
+  if (workspace.queued) {
+    repo = await loadRepo(repositoryId)
   }
 
   const prefer = await planningProviderForRepo(repo.defaultAiProvider)
@@ -180,7 +218,9 @@ export async function createPlanningSession(
       '',
       ctx.available
         ? 'I loaded a live snapshot of this repository (file tree + key manifests). Describe what you want to build or change.'
-        : 'This repository workspace is not ready yet, so I will plan from your description. You can still continue; clone/sync the repo later for more accurate tasks.',
+        : workspace.queued || ['queued', 'cloning', 'syncing'].includes(repo.workspaceStatus)
+          ? 'I started cloning this repository in the background so I can answer from the real code soon. You can describe the goal now; ask again after the workspace is ready if you need codebase-specific answers.'
+          : 'This repository workspace is not ready yet, so I will plan from your description. Clone or repair the workspace on the repository page for code-aware answers.',
       '',
       'Tell me the goal in plain language. I may ask a few clarifying questions, then you can generate draft tasks, refine them here, and approve to create issues labeled **ai** assigned to your connected forge user.',
       '',
@@ -228,7 +268,9 @@ export async function openPlanningSessionForRepo(
       ne(taskPlanningSessions.status, 'created'),
     )).orderBy(desc(taskPlanningSessions.updatedAt)).limit(1)
     if (existing) {
-      const repo = await loadRepo(repositoryId)
+      let repo = await loadRepo(repositoryId)
+      await ensurePlanningWorkspace(repo, actor)
+      repo = await loadRepo(repositoryId)
       await refreshCodeContext(existing.id, repo, existing.epicSummary || undefined)
       const [fresh] = await db.select().from(taskPlanningSessions)
         .where(eq(taskPlanningSessions.id, existing.id)).limit(1)
@@ -256,7 +298,9 @@ export async function postPlanningMessage(
     throw new AppError(400, 'This session already created issues. Start a new session to plan more work.', 'session_closed')
   }
 
-  const repo = await loadRepo(session.repositoryId)
+  let repo = await loadRepo(session.repositoryId)
+  await ensurePlanningWorkspace(repo, actor)
+  repo = await loadRepo(session.repositoryId)
   await refreshCodeContext(sessionId, repo, text)
 
   const [fresh] = await db.select().from(taskPlanningSessions)

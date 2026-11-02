@@ -405,7 +405,7 @@ ai_assert_only_allowed_changes() {
     local project_dir="$1"
     shift
     local -A allowed=()
-    local path rel dirty_lines line status_path
+    local path rel base dirty_lines line status_path
 
     if [[ -z "$project_dir" || ! -d "$project_dir" ]]; then
         echo "ERROR: ai_assert_only_allowed_changes: invalid project_dir" >&2
@@ -415,8 +415,11 @@ ai_assert_only_allowed_changes() {
     for path in "$@"; do
         # Normalize to repo-relative basenames and full relative paths.
         rel="${path#"$project_dir"/}"
+        rel="${rel%/}"
+        [[ -z "$rel" ]] && continue
         allowed["$rel"]=1
-        allowed["${rel##*/}"]=1
+        base="${rel##*/}"
+        [[ -n "$base" ]] && allowed["$base"]=1
     done
 
     dirty_lines="$(git -C "$project_dir" status --porcelain 2>/dev/null || true)"
@@ -433,8 +436,13 @@ ai_assert_only_allowed_changes() {
         # Strip optional quotes from git status -z-less porcelain.
         status_path="${status_path#\"}"
         status_path="${status_path%\"}"
+        # Untracked dirs appear as "path/" — trailing slash makes ${##*/} empty
+        # and bash errors with "bad array subscript" on allowed[].
+        status_path="${status_path%/}"
+        [[ -z "$status_path" ]] && continue
+        base="${status_path##*/}"
 
-        if [[ -n "${allowed[$status_path]:-}" || -n "${allowed[${status_path##*/}]:-}" ]]; then
+        if [[ -n "${allowed[$status_path]:-}" || ( -n "$base" && -n "${allowed[$base]:-}" ) ]]; then
             continue
         fi
         if [[ "$unexpected" -eq 0 ]]; then

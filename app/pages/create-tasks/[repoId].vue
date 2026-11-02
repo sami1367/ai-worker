@@ -28,11 +28,13 @@ const repoId = computed(() => String(route.params.repoId || ''))
 const session = ref<Session | null>(null)
 const repoName = ref('')
 const forgeType = ref('')
+const workspaceStatus = ref('')
 const draft = ref('')
 const busy = ref('')
 const message = ref('')
 const messageError = ref(false)
 const chatEl = ref<HTMLElement | null>(null)
+let contextPollTimer: ReturnType<typeof setInterval> | null = null
 
 const statusLabel = computed(() => {
   const s = session.value?.status || 'clarifying'
@@ -51,11 +53,51 @@ const canApprove = computed(() => {
   return session.value.status === 'draft' && session.value.draftTasks.length > 0
 })
 
+const waitingForCodeContext = computed(() => {
+  if (!session.value) return false
+  if (session.value.codeContextAvailable) return false
+  return ['not_cloned', 'queued', 'cloning', 'syncing', 'failed', 'inaccessible', ''].includes(
+    workspaceStatus.value,
+  )
+})
+
 async function scrollChat() {
   await nextTick()
   if (chatEl.value) {
     chatEl.value.scrollTop = chatEl.value.scrollHeight
   }
+}
+
+function stopContextPoll() {
+  if (contextPollTimer) {
+    clearInterval(contextPollTimer)
+    contextPollTimer = null
+  }
+}
+
+async function pullSessionDetail(sessionId: string) {
+  const detail = await api<{
+    repository: { name: string, forgeType: string, workspaceStatus: string }
+    session: Session
+  }>(`/api/v1/task-planning/sessions/${sessionId}`)
+  session.value = detail.session
+  repoName.value = detail.repository.name
+  forgeType.value = detail.repository.forgeType
+  workspaceStatus.value = detail.repository.workspaceStatus
+  return detail
+}
+
+function startContextPoll() {
+  stopContextPoll()
+  if (!import.meta.client || !session.value || session.value.codeContextAvailable) return
+  contextPollTimer = setInterval(() => {
+    if (!session.value || busy.value) return
+    void pullSessionDetail(session.value.id)
+      .then(() => {
+        if (session.value?.codeContextAvailable) stopContextPoll()
+      })
+      .catch(() => {})
+  }, 5_000)
 }
 
 async function bootstrap(forceNew = false) {
@@ -72,14 +114,9 @@ async function bootstrap(forceNew = false) {
       },
     })
     session.value = res.session
-    const detail = await api<{
-      repository: { name: string, forgeType: string }
-      session: Session
-    }>(`/api/v1/task-planning/sessions/${res.session.id}`)
-    session.value = detail.session
-    repoName.value = detail.repository.name
-    forgeType.value = detail.repository.forgeType
+    await pullSessionDetail(res.session.id)
     await scrollChat()
+    startContextPoll()
   } catch (e: unknown) {
     message.value = apiErrorMessage(e) || t('createTasks.error')
     messageError.value = true
@@ -98,6 +135,10 @@ function apiErrorMessage(e: unknown): string {
 }
 
 await bootstrap(false)
+
+onBeforeUnmount(() => {
+  stopContextPoll()
+})
 
 async function send() {
   const content = draft.value.trim()
@@ -202,6 +243,14 @@ function onKeydown(e: KeyboardEvent) {
           >
             {{ session?.codeContextAvailable ? t('createTasks.codeContextOn') : t('createTasks.codeContextOff') }}
           </UBadge>
+          <UBadge
+            v-if="waitingForCodeContext && workspaceStatus"
+            :color="workspaceStatus === 'failed' || workspaceStatus === 'inaccessible' ? 'error' : 'warning'"
+            variant="subtle"
+            size="sm"
+          >
+            {{ t('createTasks.workspaceStatus', { status: workspaceStatus }) }}
+          </UBadge>
           <UBadge v-if="session?.draftTasks?.length" color="primary" variant="subtle" size="sm">
             {{ t('createTasks.draftCount', { count: session.draftTasks.length }) }}
           </UBadge>
@@ -209,6 +258,9 @@ function onKeydown(e: KeyboardEvent) {
             {{ t('createTasks.createdCount', { count: session.createdIssues.length }) }}
           </UBadge>
         </div>
+        <p v-if="waitingForCodeContext" class="mt-2 max-w-xl text-xs opacity-60">
+          {{ t('createTasks.workspaceCloningHint') }}
+        </p>
       </div>
       <div class="flex flex-wrap gap-2">
         <UButton
