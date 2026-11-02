@@ -99,11 +99,14 @@ ai_run_agent() {
         ai_codegraph_prepare "$workspace" "${CODEGRAPH_ENABLED:-1}" || true
     fi
 
-    set +e
-    "ai_${AI_PROVIDER}_run" \
-        "$workspace" "$prompt_file" "$stdout_log" "$stderr_log" "$task_type"
-    AGENT_EXIT_CODE=$?
-    set -e
+    # Keep provider shell options isolated from the runner. Providers inspect
+    # PIPESTATUS after their pipeline, including when the agent exits nonzero.
+    AGENT_EXIT_CODE=0
+    (
+        set +e
+        "ai_${AI_PROVIDER}_run" \
+            "$workspace" "$prompt_file" "$stdout_log" "$stderr_log" "$task_type"
+    ) || AGENT_EXIT_CODE=$?
 
     if declare -F ai_unstage_codegraph_dir >/dev/null 2>&1; then
         ai_unstage_codegraph_dir "$workspace" || true

@@ -283,7 +283,7 @@ echo "Agent stderr:  $AGENT_ERR_LOG"
 echo "Started:       $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "============================================================"
 
-ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" review
+ai_run_agent "$PROJECT_DIR" "$PROMPT_FILE" "$AGENT_LOG" "$AGENT_ERR_LOG" review || true
 
 ai_log_agent_finish
 

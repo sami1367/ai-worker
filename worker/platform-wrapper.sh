@@ -36,13 +36,13 @@ api() {
   local path="$2"
   local data="${3:-}"
   if [[ -n "$data" ]]; then
-    curl -fsS -X "$method" \
+    curl -fsS --connect-timeout 5 --max-time 15 -X "$method" \
       -H "Content-Type: application/json" \
       -H "x-worker-token: $WORKER_INTERNAL_TOKEN" \
       -d "$data" \
       "${WEB_INTERNAL_URL}${path}" || true
   else
-    curl -fsS -X "$method" \
+    curl -fsS --connect-timeout 5 --max-time 15 -X "$method" \
       -H "x-worker-token: $WORKER_INTERNAL_TOKEN" \
       "${WEB_INTERNAL_URL}${path}" || true
   fi
@@ -171,7 +171,7 @@ start_worker() {
   ) &
   WORKER_PID=$!
   SHOULD_RUN=1
-  heartbeat running
+  heartbeat running || log "WARNING: Could not send worker heartbeat"
 }
 
 stop_worker_graceful() {
@@ -195,7 +195,7 @@ stop_worker_graceful() {
   # Clear agent inventory after stop so the Tasks UI does not show stale slots.
   mkdir -p "$BASE_DIR/state"
   echo '[]' >"$BASE_DIR/state/active-agents.json"
-  heartbeat stopped
+  heartbeat stopped || log "WARNING: Could not send worker heartbeat"
 }
 
 handle_control() {
@@ -210,7 +210,7 @@ handle_control() {
   local id action
   while IFS= read -r id; do
     [[ -z "$id" ]] && continue
-    action="$(jq -r --arg id "$id" '.items[] | select(.id==$id) | .action' <<<"$json")"
+    action="$(jq -r --arg id "$id" '.items[] | select(.id==$id) | .action' <<<"$json" 2>/dev/null)" || continue
     log "Control request $id action=$action"
     case "$action" in
       reload_config)
@@ -259,7 +259,7 @@ require_token
 log "Platform worker wrapper starting"
 mkdir -p "$BASE_DIR/state"
 [[ -f "$BASE_DIR/state/active-agents.json" ]] || echo '[]' >"$BASE_DIR/state/active-agents.json"
-heartbeat starting
+heartbeat starting || log "WARNING: Could not send startup heartbeat"
 start_worker
 
 last_hb=0
@@ -278,9 +278,9 @@ while true; do
 
   if (( now - last_hb >= HEARTBEAT_INTERVAL )); then
     if [[ -n "$WORKER_PID" ]] && kill -0 "$WORKER_PID" 2>/dev/null; then
-      heartbeat running
+      heartbeat running || log "WARNING: Could not send worker heartbeat"
     else
-      heartbeat stopped
+      heartbeat stopped || log "WARNING: Could not send worker heartbeat"
     fi
     last_hb=$now
   fi
