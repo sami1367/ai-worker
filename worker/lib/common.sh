@@ -1942,7 +1942,7 @@ ai_latest_glob_match() {
     printf '%s\n' "$newest"
 }
 
-# Extract the last ERROR block from a runner log (best-effort).
+# Extract the last specific ERROR block from a runner log (best-effort).
 # Usage: ai_extract_log_error_excerpt <log_file> [max_chars]
 ai_extract_log_error_excerpt() {
     local log_file="$1"
@@ -1955,6 +1955,9 @@ ai_extract_log_error_excerpt() {
         awk '
             BEGIN { collecting = 0; block = ""; last = "" }
             /^ERROR([:]|[[:space:]]|$)/ {
+                # Runners append this summary after the provider error. Keep
+                # the actionable cause when one was already logged.
+                if ($0 ~ /^ERROR: AI agent failed\.[[:space:]]*$/ && (block != "" || last != "")) next
                 if (block != "") last = block
                 block = $0
                 collecting = 1

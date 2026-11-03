@@ -33,6 +33,21 @@ excerpt="$(ai_extract_log_error_excerpt "$TMP/run.log")"
 [[ "$excerpt" == *"Cursor completed but made no changes."* ]] \
     || fail "log excerpt missing ERROR body: $excerpt"
 
+cat > "$TMP/auth.log" <<'EOF'
+ERROR: Sign in with ChatGPT in the Providers panel before running Codex.
+============================================================
+AI AGENT FINISHED
+============================================================
+ERROR: AI agent failed.
+============================================================
+CLEANUP
+EOF
+auth_body="$(ai_format_failure_comment 1 ai-review "$TMP/auth.log")"
+[[ "$auth_body" == *"Sign in with ChatGPT"* ]] || fail "generic runner error hid authentication failure"
+printf 'ERROR: AI agent failed.\n' > "$TMP/generic.log"
+[[ "$(ai_extract_log_error_excerpt "$TMP/generic.log")" == 'ERROR: AI agent failed.' ]] \
+    || fail "generic error must remain available when no specific cause exists"
+
 cat > "$TMP/notes.md" <<'EOF'
 ## Why this was not implemented
 

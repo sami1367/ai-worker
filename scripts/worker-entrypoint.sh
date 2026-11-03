@@ -15,6 +15,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'logs/' \
     --exclude 'state/' \
     --exclude 'ssh/' \
+    --exclude 'codex-account/' \
     --exclude 'github-projects.conf' \
     --exclude 'gitlab-projects.conf' \
     --exclude 'forge-credentials.env' \
