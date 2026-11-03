@@ -45,3 +45,6 @@ test-results/
 
 .codegraph/
 
+
+# Persistent ChatGPT Codex credentials
+**/codex-account/

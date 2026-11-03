@@ -139,7 +139,7 @@ AI Worker ships five coding agents in the Docker image. Connect at least one und
 |----------|------------|----------|
 | **Cursor CLI** | Cursor API key | `CURSOR_API_KEY` |
 | **Claude Code** | Anthropic API key (+ optional workspace id) or Claude OAuth token | `ANTHROPIC_API_KEY`, optional `ANTHROPIC_WORKSPACE_ID` / `ANTHROPIC_CUSTOM_HEADERS`, or `CLAUDE_CODE_OAUTH_TOKEN` |
-| **Codex CLI** | OpenAI API key | `OPENAI_API_KEY` or `CODEX_API_KEY` |
+| **Codex CLI** | OpenAI API key or ChatGPT login | `OPENAI_API_KEY` / `CODEX_API_KEY`, or device sign-in in Providers |
 | **Gemini CLI** | Gemini API key | `GEMINI_API_KEY` |
 | **GitHub Copilot CLI** | Fine-grained GitHub PAT with **Copilot Requests** | `COPILOT_GITHUB_TOKEN` |
 

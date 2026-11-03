@@ -1,3 +1,4 @@
+import { codexChatgptConnected } from './codex-auth'
 import { eq } from 'drizzle-orm'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -106,14 +107,17 @@ function envCredentialPresent(providerType: string): boolean {
   return false
 }
 
-function rowIsConnected(row: { providerType: string, secretCiphertext: string | null }) {
+function rowIsConnected(row: { providerType: string, secretCiphertext: string | null, config?: Record<string, unknown> | null }) {
+  if (row.providerType === 'codex' && row.config?.credentialType === 'chatgpt') return codexChatgptConnected()
   return Boolean(row.secretCiphertext) || envCredentialPresent(row.providerType)
 }
 
 /** Public API shape — never includes plaintext or ciphertext secrets. */
 export function publicProvider(row: typeof providerConfigs.$inferSelect) {
-  const hasStoredSecret = Boolean(row.secretCiphertext)
-  const hasEnvSecret = envCredentialPresent(row.providerType)
+  const chatgpt = row.providerType === 'codex' && row.config?.credentialType === 'chatgpt'
+  const hasAccount = chatgpt && codexChatgptConnected()
+  const hasStoredSecret = !chatgpt && Boolean(row.secretCiphertext)
+  const hasEnvSecret = !chatgpt && envCredentialPresent(row.providerType)
   return {
     id: row.id,
     providerType: row.providerType,
@@ -121,9 +125,10 @@ export function publicProvider(row: typeof providerConfigs.$inferSelect) {
     isEnabled: row.isEnabled,
     isDefault: row.isDefault,
     config: row.config,
-    hasSecret: hasStoredSecret || hasEnvSecret,
+    hasSecret: hasAccount || hasStoredSecret || hasEnvSecret,
     hasStoredSecret,
-    secretSource: hasStoredSecret ? 'stored' as const : hasEnvSecret ? 'env' as const : null,
+    hasApiKey: row.providerType === 'codex' ? Boolean(row.secretCiphertext) || envCredentialPresent('codex') : undefined,
+    secretSource: hasAccount ? 'chatgpt' as const : hasStoredSecret ? 'stored' as const : hasEnvSecret ? 'env' as const : null,
     lastHealthCheckAt: row.lastHealthCheckAt,
     healthStatus: row.healthStatus,
     healthMessage: row.healthMessage,
@@ -225,7 +230,14 @@ export async function updateProvider(
   }
 
   const nextEnabled = input.isEnabled ?? existing.isEnabled
-  const willBeConnected = Boolean(secretCiphertext) || envCredentialPresent(providerType)
+  const nextConfig = input.config !== undefined
+    ? mergeProviderConfig(existing.config || {}, input.config || {})
+    : existing.config
+  if (providerType === 'codex' && nextConfig?.credentialType !== undefined
+    && !['chatgpt', 'openai_api_key'].includes(String(nextConfig.credentialType))) {
+    throw new AppError(400, 'Invalid Codex authentication method', 'validation_error')
+  }
+  const willBeConnected = rowIsConnected({ providerType, secretCiphertext, config: nextConfig })
   let nextDefault = input.isDefault ?? existing.isDefault
 
   // Disabled or disconnected providers cannot be the default.
@@ -270,12 +282,6 @@ export async function updateProvider(
   }
 
   const configChanged = input.config !== undefined
-  const nextConfig = configChanged
-    ? mergeProviderConfig(
-      (existing.config && typeof existing.config === 'object') ? existing.config : {},
-      input.config || {},
-    )
-    : existing.config
   const [updated] = await db.update(providerConfigs).set({
     isEnabled: nextEnabled,
     isDefault: nextDefault,
@@ -425,17 +431,18 @@ export async function testProvider(providerType: string) {
       healthStatus = 'unhealthy'
       healthMessage = 'Codex CLI not found (expected codex on PATH)'
     } else {
-      const hasCred = Boolean(
-        process.env.OPENAI_API_KEY
-        || process.env.CODEX_API_KEY
-        || existing.secretCiphertext,
-      )
+      const chatgpt = existing.config?.credentialType === 'chatgpt'
+      const hasCred = rowIsConnected(existing)
       if (hasCred) {
         healthStatus = 'healthy'
-        healthMessage = `Binary found at ${bin}. OpenAI/Codex API key is configured (not verified against the API).`
+        healthMessage = chatgpt
+          ? `Binary found at ${bin}. ChatGPT login cache is present (access checked when a task runs).`
+          : `Binary found at ${bin}. OpenAI/Codex API key is configured (not verified against the API).`
       } else {
         healthStatus = 'degraded'
-        healthMessage = `Binary found at ${bin}. Connect an OpenAI API key in Providers, or set OPENAI_API_KEY / CODEX_API_KEY.`
+        healthMessage = chatgpt
+          ? `Binary found at ${bin}. Sign in with ChatGPT in Providers.`
+          : `Binary found at ${bin}. Connect an OpenAI API key or sign in with ChatGPT in Providers.`
       }
     }
   } else if (providerType === 'gemini') {

@@ -1,3 +1,4 @@
+import { codexChatgptConnected } from './codex-auth'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { providerConfigs } from '#db/schema'
@@ -33,6 +34,7 @@ type ResolvedSecrets = {
   claudeOauthToken: string
   anthropicCustomHeaders: string
   openaiApiKey: string
+  codexChatgpt: boolean
   geminiApiKey: string
   copilotGithubToken: string
 }
@@ -117,6 +119,7 @@ async function resolveProviderSecrets(): Promise<ResolvedSecrets> {
       envCustomHeaders: process.env.ANTHROPIC_CUSTOM_HEADERS,
     }),
     openaiApiKey,
+    codexChatgpt: codex?.config?.credentialType === 'chatgpt',
     geminiApiKey,
     copilotGithubToken,
   }
@@ -326,12 +329,21 @@ async function fetchCodexPlan(secrets: ResolvedSecrets): Promise<ProviderPlanSna
     model: null,
     cliVersion: null,
     authenticated: null,
-    authMethod: secrets.openaiApiKey ? 'api_key' : null,
+    authMethod: secrets.codexChatgpt ? 'chatgpt' : secrets.openaiApiKey ? 'api_key' : null,
     apiKeyName: null,
     accountLabel: null,
     source: 'none',
     fetchedAt,
     error: null,
+  }
+
+  if (secrets.codexChatgpt) {
+    base.authenticated = codexChatgptConnected()
+    base.plan = 'ChatGPT Codex allowance'
+    base.accountLabel = 'ChatGPT account'
+    base.source = 'cli'
+    base.error = base.authenticated ? null : 'Sign in with ChatGPT in Providers'
+    return base
   }
 
   if (!secrets.openaiApiKey) {

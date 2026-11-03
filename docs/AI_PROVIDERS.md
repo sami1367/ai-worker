@@ -8,7 +8,7 @@ Enable a provider, connect credentials, set a **default**, then use **Test provi
 |----------|------------|----------|
 | Cursor CLI | Cursor API key | `CURSOR_API_KEY` |
 | Claude Code | Anthropic API key and optional workspace id, **or** Claude OAuth token | `ANTHROPIC_API_KEY`, optional `ANTHROPIC_WORKSPACE_ID` / `ANTHROPIC_CUSTOM_HEADERS`, or `CLAUDE_CODE_OAUTH_TOKEN` |
-| Codex CLI | OpenAI API key | `OPENAI_API_KEY` or `CODEX_API_KEY` |
+| Codex CLI | OpenAI API key or ChatGPT account | API key variables, or device login in Providers |
 | Gemini CLI | Gemini API key | `GEMINI_API_KEY` |
 | GitHub Copilot CLI | Fine-grained GitHub PAT with **Copilot Requests** | `COPILOT_GITHUB_TOKEN` |
 
@@ -68,13 +68,20 @@ Exported as `CLAUDE_CODE_OAUTH_TOKEN`. Claude Code **`--bare` ignores OAuth**, s
 
 ---
 
-## Codex CLI
+## Codex
 
-1. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
-2. Paste on Providers (exports both `OPENAI_API_KEY` and `CODEX_API_KEY`).
-3. Enable, Test.
+In **Providers → Codex CLI → Connect / change sign-in**, select a sign-in method:
 
----
+- **ChatGPT account:** click **Sign in with ChatGPT**, open the displayed OpenAI link, and enter the one-time code. Enable device code login in ChatGPT security settings (or workspace permissions) if needed. The panel waits for completion, then enables Codex. Coding and review jobs use your plan's Codex allowance and limits.
+- **OpenAI API key:** paste a key from platform.openai.com/api-keys and click **Connect**. Usage is billed to the API account. Existing environment keys remain supported.
+
+Switching modes keeps your saved API key, so you can switch back without re-entering it. ChatGPT jobs remove API key overrides and enforce ChatGPT authentication; they never fall back to API billing. **Disconnect** in ChatGPT mode removes the local account cache and disables Codex. **Cancel sign-in** stops the pending login. A sign-in expires after 15 minutes; retry for a new code.
+
+The Codex CLI stores the account session in `codex-account/` under the worker config directory (`/data/config` in Docker), with directory mode `0700`. This is the CLI's private token cache, separate from encrypted API keys in the database. The existing shared data volume preserves it across container recreation, and the worker can refresh the session there. Back up and protect it as credential material; never commit it. Login requires Codex CLI on the web server as well as the worker (included in the standard image). An in-progress code is held by the web process: after a web restart, start again or use the saved account if login had already completed. Use one web instance for the device login flow.
+
+**Create Tasks planning** currently uses direct APIs and needs another enabled API provider when Codex is in ChatGPT mode. It does not charge a retained OpenAI key implicitly.
+
+Official authentication guide: https://learn.chatgpt.com/docs/auth
 
 ## Gemini CLI
 
