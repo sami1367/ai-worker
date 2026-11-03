@@ -81,7 +81,7 @@ The image build runs `scripts/install-ai-clis.sh`, which installs:
 - **Vendor:** OpenAI  
 - **Install method:** `npm install -g @openai/codex`  
 - **License:** Proprietary; use governed by OpenAI’s terms and Codex product documentation  
-- **Usage model for operators:** End users should authenticate with their own OpenAI API key (`OPENAI_API_KEY` / `CODEX_API_KEY`). Do not resell OpenAI access under a shared account.  
+- **Usage model for operators:** End users should authenticate with their own OpenAI API key (`OPENAI_API_KEY` / `CODEX_API_KEY`) or their own eligible ChatGPT account through Codex login. Do not resell OpenAI access under a shared account.
 - **Redistribution:** Not covered by this project’s Apache-2.0 license. Confirm OpenAI redistribution terms before publishing images that bundle the Codex CLI.
 
 ### Gemini CLI (`@google/gemini-cli`)

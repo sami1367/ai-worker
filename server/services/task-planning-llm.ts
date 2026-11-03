@@ -55,6 +55,8 @@ export async function resolvePlanningProvider(
   for (const type of PLANNING_ORDER) {
     const row = rows.find((r) => r.providerType === type)
     if (!row || !row.isEnabled) continue
+    // ChatGPT Codex sessions are CLI credentials, never general OpenAI API keys.
+    if (type === 'codex' && row.config?.credentialType === 'chatgpt') continue
 
     let apiKey = ''
     if (row.secretCiphertext && key) {

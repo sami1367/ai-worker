@@ -79,7 +79,7 @@ All five CLIs are installed in the image via `scripts/install-ai-clis.sh`. Conne
 |----------|----------|
 | Cursor | `CURSOR_API_KEY` |
 | Claude Code | `ANTHROPIC_API_KEY` and optional `ANTHROPIC_WORKSPACE_ID` (or `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: wrkspc_…`), or `CLAUDE_CODE_OAUTH_TOKEN` |
-| Codex | `OPENAI_API_KEY` or `CODEX_API_KEY` |
+| Codex | `OPENAI_API_KEY` / `CODEX_API_KEY`, or ChatGPT device sign-in in Providers |
 | Gemini | `GEMINI_API_KEY` |
 | GitHub Copilot | `COPILOT_GITHUB_TOKEN` (fine-grained PAT with **Copilot Requests**; not a classic `ghp_` token) |
 

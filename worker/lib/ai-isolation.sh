@@ -345,6 +345,13 @@ ai_isolation_exec() {
         bwrap_args+=(--tmpfs "$secret_dir")
     done < <(ai_isolation_secret_dirs)
 
+    # Codex must refresh account tokens on the shared persistent volume.
+    # Only this provider's auth home is writable; the rest of config stays read-only.
+    if [[ "${AI_CODEX_AUTH_MODE:-}" == "chatgpt" && -n "${CODEX_HOME:-}" \
+        && "$CODEX_HOME" == "${AI_CODEX_ACCOUNT_HOME:-}" && -d "$CODEX_HOME" ]]; then
+        bwrap_args+=(--bind "$CODEX_HOME" "$CODEX_HOME")
+    fi
+
     # Workspace must be writable and must win over any earlier ro-bind of a parent.
     bwrap_args+=(--bind "$workspace" "$workspace")
     if [[ "$confine_ws" -eq 1 ]]; then
