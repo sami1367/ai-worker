@@ -447,6 +447,14 @@ ai_assert_only_allowed_changes() {
         # and bash errors with "bad array subscript" on allowed[].
         status_path="${status_path%/}"
         [[ -z "$status_path" ]] && continue
+        # CodeGraph is a worker-generated local cache, prepared before the
+        # agent runs. Ignore only untracked cache files; tracked changes here
+        # still need to pass the artifact policy like any repository file.
+        if [[ "${line:0:2}" == "??" ]]; then
+            case "$status_path" in
+                .codegraph | .codegraph/*) continue ;;
+            esac
+        fi
         base="${status_path##*/}"
 
         if [[ -n "${allowed[$status_path]:-}" || ( -n "$base" && -n "${allowed[$base]:-}" ) ]]; then

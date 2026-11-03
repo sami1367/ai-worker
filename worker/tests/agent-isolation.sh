@@ -271,12 +271,27 @@ pass "8. review/answer-only workflows reject implementation file changes"
 # Untracked dirs (git porcelain "?? .codegraph/") must not crash on empty basename.
 mkdir -p "$NC/.codegraph"
 touch "$NC/.codegraph/.gitignore"
+ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md" || fail "worker CodeGraph cache rejected"
+echo hack >"$NC/src.c"
+if ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md"; then
+    fail "CodeGraph cache must not hide unauthorized source edits"
+fi
+rm -f "$NC/src.c"
+git -C "$NC" add -f .codegraph/.gitignore
+git -C "$NC" commit -q -m "tracked cache fixture"
+echo changed >"$NC/.codegraph/.gitignore"
+if ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md"; then
+    fail "tracked CodeGraph file edits should be rejected"
+fi
+git -C "$NC" checkout -- .codegraph/.gitignore
+mkdir -p "$NC/.other-tool"
+touch "$NC/.other-tool/cache"
 if ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md"; then
     fail "untracked tooling dir should be rejected"
 fi
-rm -rf "$NC/.codegraph"
+rm -rf "$NC/.other-tool"
 ai_assert_only_allowed_changes "$NC" ".ai-pr-review.md" || fail "review artifact rejected after dir cleanup"
-pass "8b. untracked directory paths do not trigger bad array subscript"
+pass "8b. CodeGraph cache allowed while tracked and unrelated changes are rejected"
 
 # ----- 9. failure cleanup does not leak credentials into logs we emit -----
 # Ensure our phase logger never prints token values.
