@@ -1,3 +1,4 @@
+import { codexHome, codexChatgptConnected } from './codex-auth'
 import { chmod, mkdir, rename, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { providerConfigs } from '#db/schema'
@@ -68,6 +69,7 @@ export async function exportProviderCredentialsForWorker(): Promise<{
   const cursor = rows.find((r) => r.providerType === 'cursor')
   const claude = rows.find((r) => r.providerType === 'claude')
   const codex = rows.find((r) => r.providerType === 'codex')
+  const codexChatgpt = codex?.config?.credentialType === 'chatgpt'
   const gemini = rows.find((r) => r.providerType === 'gemini')
   const copilot = rows.find((r) => r.providerType === 'copilot')
 
@@ -148,6 +150,8 @@ export async function exportProviderCredentialsForWorker(): Promise<{
     anthropicCustomHeaders
       ? `export ANTHROPIC_CUSTOM_HEADERS=${shellQuote(anthropicCustomHeaders)}`
       : '# ANTHROPIC_CUSTOM_HEADERS unset',
+    `export AI_CODEX_AUTH_MODE=${shellQuote(codexChatgpt ? 'chatgpt' : 'api')}`,
+    `export AI_CODEX_ACCOUNT_HOME=${shellQuote(codexHome())}`,
     openaiKey ? `export OPENAI_API_KEY=${shellQuote(openaiKey)}` : '# OPENAI_API_KEY unset',
     openaiKey ? `export CODEX_API_KEY=${shellQuote(openaiKey)}` : '# CODEX_API_KEY unset',
     geminiKey ? `export GEMINI_API_KEY=${shellQuote(geminiKey)}` : '# GEMINI_API_KEY unset',
@@ -163,7 +167,7 @@ export async function exportProviderCredentialsForWorker(): Promise<{
     path: target,
     cursor: Boolean(cursorKey),
     claude: Boolean(anthropicKey || claudeOauth),
-    codex: Boolean(openaiKey),
+    codex: codexChatgpt ? codexChatgptConnected() : Boolean(openaiKey),
     gemini: Boolean(geminiKey),
     copilot: Boolean(copilotToken),
   }

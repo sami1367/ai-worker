@@ -22,7 +22,8 @@ ai_codex_detect() {
 #   --sandbox            : workspace-write so the agent can edit files
 #   --json               : JSONL events on stdout (token usage + progress)
 #   --ephemeral          : do not persist a local session under CODEX_HOME
-# Auth: CODEX_API_KEY (preferred for exec) and/or OPENAI_API_KEY from
+# Auth: AI_CODEX_AUTH_MODE=chatgpt uses the persisted account cache; API mode
+# uses CODEX_API_KEY (preferred for exec) and/or OPENAI_API_KEY from
 # provider-credentials.env. Isolation still strips forge tokens.
 ai_codex_run() {
     local workspace="$1"
@@ -71,12 +72,38 @@ ai_codex_run() {
         cmd+=("${extra[@]}")
     fi
 
+    # Explicitly enforce the selected method even when both credentials exist.
+    case "${AI_CODEX_AUTH_MODE:-api}" in
+        chatgpt)
+            if [[ -z "${AI_CODEX_ACCOUNT_HOME:-}" || ! -f "$AI_CODEX_ACCOUNT_HOME/auth.json" ]]; then
+                echo "ERROR: Sign in with ChatGPT in the Providers panel before running Codex." >&2
+                return 1
+            fi
+            cmd+=(-c 'forced_login_method="chatgpt"' -c 'cli_auth_credentials_store="file"')
+            ;;
+        api)
+            if [[ -z "${CODEX_API_KEY:-${OPENAI_API_KEY:-}}" ]]; then
+                echo "ERROR: Configure a Codex API key or select ChatGPT login in Providers." >&2
+                return 1
+            fi
+            cmd+=(-c 'forced_login_method="api"')
+            ;;
+        *)
+            echo "ERROR: Invalid AI_CODEX_AUTH_MODE (expected api or chatgpt)." >&2
+            return 1
+            ;;
+    esac
+
     cmd+=("$(cat "$prompt_file")")
 
     # Isolation wraps only the agent binary; tee stays in the trusted parent.
     # Prefer CODEX_API_KEY for non-interactive exec when only OPENAI_API_KEY is set.
     (
-        if [[ -z "${CODEX_API_KEY:-}" && -n "${OPENAI_API_KEY:-}" ]]; then
+        unset CODEX_ACCESS_TOKEN
+        if [[ "${AI_CODEX_AUTH_MODE:-api}" == "chatgpt" ]]; then
+            unset CODEX_API_KEY OPENAI_API_KEY CODEX_ACCESS_TOKEN OPENAI_BASE_URL
+            export CODEX_HOME="$AI_CODEX_ACCOUNT_HOME"
+        elif [[ -z "${CODEX_API_KEY:-}" && -n "${OPENAI_API_KEY:-}" ]]; then
             export CODEX_API_KEY="$OPENAI_API_KEY"
         fi
         ai_isolation_exec "$workspace" -- "${cmd[@]}"

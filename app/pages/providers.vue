@@ -14,6 +14,7 @@ function notify(title: string, error = false) {
 type Draft = {
   secret: string
   credentialType: 'anthropic_api_key' | 'claude_oauth_token'
+  codexAuthMode: 'openai_api_key' | 'chatgpt'
   anthropicWorkspaceId: string
   model: string
   showConnect: boolean
@@ -80,6 +81,7 @@ function draftFor(providerType: string): Draft {
     drafts[providerType] = {
       secret: '',
       credentialType: 'anthropic_api_key',
+      codexAuthMode: 'openai_api_key',
       anthropicWorkspaceId: '',
       model: '',
       showConnect: false,
@@ -116,6 +118,7 @@ function claudeConfigPatch(d: Draft): Record<string, unknown> {
 watchEffect(() => {
   for (const p of data.value?.items || []) {
     const d = draftFor(p.providerType)
+    if (p.providerType === 'codex') d.codexAuthMode = p.config?.credentialType === 'chatgpt' ? 'chatgpt' : 'openai_api_key'
     const existing = p.config?.credentialType
     if (existing === 'claude_oauth_token' || existing === 'anthropic_api_key') {
       d.credentialType = existing
@@ -261,7 +264,11 @@ function credentialTypeForConnect(p: any, d: Draft): string {
 
 async function connect(p: any) {
   const d = draftFor(p.providerType)
-  if (!d.secret.trim()) {
+  if (p.providerType === 'codex' && d.codexAuthMode === 'chatgpt') {
+    await startChatgptLogin()
+    return
+  }
+  if (!d.secret.trim() && !(p.providerType === 'codex' && p.hasApiKey)) {
     notify('Paste a credential before connecting', true)
     return
   }
@@ -297,11 +304,19 @@ async function connect(p: any) {
 async function disconnect(p: any) {
   busy.value = `disconnect-${p.providerType}`
   try {
-    await api(`/api/v1/providers/${p.providerType}`, {
-      method: 'PATCH',
-      body: { secret: null },
-    })
-    notify(`${p.displayName} disconnected. Stored secret cleared.`)
+    if (p.providerType === 'codex' && p.config?.credentialType === 'chatgpt') {
+      clearTimeout(loginPoll)
+      loginGeneration++
+      await api('/api/v1/providers/codex/login', { method: 'DELETE' })
+      codexLogin.value = { status: 'idle', connected: false }
+    } else {
+      await api(`/api/v1/providers/${p.providerType}`, {
+        method: 'PATCH', body: { secret: null },
+      })
+    }
+    notify(p.providerType === 'codex' && p.config?.credentialType === 'chatgpt'
+      ? 'Codex disconnected. ChatGPT session removed.'
+      : `${p.displayName} disconnected. Stored secret cleared.`)
     await refresh()
     await refreshNuxtData('setup-readiness')
   } catch (e: any) {
@@ -311,12 +326,99 @@ async function disconnect(p: any) {
   }
 }
 
+type CodexLogin = {
+  status: 'idle' | 'starting' | 'pending' | 'success' | 'error'
+  connected?: boolean
+  verificationUrl?: string
+  userCode?: string
+  message?: string
+}
+const codexLogin = ref<CodexLogin>({ status: 'idle' })
+const codexLoginBusy = ref(false)
+let loginPoll: ReturnType<typeof setTimeout> | undefined
+let disposed = false
+let loginGeneration = 0
+
+function loginError(error: unknown, fallback: string): string {
+  const message = (error as { data?: { message?: unknown } })?.data?.message
+  return typeof message === 'string' ? message : fallback
+}
+
+async function finishChatgptLogin() {
+  await api('/api/v1/providers/codex/login-complete', { method: 'POST' })
+  codexLogin.value = { status: 'idle', connected: true }
+  draftFor('codex').showConnect = false
+  notify('Codex connected with ChatGPT. Coding jobs use your plan’s Codex allowance.')
+  await refresh()
+  await refreshNuxtData('setup-readiness')
+}
+
+async function pollChatgptLogin(generation = loginGeneration) {
+  try {
+    const state = await api<CodexLogin>('/api/v1/providers/codex/login')
+    if (disposed || generation !== loginGeneration) return
+    codexLogin.value = state
+    if (codexLogin.value.status === 'success') {
+      await finishChatgptLogin()
+    } else if (['starting', 'pending'].includes(codexLogin.value.status)) {
+      loginPoll = setTimeout(() => pollChatgptLogin(generation), 2000)
+    }
+  } catch (e: unknown) {
+    if (disposed || generation !== loginGeneration) return
+    codexLogin.value = { status: 'error', message: loginError(e, 'Could not check login. Retry or reload the page.') }
+  }
+}
+
+async function startChatgptLogin() {
+  codexLoginBusy.value = true
+  clearTimeout(loginPoll)
+  loginGeneration++
+  try {
+    codexLogin.value = await api<CodexLogin>('/api/v1/providers/codex/login')
+    if (codexLogin.value.connected) {
+      await finishChatgptLogin()
+    } else {
+      codexLogin.value = await api<CodexLogin>('/api/v1/providers/codex/login', { method: 'POST' })
+      await pollChatgptLogin()
+    }
+  } catch (e: unknown) {
+    notify(loginError(e, 'Could not start ChatGPT login'), true)
+  } finally {
+    codexLoginBusy.value = false
+  }
+}
+
+async function cancelChatgptLogin() {
+  codexLoginBusy.value = true
+  clearTimeout(loginPoll)
+  loginGeneration++
+  try {
+    await api('/api/v1/providers/codex/login', { method: 'DELETE' })
+    codexLogin.value = { status: 'idle', connected: false }
+    await refresh()
+    await refreshNuxtData('setup-readiness')
+  } catch (e: unknown) {
+    notify(loginError(e, 'Could not cancel login'), true)
+  } finally {
+    codexLoginBusy.value = false
+  }
+}
+
+onMounted(() => { void pollChatgptLogin() })
+onBeforeUnmount(() => {
+  disposed = true
+  loginGeneration++
+  clearTimeout(loginPoll)
+})
+
 function secretHint(p: any): string {
   if (p.providerType === 'cursor') {
     return 'Cursor API key (CURSOR_API_KEY). Create one in Cursor dashboard → Settings → API Keys.'
   }
   if (p.providerType === 'codex') {
-    return 'OpenAI API key (OPENAI_API_KEY / CODEX_API_KEY) from platform.openai.com/api-keys'
+    return p.hasApiKey
+      ? 'An API key is already configured. Leave blank to reuse it, or paste a replacement.'
+      : 'OpenAI API key from platform.openai.com/api-keys'
   }
   if (p.providerType === 'gemini') {
     return 'Gemini API key (GEMINI_API_KEY) from aistudio.google.com/apikey'
@@ -362,7 +464,8 @@ function claudeAuthSummary(p: any): string {
       <h1 class="font-display text-3xl tracking-tight">AI providers</h1>
       <p class="mt-1 text-sm opacity-70">
         Enable and connect at least one agent, then set a default.
-        Secrets are encrypted at rest and never shown again after save.
+        API keys are encrypted at rest and never shown again after save.
+        ChatGPT sessions are saved privately on this server.
         You can also set the matching variables in compose
         <code class="text-xs">.env</code> (UI/DB values override env when both are set).
         See <code class="text-xs">docs/AI_PROVIDERS.md</code> in the repository for the full auth guide.
@@ -417,7 +520,7 @@ function claudeAuthSummary(p: any): string {
               <strong class="opacity-100">Codex</strong> —
               OpenAI API key from platform.openai.com →
               <code class="text-xs">OPENAI_API_KEY</code> /
-              <code class="text-xs">CODEX_API_KEY</code>.
+              <code class="text-xs">CODEX_API_KEY</code>, or choose ChatGPT login below and complete the device code sign-in.
             </li>
             <li>
               <strong class="opacity-100">Gemini</strong> —
@@ -461,6 +564,7 @@ function claudeAuthSummary(p: any): string {
               <span class="opacity-60">Connected:</span>
               <template v-if="p.secretSource === 'stored'"> yes (secret stored)</template>
               <template v-else-if="p.secretSource === 'env'"> yes (from environment)</template>
+              <template v-else-if="p.secretSource === 'chatgpt'"> yes (ChatGPT account)</template>
               <template v-else> no</template>
             </p>
             <p class="text-sm"><span class="opacity-60">Version:</span> {{ p.detectedVersion || 'unavailable' }}</p>
@@ -497,7 +601,32 @@ function claudeAuthSummary(p: any): string {
               </UFormField>
             </div>
 
+            <div v-if="p.providerType === 'codex'" class="space-y-2 text-sm">
+              <p class="opacity-70">
+                Auth: {{ p.config?.credentialType === 'chatgpt' ? 'ChatGPT account' : 'OpenAI API key' }}.
+                ChatGPT login uses your plan’s Codex allowance and limits. Create Tasks planning requires an API provider.
+              </p>
+              <div v-if="['starting', 'pending'].includes(codexLogin.status)" class="rounded-lg border border-default p-3 space-y-2" aria-live="polite">
+                <p v-if="codexLogin.status === 'starting'">Preparing ChatGPT sign-in…</p>
+                <template v-else>
+                  <p>Open the sign-in page and enter this one-time code:</p>
+                  <code class="block text-xl font-bold select-all">{{ codexLogin.userCode }}</code>
+                  <a :href="codexLogin.verificationUrl" target="_blank" rel="noopener noreferrer" class="underline">Open ChatGPT sign-in</a>
+                  <p class="opacity-70">Waiting for sign-in. Enable device code login in ChatGPT security settings if asked.</p>
+                </template>
+                <UButton size="sm" variant="ghost" :loading="codexLoginBusy" @click="cancelChatgptLogin">Cancel sign-in</UButton>
+              </div>
+              <p v-if="codexLogin.status === 'error'" role="alert" class="text-error">{{ codexLogin.message }}</p>
+            </div>
+
             <div v-if="draftFor(p.providerType).showConnect" class="space-y-3 border-t border-default/40 pt-3">
+              <UFormField v-if="p.providerType === 'codex'" label="Sign-in method">
+                <USelect
+                  v-model="draftFor(p.providerType).codexAuthMode"
+                  :items="[{ label: 'ChatGPT account', value: 'chatgpt' }, { label: 'OpenAI API key', value: 'openai_api_key' }]"
+                  class="w-full"
+                />
+              </UFormField>
               <UFormField
                 v-if="p.providerType === 'claude'"
                 label="Credential type"
@@ -508,7 +637,7 @@ function claudeAuthSummary(p: any): string {
                   :items="CLAUDE_CREDENTIAL_ITEMS"
                 />
               </UFormField>
-              <UFormField :label="secretLabel(p)" :hint="secretHint(p)">
+              <UFormField v-if="p.providerType !== 'codex' || draftFor(p.providerType).codexAuthMode !== 'chatgpt'" :label="secretLabel(p)" :hint="secretHint(p)">
                 <UInput
                   v-model="draftFor(p.providerType).secret"
                   type="password"
@@ -532,10 +661,11 @@ function claudeAuthSummary(p: any): string {
               <div class="flex flex-wrap gap-2">
                 <UButton
                   size="sm"
-                  :loading="busy === `connect-${p.providerType}`"
+                  :loading="busy === `connect-${p.providerType}` || (p.providerType === 'codex' && codexLoginBusy)"
+                  :disabled="p.providerType === 'codex' && ['starting', 'pending'].includes(codexLogin.status)"
                   @click="connect(p)"
                 >
-                  {{ p.hasSecret ? 'Replace & connect' : 'Connect' }}
+                  {{ p.providerType === 'codex' && draftFor(p.providerType).codexAuthMode === 'chatgpt' ? (codexLogin.connected ? 'Use ChatGPT account' : 'Sign in with ChatGPT') : p.hasSecret ? 'Replace & connect' : 'Connect' }}
                 </UButton>
                 <UButton
                   size="sm"
@@ -588,10 +718,10 @@ function claudeAuthSummary(p: any): string {
                 variant="soft"
                 @click="draftFor(p.providerType).showConnect = true"
               >
-                {{ p.hasSecret ? 'Update secret' : 'Connect' }}
+                {{ p.providerType === 'codex' ? 'Connect / change sign-in' : p.hasSecret ? 'Update secret' : 'Connect' }}
               </UButton>
               <UButton
-                v-if="p.hasStoredSecret"
+                v-if="p.hasStoredSecret || (p.providerType === 'codex' && p.config?.credentialType === 'chatgpt' && p.hasSecret)"
                 size="sm"
                 color="error"
                 variant="ghost"
