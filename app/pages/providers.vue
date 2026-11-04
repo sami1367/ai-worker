@@ -604,7 +604,7 @@ function claudeAuthSummary(p: any): string {
             <div v-if="p.providerType === 'codex'" class="space-y-2 text-sm">
               <p class="opacity-70">
                 Auth: {{ p.config?.credentialType === 'chatgpt' ? 'ChatGPT account' : 'OpenAI API key' }}.
-                ChatGPT login uses your plan’s Codex allowance and limits. Create Tasks planning requires an API provider.
+                ChatGPT login uses your plan’s Codex allowance and limits. Create Tasks planning also uses this ChatGPT login.
               </p>
               <div v-if="['starting', 'pending'].includes(codexLogin.status)" class="rounded-lg border border-default p-3 space-y-2" aria-live="polite">
                 <p v-if="codexLogin.status === 'starting'">Preparing ChatGPT sign-in…</p>
