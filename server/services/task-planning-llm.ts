@@ -1,3 +1,5 @@
+import { callCodexPlanning } from './task-planning-codex'
+import { codexChatgptConnected } from './codex-auth'
 import { eq } from 'drizzle-orm'
 import { providerConfigs } from '#db/schema'
 import { getDb } from '#utils/db'
@@ -24,6 +26,7 @@ export type PlanningProvider = {
 
 type ResolvedCreds = PlanningProvider & {
   apiKey: string
+  transport?: 'codex-cli'
   anthropicHeaders?: string
 }
 
@@ -40,7 +43,7 @@ function envKeyFor(providerType: 'claude' | 'codex' | 'gemini'): string {
 }
 
 /**
- * Resolve an HTTP-capable planning provider (Claude / Codex / Gemini).
+ * Resolve a planning provider, including Codex CLI ChatGPT sessions.
  * Cursor and Copilot CLIs are not used for Create Tasks chat.
  */
 export async function resolvePlanningProvider(
@@ -55,8 +58,19 @@ export async function resolvePlanningProvider(
   for (const type of PLANNING_ORDER) {
     const row = rows.find((r) => r.providerType === type)
     if (!row || !row.isEnabled) continue
-    // ChatGPT Codex sessions are CLI credentials, never general OpenAI API keys.
-    if (type === 'codex' && row.config?.credentialType === 'chatgpt') continue
+    // Keep account mode on the CLI; never fall back to retained API keys.
+    if (type === 'codex' && row.config?.credentialType === 'chatgpt') {
+      if (codexChatgptConnected()) {
+        candidates.push({
+          providerType: 'codex',
+          model: providerModelFromConfig(row.config as Record<string, unknown>) || '',
+          displayName: row.displayName,
+          transport: 'codex-cli',
+          apiKey: '',
+        })
+      }
+      continue
+    }
 
     let apiKey = ''
     if (row.secretCiphertext && key) {
@@ -117,7 +131,7 @@ export async function resolvePlanningProvider(
   if (!candidates.length) {
     throw new AppError(
       400,
-      'Create Tasks needs Claude, Codex, or Gemini connected with an API key. Cursor and Copilot CLIs cannot power this chat. Open Providers and connect one of those three.',
+      'Create Tasks needs a connected Codex ChatGPT account or Claude, Codex, or Gemini API key. Cursor and Copilot CLIs cannot power this chat. Open Providers and connect one of those three.',
       'planning_provider_missing',
     )
   }
@@ -138,7 +152,9 @@ export async function callPlanningLlm(opts: {
   preferProviderType?: string | null
 }): Promise<{ text: string, provider: PlanningProvider }> {
   const creds = await resolvePlanningProvider(opts.preferProviderType)
-  const text = creds.providerType === 'claude'
+  const text = creds.transport === 'codex-cli'
+    ? await callCodexPlanning(opts.messages, creds.model)
+    : creds.providerType === 'claude'
     ? await callAnthropic(creds, opts.messages)
     : creds.providerType === 'codex'
       ? await callOpenAi(creds, opts.messages)

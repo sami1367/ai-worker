@@ -72,6 +72,9 @@ describe('Codex provider authentication modes', () => {
   it('does not silently charge retained API keys for planning when ChatGPT mode is selected', async () => {
     rows([row('chatgpt')])
     await expect(resolvePlanningProvider('codex')).rejects.toThrow('API key')
+    await connect()
+    await expect(resolvePlanningProvider('codex')).resolves.toMatchObject({ transport: 'codex-cli', model: '', providerType: 'codex' })
+    expect((await resolvePlanningProvider('codex')).apiKey).toBe('')
     rows([row('openai_api_key')])
     await expect(resolvePlanningProvider('codex')).resolves.toMatchObject({ apiKey: 'test-api-key', providerType: 'codex' })
   })
