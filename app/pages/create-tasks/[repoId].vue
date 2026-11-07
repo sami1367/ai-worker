@@ -262,7 +262,8 @@ function onKeydown(e: KeyboardEvent) {
           {{ t('createTasks.workspaceCloningHint') }}
         </p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <ConversationCopyButton :key="session?.id" :messages="session?.messages || []" :disabled="Boolean(busy)" />
         <UButton
           variant="soft"
           color="neutral"
@@ -315,15 +316,16 @@ function onKeydown(e: KeyboardEvent) {
           :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
         >
           <div
-            class="max-w-[min(48rem,92%)] rounded-2xl px-4 py-3 text-sm leading-relaxed"
+            class="min-w-0 max-w-[min(48rem,92%)] rounded-2xl px-4 py-3 text-sm leading-relaxed"
             :class="msg.role === 'user'
               ? 'bg-[color-mix(in_oklab,var(--aw-accent)_18%,transparent)]'
               : 'bg-black/5 dark:bg-white/5'"
           >
-            <p class="mb-1 text-xs font-medium opacity-60">
-              {{ msg.role === 'user' ? t('createTasks.you') : t('createTasks.assistant') }}
-            </p>
-            <div class="whitespace-pre-wrap break-words">{{ msg.content }}</div>
+            <div class="mb-2 flex items-center justify-between gap-4">
+              <p class="text-xs font-medium opacity-60">{{ msg.role === 'user' ? t('createTasks.you') : t('createTasks.assistant') }}</p>
+              <MessageCopyButton :content="msg.content" />
+            </div>
+            <ChatMarkdown :content="msg.content" />
           </div>
         </div>
         <div v-if="busy === 'send' || busy === 'generate' || busy === 'regenerate' || busy === 'approve'" class="flex justify-start">

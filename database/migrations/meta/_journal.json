@@ -85,6 +85,27 @@
       "when": 1792800000000,
       "tag": "0011_task_planning_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0012_project_chat_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0013_microservice_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793100000000,
+      "tag": "0014_chat_work",
+      "breakpoints": true
     }
   ]
 }

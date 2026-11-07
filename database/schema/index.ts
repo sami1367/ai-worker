@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   boolean,
   index,
@@ -480,4 +481,86 @@ export const taskPlanningSessions = pgTable('task_planning_sessions', {
   index('task_planning_sessions_repo_idx').on(t.repositoryId),
   index('task_planning_sessions_status_idx').on(t.status),
   index('task_planning_sessions_created_idx').on(t.createdAt),
+])
+
+/** Project conversations are private to their creator and separate from task planning. */
+export const projectChatSessions = pgTable('project_chat_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  repositoryId: uuid('repository_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default('New chat'),
+  messages: jsonb('messages').$type<TaskPlanningMessage[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+}, (t) => [index('project_chat_sessions_owner_repo_idx').on(t.createdByUserId, t.repositoryId)])
+
+export const microserviceGroups = pgTable('microservice_groups', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description').notNull().default(''),
+  projects: jsonb('projects').$type<import('../../shared/microservices').MicroserviceProject[]>().notNull(),
+  codegraphEnabled: boolean('codegraph_enabled').notNull().default(true),
+  workspaceStatus: varchar('workspace_status', { length: 32 }).notNull().default('queued'),
+  codegraphStatus: varchar('codegraph_status', { length: 32 }).notNull().default('pending'),
+  lastError: text('last_error'),
+  preparedAt: timestamp('prepared_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('microservice_groups_owner_idx').on(t.createdByUserId)])
+
+export const microserviceChatSessions = pgTable('microservice_chat_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  groupId: uuid('group_id').notNull().references(() => microserviceGroups.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default('New chat'),
+  messages: jsonb('messages').$type<TaskPlanningMessage[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('microservice_chat_sessions_group_owner_idx').on(t.groupId, t.createdByUserId)])
+
+/** Local, reviewable plans; these never create forge issues. */
+export const chatWorkStates = pgTable('chat_work_states', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  projectSessionId: uuid('project_session_id').references(() => projectChatSessions.id, { onDelete: 'cascade' }),
+  microserviceSessionId: uuid('microservice_session_id').references(() => microserviceChatSessions.id, { onDelete: 'cascade' }),
+  mode: varchar('mode', { length: 16 }).notNull().default('chat'),
+  revision: integer('revision').notNull().default(0),
+  tasks: jsonb('tasks').$type<import('../../shared/chat-work').ChatWorkTask[]>().notNull().default([]),
+  repositorySnapshot: jsonb('repository_snapshot').$type<import('../../shared/chat-work').ChatWorkRepository[]>().notNull().default([]),
+  sourceFingerprint: text('source_fingerprint'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex('chat_work_states_project_uidx').on(t.projectSessionId),
+  uniqueIndex('chat_work_states_microservice_uidx').on(t.microserviceSessionId),
+])
+
+export const chatWorkRuns = pgTable('chat_work_runs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  stateId: uuid('state_id').notNull().references(() => chatWorkStates.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  chatUrl: text('chat_url').notNull(),
+  planRevision: integer('plan_revision').notNull(),
+  tasks: jsonb('tasks').$type<import('../../shared/chat-work').ChatWorkTask[]>().notNull(),
+  repositorySnapshot: jsonb('repository_snapshot').$type<import('../../shared/chat-work').ChatWorkRepository[]>().notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(),
+  codegraphEnabled: boolean('codegraph_enabled').notNull().default(true),
+  status: varchar('status', { length: 32 }).notNull().default('queued'),
+  workerId: text('worker_id'),
+  leaseToken: uuid('lease_token'),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  agentCompletedAt: timestamp('agent_completed_at', { withTimezone: true }),
+  results: jsonb('results').$type<import('../../shared/chat-work').ChatWorkResult[]>().notNull().default([]),
+  errorSummary: text('error_summary'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex('chat_work_runs_plan_uidx').on(t.stateId, t.planRevision),
+  uniqueIndex('chat_work_runs_active_uidx').on(t.stateId).where(sql`${t.status} IN ('queued', 'preparing', 'running', 'publishing')`),
+  index('chat_work_runs_owner_status_idx').on(t.createdByUserId, t.status),
 ])

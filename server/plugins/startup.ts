@@ -1,4 +1,6 @@
+import { startChatWorkRecovery } from '#services/chat-work-execution'
 import { checkDatabaseConnectivity } from '#utils/db'
+import { startMicroserviceWorkspaceWorker } from '#services/microservice-groups'
 import { startWorkspaceOperationWorker } from '#services/workspace-manager'
 import { startDiscoveryScheduler } from '#services/discovery-scheduler'
 import { startQueueScheduler } from '#services/queue-scheduler'
@@ -69,6 +71,8 @@ export default defineNitroPlugin(async () => {
 
   try {
     startWorkspaceOperationWorker()
+    startMicroserviceWorkspaceWorker()
+    startChatWorkRecovery()
   } catch (err) {
     console.warn('[startup] Workspace worker not started:', err instanceof Error ? err.message : err)
   }

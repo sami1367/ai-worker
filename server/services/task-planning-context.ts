@@ -101,7 +101,7 @@ async function tryCodegraphSummary(root: string, epicHint: string): Promise<stri
   try {
     const { stdout } = await execFileAsync(
       'codegraph',
-      ['explore', '--json', epicHint.slice(0, 200) || 'project architecture overview modules'],
+      ['explore', epicHint.slice(0, 200) || 'project architecture overview modules'],
       {
         cwd: root,
         timeout: 12_000,
@@ -132,6 +132,8 @@ export async function buildRepoCodeContext(opts: {
   localPath: string | null | undefined
   workspaceStatus?: string | null
   epicHint?: string
+  codegraphEnabled?: boolean
+  prepareCodegraph?: boolean
 }): Promise<{ summary: string, available: boolean }> {
   const root = opts.localPath?.trim()
   if (!root || opts.workspaceStatus === 'not_cloned' || opts.workspaceStatus === 'failed') {
@@ -153,12 +155,25 @@ export async function buildRepoCodeContext(opts: {
     }
   }
 
+  if (opts.prepareCodegraph && opts.codegraphEnabled !== false) {
+    try {
+      await stat(join(root, '.codegraph'))
+    } catch {
+      try {
+        await execFileAsync('codegraph', ['init', '-y'], { cwd: root, timeout: 120_000, maxBuffer: 512_000 })
+      } catch {
+        // Context remains usable when CodeGraph is unavailable.
+      }
+    }
+  }
+
   const tree: string[] = []
   await walkTree(root, root, tree, 0)
   const keyFiles = await readKeyFiles(root)
-  const codegraph = await tryCodegraphSummary(root, opts.epicHint || '')
+  const codegraph = opts.codegraphEnabled === false ? null : await tryCodegraphSummary(root, opts.epicHint || '')
 
   const parts = [
+    ...(opts.prepareCodegraph ? [codegraph ? 'CodeGraph context available.' : opts.codegraphEnabled === false ? 'CodeGraph is disabled for this repository.' : 'CodeGraph context unavailable; using the repository snapshot.'] : []),
     '## Repository file tree (sampled)',
     tree.length ? tree.map((t) => `- ${t}`).join('\n') : '- (empty or unreadable)',
     '',

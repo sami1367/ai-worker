@@ -49,3 +49,96 @@ Optional: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` (e
 ## Secrets in images
 
 Local `.env` is excluded by `.dockerignore` and is never pushed to Hub. Do not commit real `.env` files.
+
+### Project chat
+
+The **Project chat** sidebar entry (`/project-chat`) opens repository conversations
+separately from Create Tasks. Each signed-in user has their own saved conversations
+per repository, with a New chat button and history for reopening earlier chats.
+Chats use the repository's configured AI provider and refresh code context for each
+question. Opening a chat queues an initial clone when needed and prepares CodeGraph
+when enabled for that repository. If CodeGraph is unavailable, answers use the
+sampled file tree and key manifests; this context is not a full repository snapshot.
+Chats do not create forge issues or run implementation tasks.
+
+Apply migration `0012_project_chat_sessions` with `pnpm db:migrate` before running
+the updated application. This requires the deployment's `DATABASE_URL`.
+
+Both Project Chat and Create Tasks render saved messages as Markdown, including
+headings, emphasis, lists, tables, links, and highlighted fenced code blocks.
+Top-level fenced `mermaid` blocks render as diagrams in the browser. Invalid
+or unavailable diagrams retain their readable source. Markdown HTML is escaped;
+Mermaid uses strict mode and its SVG output is sanitized. Diagram scripts, click
+handlers, and embedded HTML are not supported. AI prompts describe these formats
+and encourage diagrams when useful for explaining project architecture or flows.
+
+### Microservice groups
+
+**Microservices → Group chat** (`/microservices`) provides named groups of 2–20
+registered repositories. Assign preset or custom role labels and descriptions to
+each project. Groups and their conversations are private to their creator; saved
+conversations can be resumed or a new chat started for the same group.
+
+Apply migration `0013_microservice_groups` with `pnpm db:migrate` before starting
+the updated app. The background preparer uses the existing authenticated clone
+queue for missing source workspaces, then creates independent sibling Git clones
+under `$WORKSPACE_ROOT/microservices-<group-id>/<service-name>/`. Duplicate service
+names receive a repository ID suffix. `services.json` records each project's labels,
+description, and commit. Source worker checkouts are not moved or relinked.
+
+CodeGraph indexes the common group directory, including all selected repositories,
+when enabled in the group settings. This setting controls the separate group index
+and does not change per-repository worker settings. If indexing is unavailable,
+chat remains available with sampled code context from every service. The UI shows
+workspace and CodeGraph status, preparation errors, and the snapshot date.
+
+**Sync workspace** refreshes source repositories through the authenticated workspace
+queue, updates the group clones, and rebuilds its index. The preparer resumes queued
+work after application restarts. Failed clones require an explicit retry. Editing
+group membership or labels rebuilds group context and preserves chat history;
+settings apply to future replies. Chats use the first selected project's preferred
+AI provider, with the existing provider fallback behavior, and include service
+prefixes, labels, descriptions, and a fair context budget for every project.
+
+### Chat and Work modes
+
+Project Chat and microservice chats start in **Chat** mode. Switching to **Work**
+shows **Generate tasks** (or **Regenerate tasks**) and **Approve & start work**.
+Generation replaces the local draft from the current conversation and repository
+context; it does not create GitHub/GitLab issues. If the conversation, group, or
+repository configuration changes, regenerate before approving. Approval freezes
+that plan and its repository commits. Duplicate approval cannot enqueue the same
+plan twice, and only one work run per chat can be active.
+
+Apply migration `0014_chat_work` with `pnpm db:migrate`, then restart the web and
+worker services. This migration also normalizes existing project-chat update
+timestamps to JavaScript's millisecond precision for reliable optimistic updates.
+The existing platform worker wrapper now runs a chat-work queue consumer alongside
+the forge-label worker. On host installs, run `worker/platform-wrapper.sh` with
+`WEB_INTERNAL_URL` and `WORKER_INTERNAL_TOKEN` configured; the legacy standalone
+`worker.sh` loop handles only forge tasks.
+
+Approved work runs in the background in
+`$WORKSPACE_ROOT/chat-work-<run-id>/<service-directory>/`, using independent clones
+of all selected repositories and a separate branch in each repository. Single
+projects start from their configured remote default branch; microservice groups
+start from the prepared group snapshot. One coding agent sees the whole directory
+and the approved plan, including which repositories it may edit. Configured AI
+CLI providers, model settings, and the existing agent credential isolation are
+reused. In bubblewrap mode the sibling repositories' Git metadata is read-only to
+the agent. Chat work has a dedicated consumer slot per platform worker. The default
+agent timeout is two hours (`CHAT_WORK_TIMEOUT_SECONDS` can override it).
+
+The trusted orchestrator commits, pushes the run branch without force, and opens
+one PR/MR for each changed repository covered by the plan. Unchanged repositories
+produce no empty requests. Changes to context-only repositories or unexpected Git
+history stop publication. Forge publishing uses each repository's own connection;
+no AI labels are attached, no forge issues are created, and no requests are merged
+automatically. Repository `forcePushToDefault` settings do not apply to chat work.
+
+**Chat work** (`/chat-work`) lists ongoing and finished runs, affected services,
+agent output, publication results, and links back to the exact conversation.
+The conversation also shows a progress/results link in either mode. You may leave
+the page or return to Chat mode while an approved run continues. Lost worker leases mark runs interrupted; completed code can retry publishing
+without rerunning the AI. Partial publication saves per-repository commits and
+request URLs, so retries reuse the same branch/request and skip successful services.

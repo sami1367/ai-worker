@@ -14,11 +14,13 @@
       "#imports": ["./.nuxt/imports"],
       "#db/*": ["./database/*"],
       "#utils/*": ["./server/utils/*"],
+      "#shared/*": ["./shared/*"],
       "#services/*": ["./server/services/*"]
     }
   },
   "include": [
     "server/**/*",
+    "shared/**/*",
     "database/**/*",
     "scripts/**/*",
     "tests/**/*",

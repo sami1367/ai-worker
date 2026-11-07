@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { CHAT_FORMATTING } from './chat-formatting'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import {
   repositories,
@@ -71,13 +72,15 @@ Rules:
 - Write for a PM: plain language, no jargon unless explained.
 - Never claim you already created GitHub/GitLab issues; creation happens only after Approve.
 
+${CHAT_FORMATTING}
+
 Response style: conversational markdown. End with a short "Status:" line that is exactly one of:
 Status: need_clarification
 Status: ready_to_generate
 Status: refining_draft`
 
 /** Queue a clone when Create Tasks opens and the workspace is not usable yet. */
-async function ensurePlanningWorkspace(
+export async function ensurePlanningWorkspace(
   repo: typeof repositories.$inferSelect,
   actor: { id: string, username: string },
 ): Promise<{ queued: boolean, workspaceStatus: string }> {

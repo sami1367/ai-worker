@@ -157,6 +157,22 @@ load_credential_env() {
   fi
 }
 
+CHAT_WORK_PID=""
+CHAT_WORK_GROUP=0
+start_chat_work() {
+  export WEB_INTERNAL_URL WORKER_INTERNAL_TOKEN
+  if [[ -n "$CHAT_WORK_PID" ]] && kill -0 "$CHAT_WORK_PID" 2>/dev/null; then return; fi
+  if command -v setsid >/dev/null 2>&1; then
+    setsid bash "$SCRIPT_DIR/chat-work-loop.sh" >>"$BASE_DIR/logs/chat-work-worker.log" 2>&1 &
+    CHAT_WORK_PID=$!
+    CHAT_WORK_GROUP=1
+  else
+    bash "$SCRIPT_DIR/chat-work-loop.sh" >>"$BASE_DIR/logs/chat-work-worker.log" 2>&1 &
+    CHAT_WORK_PID=$!
+    CHAT_WORK_GROUP=0
+  fi
+}
+
 start_worker() {
   if [[ -n "$WORKER_PID" ]] && kill -0 "$WORKER_PID" 2>/dev/null; then
     return 0
@@ -170,11 +186,23 @@ start_worker() {
     exec "$SCRIPT_DIR/worker.sh"
   ) &
   WORKER_PID=$!
+  start_chat_work
   SHOULD_RUN=1
   heartbeat running || log "WARNING: Could not send worker heartbeat"
 }
 
 stop_worker_graceful() {
+  if [[ -n "$CHAT_WORK_PID" ]]; then
+    kill -TERM "$CHAT_WORK_PID" 2>/dev/null || true
+    local chat_waited=0
+    while kill -0 "$CHAT_WORK_PID" 2>/dev/null && [[ "$chat_waited" -lt 20 ]]; do
+      sleep 1
+      chat_waited=$((chat_waited + 1))
+    done
+    if [[ "$CHAT_WORK_GROUP" -eq 1 ]]; then kill -KILL -- "-$CHAT_WORK_PID" 2>/dev/null || true; else kill -KILL "$CHAT_WORK_PID" 2>/dev/null || true; fi
+    wait "$CHAT_WORK_PID" 2>/dev/null || true
+    CHAT_WORK_PID=""
+  fi
   STOP_REQUESTED=1
   SHOULD_RUN=0
   if [[ -n "$WORKER_PID" ]] && kill -0 "$WORKER_PID" 2>/dev/null; then
@@ -274,6 +302,10 @@ while true; do
         start_worker
       fi
     fi
+  fi
+
+  if [[ "$SHOULD_RUN" -eq 1 && -n "$CHAT_WORK_PID" ]] && ! kill -0 "$CHAT_WORK_PID" 2>/dev/null; then
+    start_chat_work
   fi
 
   if (( now - last_hb >= HEARTBEAT_INTERVAL )); then
