@@ -13,6 +13,8 @@ const busy = ref(false)
 const error = ref('')
 const contextAvailable = ref<boolean | null>(null)
 const chatEl = ref<HTMLElement | null>(null)
+let contextTimer: ReturnType<typeof setInterval> | null = null
+let refreshingContext = false
 
 function errorText(e: unknown) {
   const err = e as { data?: { message?: string }, message?: string }
@@ -75,10 +77,22 @@ await run(async () => {
   else if (chats.value[0]) await open(chats.value[0].id)
   else await newChat()
 })
+onMounted(() => {
+  contextTimer = setInterval(() => {
+    if (contextAvailable.value || busy.value || refreshingContext || !session.value) return
+    refreshingContext = true
+    void api<{ contextAvailable: boolean, repository: { workspaceStatus: string } }>(`/api/v1/project-chat/sessions/${session.value.id}`)
+      .then(result => { contextAvailable.value = result.contextAvailable; workspaceStatus.value = result.repository.workspaceStatus })
+      .catch(() => {})
+      .finally(() => { refreshingContext = false })
+  }, 5000)
+})
+onBeforeUnmount(() => { if (contextTimer) clearInterval(contextTimer) })
+
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-8rem)] min-h-[30rem] flex-col gap-4 aw-fade-in">
+  <div class="flex min-h-[calc(100vh-8rem)] flex-col gap-4 aw-fade-in">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <UButton to="/project-chat" variant="ghost" color="neutral" icon="i-lucide-arrow-left">Projects</UButton>
@@ -87,10 +101,14 @@ await run(async () => {
         <p v-if="workspaceStatus && workspaceStatus !== 'ready'" class="mt-1 text-xs opacity-70">Workspace: {{ workspaceStatus }}. Repository context will load when the workspace is ready.</p>
         <p v-if="contextAvailable === false" class="mt-1 text-xs text-amber-600">Repository context is unavailable. Answers may need more detail from you.</p>
       </div>
-      <UButton icon="i-lucide-plus" :disabled="busy" @click="run(newChat)">New chat</UButton>
+      <div class="flex flex-wrap items-center gap-2">
+        <ConversationCopyButton :key="session?.id" :messages="session?.messages || []" :disabled="busy" />
+        <UButton icon="i-lucide-plus" :disabled="busy" @click="run(newChat)">New chat</UButton>
+      </div>
     </div>
+    <ChatWorkPanel v-if="session" :key="session.id" scope="project" :session-id="session.id" :message-count="session.messages.length" :disabled="busy" :ready="contextAvailable === true" />
     <UAlert v-if="error" color="error" :title="error" />
-    <div class="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+    <div class="flex h-[min(70vh,55rem)] min-h-[30rem] flex-col gap-4 md:flex-row">
       <aside class="aw-panel max-h-40 overflow-y-auto rounded-xl p-3 md:max-h-none md:w-64 md:shrink-0" aria-label="Chat history">
         <h2 class="mb-3 text-sm font-medium">Your conversations</h2>
         <button v-for="chat in chats" :key="chat.id" class="mb-1 block w-full rounded-lg p-2 text-start text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="session?.id === chat.id ? 'bg-black/5 dark:bg-white/10' : ''" :disabled="busy" @click="run(() => open(chat.id))">
@@ -103,7 +121,7 @@ await run(async () => {
           <p v-if="session && !session.messages.length" class="py-12 text-center text-sm opacity-60">Start a conversation about {{ name }}. Your chat is saved automatically.</p>
           <div v-for="msg in session?.messages || []" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
             <div class="min-w-0 max-w-[92%] rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/5">
-              <p class="mb-1 text-xs opacity-60">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</p>
+              <div class="mb-2 flex items-center justify-between gap-4"><p class="text-xs opacity-60">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</p><MessageCopyButton :content="msg.content" /></div>
               <ChatMarkdown :content="msg.content" />
             </div>
           </div>

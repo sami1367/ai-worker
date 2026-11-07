@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { microserviceChatSessions } from '../../database/schema'
 import { createMicroserviceChat, getMicroserviceChat, microserviceChatContext, postMicroserviceChatMessage } from '../../server/services/microservice-chat'
+vi.mock('#services/chat-work-mode', () => ({ chatWorkConversationInstructions: async () => 'Chat mode: discussion only' }))
 const mocks = vi.hoisted(() => ({
   rows: [] as unknown[][], conditions: [] as unknown[], saved: {} as Record<string, unknown>,
   llm: vi.fn(), context: vi.fn(), owned: vi.fn(), projects: vi.fn(), prefer: vi.fn(),

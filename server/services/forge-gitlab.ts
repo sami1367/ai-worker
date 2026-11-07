@@ -843,3 +843,16 @@ export async function testGitLabToken(
     }
   }
 }
+
+/** Reuses a request for the same run branch, including after an interrupted publish. */
+export async function openChatGitLabMergeRequest(opts: { token: string, instanceUrl: string, project: string, branch: string, targetBranch: string, title: string, body: string }) {
+  const project = encodeURIComponent(opts.project)
+  const { data: existing } = await gitlabApi<Array<{ web_url: string }>>(opts.instanceUrl,
+    `/projects/${project}/merge_requests?state=all&source_branch=${encodeURIComponent(opts.branch)}&target_branch=${encodeURIComponent(opts.targetBranch)}`, opts.token)
+  if (existing[0]) return existing[0].web_url
+  const { data: mr } = await gitlabApi<{ web_url: string }>(opts.instanceUrl, `/projects/${project}/merge_requests`, opts.token, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: opts.title.slice(0, 200), description: opts.body.slice(0, 60_000), source_branch: opts.branch, target_branch: opts.targetBranch, remove_source_branch: true }),
+  })
+  return mr.web_url
+}

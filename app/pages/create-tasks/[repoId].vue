@@ -262,7 +262,8 @@ function onKeydown(e: KeyboardEvent) {
           {{ t('createTasks.workspaceCloningHint') }}
         </p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <ConversationCopyButton :key="session?.id" :messages="session?.messages || []" :disabled="Boolean(busy)" />
         <UButton
           variant="soft"
           color="neutral"
@@ -320,9 +321,10 @@ function onKeydown(e: KeyboardEvent) {
               ? 'bg-[color-mix(in_oklab,var(--aw-accent)_18%,transparent)]'
               : 'bg-black/5 dark:bg-white/5'"
           >
-            <p class="mb-1 text-xs font-medium opacity-60">
-              {{ msg.role === 'user' ? t('createTasks.you') : t('createTasks.assistant') }}
-            </p>
+            <div class="mb-2 flex items-center justify-between gap-4">
+              <p class="text-xs font-medium opacity-60">{{ msg.role === 'user' ? t('createTasks.you') : t('createTasks.assistant') }}</p>
+              <MessageCopyButton :content="msg.content" />
+            </div>
             <ChatMarkdown :content="msg.content" />
           </div>
         </div>

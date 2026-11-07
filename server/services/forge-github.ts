@@ -786,3 +786,16 @@ export async function testGitHubToken(token: string): Promise<{
     }
   }
 }
+
+/** Idempotent branch-based publishing for local chat work; creates no issues. */
+export async function openChatGitHubPullRequest(opts: { token: string, fullName: string, branch: string, targetBranch: string, title: string, body: string }) {
+  const repo = normalizeGitHubRepoFullName(opts.fullName)
+  const owner = repo.split('/')[0]!
+  const existing = await githubApi<Array<{ html_url: string }>>(`/repos/${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${opts.branch}`)}&base=${encodeURIComponent(opts.targetBranch)}`, opts.token)
+  if (existing[0]) return existing[0].html_url
+  const pr = await githubApi<{ html_url: string }>(`/repos/${repo}/pulls`, opts.token, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: opts.title.slice(0, 200), body: opts.body.slice(0, 60_000), head: opts.branch, base: opts.targetBranch }),
+  })
+  return pr.html_url
+}

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getProjectChat, postProjectChatMessage } from '../../server/services/project-chat'
+vi.mock('#services/chat-work-mode', () => ({ chatWorkConversationInstructions: async () => 'Chat mode: discussion only' }))
 const mocks = vi.hoisted(() => ({
   rows: [] as unknown[][], conditions: [] as unknown[], saved: {} as Record<string, unknown>,
   llm: vi.fn(), context: vi.fn(), workspace: vi.fn(),

@@ -17,6 +17,7 @@ const links = [
   { to: '/repositories', labelKey: 'nav.repositories', icon: 'i-lucide-git-branch' },
   { to: '/project-chat', labelKey: 'nav.projectChat', icon: 'i-lucide-message-circle' },
   { to: '/create-tasks', labelKey: 'nav.createTasks', icon: 'i-lucide-messages-square' },
+  { to: '/chat-work', labelKey: 'nav.chatWork', icon: 'i-lucide-hammer' },
   { to: '/tasks', labelKey: 'nav.tasks', icon: 'i-lucide-list-checks' },
   { to: '/providers', labelKey: 'nav.providers', icon: 'i-lucide-bot' },
   { to: '/prompts', labelKey: 'nav.prompts', icon: 'i-lucide-scroll-text' },

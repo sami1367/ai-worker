@@ -99,3 +99,46 @@ group membership or labels rebuilds group context and preserves chat history;
 settings apply to future replies. Chats use the first selected project's preferred
 AI provider, with the existing provider fallback behavior, and include service
 prefixes, labels, descriptions, and a fair context budget for every project.
+
+### Chat and Work modes
+
+Project Chat and microservice chats start in **Chat** mode. Switching to **Work**
+shows **Generate tasks** (or **Regenerate tasks**) and **Approve & start work**.
+Generation replaces the local draft from the current conversation and repository
+context; it does not create GitHub/GitLab issues. If the conversation, group, or
+repository configuration changes, regenerate before approving. Approval freezes
+that plan and its repository commits. Duplicate approval cannot enqueue the same
+plan twice, and only one work run per chat can be active.
+
+Apply migration `0014_chat_work` with `pnpm db:migrate`, then restart the web and
+worker services. This migration also normalizes existing project-chat update
+timestamps to JavaScript's millisecond precision for reliable optimistic updates.
+The existing platform worker wrapper now runs a chat-work queue consumer alongside
+the forge-label worker. On host installs, run `worker/platform-wrapper.sh` with
+`WEB_INTERNAL_URL` and `WORKER_INTERNAL_TOKEN` configured; the legacy standalone
+`worker.sh` loop handles only forge tasks.
+
+Approved work runs in the background in
+`$WORKSPACE_ROOT/chat-work-<run-id>/<service-directory>/`, using independent clones
+of all selected repositories and a separate branch in each repository. Single
+projects start from their configured remote default branch; microservice groups
+start from the prepared group snapshot. One coding agent sees the whole directory
+and the approved plan, including which repositories it may edit. Configured AI
+CLI providers, model settings, and the existing agent credential isolation are
+reused. In bubblewrap mode the sibling repositories' Git metadata is read-only to
+the agent. Chat work has a dedicated consumer slot per platform worker. The default
+agent timeout is two hours (`CHAT_WORK_TIMEOUT_SECONDS` can override it).
+
+The trusted orchestrator commits, pushes the run branch without force, and opens
+one PR/MR for each changed repository covered by the plan. Unchanged repositories
+produce no empty requests. Changes to context-only repositories or unexpected Git
+history stop publication. Forge publishing uses each repository's own connection;
+no AI labels are attached, no forge issues are created, and no requests are merged
+automatically. Repository `forcePushToDefault` settings do not apply to chat work.
+
+**Chat work** (`/chat-work`) lists ongoing and finished runs, affected services,
+agent output, publication results, and links back to the exact conversation.
+The conversation also shows a progress/results link in either mode. You may leave
+the page or return to Chat mode while an approved run continues. Lost worker leases mark runs interrupted; completed code can retry publishing
+without rerunning the AI. Partial publication saves per-repository commits and
+request URLs, so retries reuse the same branch/request and skip successful services.

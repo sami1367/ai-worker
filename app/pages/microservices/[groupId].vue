@@ -106,12 +106,14 @@ onBeforeUnmount(() => { if (poll) clearInterval(poll) })
           <UBadge color="neutral" variant="subtle">{{ detail.projects.length }} projects</UBadge>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <ConversationCopyButton :key="session?.id" :messages="session?.messages || []" :disabled="Boolean(busy)" />
         <UButton variant="soft" color="neutral" icon="i-lucide-settings-2" :disabled="Boolean(busy) || preparing" @click="editing = !editing">Edit group</UButton>
         <UButton variant="soft" icon="i-lucide-refresh-cw" :disabled="Boolean(busy) || preparing || !detail" @click="run(prepare, 'prepare')">{{ detail?.group.workspaceStatus === 'failed' ? 'Retry preparation' : 'Sync workspace' }}</UButton>
         <UButton icon="i-lucide-plus" :disabled="Boolean(busy) || !detail" @click="run(newChat, 'new')">New chat</UButton>
       </div>
     </div>
+    <ChatWorkPanel v-if="session" :key="session.id" scope="microservice" :session-id="session.id" :message-count="session.messages.length" :disabled="Boolean(busy)" :ready="detail?.group.workspaceStatus === 'ready'" />
     <UAlert v-if="error" color="error" :title="error" />
     <UAlert v-if="detail?.group.lastError" :color="detail.group.workspaceStatus === 'failed' ? 'error' : 'warning'" :title="detail.group.lastError" />
     <UAlert v-if="preparing" color="info" title="Preparing the group workspace" description="Cloning projects and building repository context in the background. You can read previous chats while preparation runs. This page updates automatically." />
@@ -145,7 +147,7 @@ onBeforeUnmount(() => { if (poll) clearInterval(poll) })
         <div ref="chatEl" role="log" aria-live="polite" aria-label="Group conversation" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
           <div v-if="session && !session.messages.length" class="py-10 text-center text-sm opacity-60"><p>Ask about the whole system.</p><p class="mt-2">For example: “How does a request move between these services?” or “Which projects handle authentication?”</p></div>
           <div v-for="msg in session?.messages || []" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
-            <div class="min-w-0 max-w-[92%] rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/5"><p class="mb-1 text-xs opacity-60">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</p><ChatMarkdown :content="msg.content" /></div>
+            <div class="min-w-0 max-w-[92%] rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/5"><div class="mb-2 flex items-center justify-between gap-4"><p class="text-xs opacity-60">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</p><MessageCopyButton :content="msg.content" /></div><ChatMarkdown :content="msg.content" /></div>
           </div>
           <p v-if="busy === 'send'" class="text-sm opacity-60" role="status">Reading group context and answering…</p>
         </div>

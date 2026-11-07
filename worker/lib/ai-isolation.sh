@@ -354,6 +354,14 @@ ai_isolation_exec() {
 
     # Workspace must be writable and must win over any earlier ro-bind of a parent.
     bwrap_args+=(--bind "$workspace" "$workspace")
+    if [[ "${AI_CHAT_WORK_PROTECT_GIT:-0}" == "1" ]]; then
+        # Local-chat orchestration owns Git history and publishing for sibling repositories.
+        local git_metadata
+        for git_metadata in "$workspace"/*/.git; do
+            [[ -d "$git_metadata" && ! -L "$git_metadata" ]] || continue
+            bwrap_args+=(--ro-bind "$git_metadata" "$git_metadata")
+        done
+    fi
     if [[ "$confine_ws" -eq 1 ]]; then
         : # sibling workspaces remain read-only via ws_root ro-bind above
     fi
