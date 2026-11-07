@@ -89,7 +89,7 @@ ${context}` },
     })
     // Do not save a reply as current if membership or the workspace changed while the model was answering.
     const currentGroup = await ownedMicroserviceGroup(groupId, userId)
-    if (currentGroup.updatedAt.getTime() !== group.updatedAt.getTime()) throw new AppError(409, 'The group changed while answering. Send your question again.', 'group_conflict')
+    if (JSON.stringify([currentGroup.name, currentGroup.description, currentGroup.projects, currentGroup.preparedAt, currentGroup.workspaceStatus]) !== JSON.stringify([group.name, group.description, group.projects, group.preparedAt, group.workspaceStatus])) throw new AppError(409, 'The group changed while answering. Send your question again.', 'group_conflict')
     const messages: TaskPlanningMessage[] = [...session.messages,
       { id: randomUUID(), role: 'user', content: text, createdAt: new Date().toISOString() },
       { id: randomUUID(), role: 'assistant', content: reply, createdAt: new Date().toISOString() },

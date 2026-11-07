@@ -63,29 +63,29 @@ const repositoryWarningDescription = computed(() => (
           <p class="text-sm opacity-70">{{ t('layout.platform') }}</p>
         </div>
         <nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" :aria-label="t('layout.mainNav')">
-          <NuxtLink
-            v-for="link in links"
-            :key="link.to"
-            :to="link.to"
-            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
-            :class="route.path === link.to || (link.to !== '/' && route.path.startsWith(link.to)) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
-          >
-            <UIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
-            <span class="min-w-0 flex-1 truncate">{{ t(link.labelKey) }}</span>
-            <span
-              v-if="navNeedsAttention(link.to)"
-              class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
-              :title="t('setup.nav.needsAttention')"
-              :aria-label="t('setup.nav.needsAttention')"
-            />
-          </NuxtLink>
-          <div class="mt-4 border-t border-[var(--aw-line)] pt-4">
-            <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
-            <NuxtLink to="/microservices" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="route.path.startsWith('/microservices') ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'" @click="mobileOpen = false">
-              <UIcon name="i-lucide-network" class="size-4 shrink-0" aria-hidden="true" />
-              <span>{{ t('nav.microserviceChat') }}</span>
+          <template v-for="link in links" :key="link.to">
+            <NuxtLink
+              :to="link.to"
+              class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
+              :class="route.path === link.to || (link.to !== '/' && route.path.startsWith(link.to)) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
+            >
+              <UIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
+              <span class="min-w-0 flex-1 truncate">{{ t(link.labelKey) }}</span>
+              <span
+                v-if="navNeedsAttention(link.to)"
+                class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
+                :title="t('setup.nav.needsAttention')"
+                :aria-label="t('setup.nav.needsAttention')"
+              />
             </NuxtLink>
-          </div>
+            <div v-if="link.to === '/chat-work'" class="my-2 border-y border-[var(--aw-line)] py-3">
+              <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
+              <NuxtLink to="/microservices" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="route.path.startsWith('/microservices') ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'" @click="mobileOpen = false">
+                <UIcon name="i-lucide-network" class="size-4 shrink-0" aria-hidden="true" />
+                <span>{{ t('nav.microserviceChat') }}</span>
+              </NuxtLink>
+            </div>
+          </template>
         </nav>
         <div class="mt-4 space-y-2">
           <LanguageSwitcher />
@@ -126,28 +126,28 @@ const repositoryWarningDescription = computed(() => (
           <div class="mb-2 px-1">
             <LanguageSwitcher />
           </div>
-          <NuxtLink
-            v-for="link in links"
-            :key="link.to"
-            :to="link.to"
-            class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
-            @click="mobileOpen = false"
-          >
-            <span class="min-w-0 flex-1">{{ t(link.labelKey) }}</span>
-            <span
-              v-if="navNeedsAttention(link.to)"
-              class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
-              :title="t('setup.nav.needsAttention')"
-              :aria-label="t('setup.nav.needsAttention')"
-            />
-          </NuxtLink>
-          <div class="mt-4 border-t border-[var(--aw-line)] pt-4">
-            <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
-            <NuxtLink to="/microservices" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="route.path.startsWith('/microservices') ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'" @click="mobileOpen = false">
-              <UIcon name="i-lucide-network" class="size-4 shrink-0" aria-hidden="true" />
-              <span>{{ t('nav.microserviceChat') }}</span>
+          <template v-for="link in links" :key="link.to">
+            <NuxtLink
+              :to="link.to"
+              class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+              @click="mobileOpen = false"
+            >
+              <span class="min-w-0 flex-1">{{ t(link.labelKey) }}</span>
+              <span
+                v-if="navNeedsAttention(link.to)"
+                class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
+                :title="t('setup.nav.needsAttention')"
+                :aria-label="t('setup.nav.needsAttention')"
+              />
             </NuxtLink>
-          </div>
+            <div v-if="link.to === '/chat-work'" class="my-2 border-y border-[var(--aw-line)] py-3">
+              <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
+              <NuxtLink to="/microservices" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="route.path.startsWith('/microservices') ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'" @click="mobileOpen = false">
+                <UIcon name="i-lucide-network" class="size-4 shrink-0" aria-hidden="true" />
+                <span>{{ t('nav.microserviceChat') }}</span>
+              </NuxtLink>
+            </div>
+          </template>
         </nav>
         <main class="flex-1 p-4 md:p-8">
           <div

@@ -2,6 +2,7 @@
 type Session = { id: string, repositoryId: string, title: string, messages: Array<{ id: string, role: string, content: string }> }
 type ChatSummary = { id: string, title: string, updatedAt: string }
 const { api } = useApi()
+const { t } = useI18n()
 const route = useRoute()
 const repositoryId = String(route.params.repoId)
 const session = ref<Session | null>(null)
@@ -13,6 +14,7 @@ const busy = ref(false)
 const error = ref('')
 const contextAvailable = ref<boolean | null>(null)
 const chatEl = ref<HTMLElement | null>(null)
+const workActionsEl = ref<HTMLElement | null>(null)
 let contextTimer: ReturnType<typeof setInterval> | null = null
 let refreshingContext = false
 
@@ -50,6 +52,20 @@ async function newChat() {
   await refreshHistory()
   await open(result.session.id)
 }
+async function deleteConversation(chat: ChatSummary) {
+  if (busy.value || !confirm(t('chat.deleteConversationConfirm', { title: chat.title }))) return
+  await run(async () => {
+    await api(`/api/v1/project-chat/sessions/${chat.id}`, { method: 'DELETE' })
+    chats.value = chats.value.filter(item => item.id !== chat.id)
+    if (session.value?.id === chat.id) {
+      session.value = null
+      draft.value = ''
+      if (chats.value[0]) await open(chats.value[0].id)
+      else await navigateTo({ query: {} }, { replace: true })
+    }
+  })
+}
+
 async function send() {
   const content = draft.value.trim()
   if (!content || !session.value) return
@@ -106,18 +122,17 @@ onBeforeUnmount(() => { if (contextTimer) clearInterval(contextTimer) })
         <UButton icon="i-lucide-plus" :disabled="busy" @click="run(newChat)">New chat</UButton>
       </div>
     </div>
-    <ChatWorkPanel v-if="session" :key="session.id" scope="project" :session-id="session.id" :message-count="session.messages.length" :disabled="busy" :ready="contextAvailable === true" />
     <UAlert v-if="error" color="error" :title="error" />
     <div class="flex h-[min(70vh,55rem)] min-h-[30rem] flex-col gap-4 md:flex-row">
       <aside class="aw-panel max-h-40 overflow-y-auto rounded-xl p-3 md:max-h-none md:w-64 md:shrink-0" aria-label="Chat history">
         <h2 class="mb-3 text-sm font-medium">Your conversations</h2>
-        <button v-for="chat in chats" :key="chat.id" class="mb-1 block w-full rounded-lg p-2 text-start text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="session?.id === chat.id ? 'bg-black/5 dark:bg-white/10' : ''" :disabled="busy" @click="run(() => open(chat.id))">
-          <span class="block truncate">{{ chat.title }}</span>
-          <time class="text-xs opacity-50">{{ new Date(chat.updatedAt).toLocaleDateString() }}</time>
-        </button>
+        <ConversationHistoryItem v-for="chat in chats" :key="chat.id" :title="chat.title" :updated-at="chat.updatedAt" :active="session?.id === chat.id" :disabled="busy" @open="run(() => open(chat.id))" @delete="deleteConversation(chat)" />
+        <p v-if="!chats.length && !busy" class="px-2 text-xs opacity-60">{{ t('chat.noConversations') }}</p>
       </aside>
       <div class="aw-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
+        <ChatWorkPanel v-if="session" :key="session.id" scope="project" :session-id="session.id" :message-count="session.messages.length" :disabled="busy" :ready="contextAvailable === true" embedded :actions-target="workActionsEl" @focus-actions="scroll" />
         <div ref="chatEl" role="log" aria-label="Conversation" aria-live="polite" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
+          <p v-if="!session && !busy" class="py-12 text-center text-sm opacity-60">{{ t('chat.noConversations') }}</p>
           <p v-if="session && !session.messages.length" class="py-12 text-center text-sm opacity-60">Start a conversation about {{ name }}. Your chat is saved automatically.</p>
           <div v-for="msg in session?.messages || []" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
             <div class="min-w-0 max-w-[92%] rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/5">
@@ -126,6 +141,7 @@ onBeforeUnmount(() => { if (contextTimer) clearInterval(contextTimer) })
             </div>
           </div>
           <p v-if="busy" class="text-sm opacity-60">Working…</p>
+          <div ref="workActionsEl" />
         </div>
         <form class="flex items-end gap-2 border-t border-[var(--aw-line)] p-4" @submit.prevent="send">
           <UTextarea v-model="draft" aria-label="Message" placeholder="Ask a question about this project…" class="w-full" :rows="3" :maxlength="20000" :disabled="busy || !session" @keydown="keydown" />

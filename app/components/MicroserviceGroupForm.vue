@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { mapConcurrent } from '#shared/concurrency'
 import { SERVICE_LABELS, microserviceGroupSchema, type MicroserviceGroupInput } from '#shared/microservices'
 const props = defineProps<{ initial?: MicroserviceGroupInput, busy?: boolean }>()
 const emit = defineEmits<{ save: [value: MicroserviceGroupInput], cancel: [] }>()
@@ -12,22 +13,24 @@ const projects = ref((props.initial?.projects || []).map(project => ({ ...projec
 const labelInputs = ref<Record<string, string>>(Object.fromEntries(projects.value.map(project => [project.repositoryId, project.labels.join(', ')])))
 const search = ref('')
 const error = ref('')
+const repositoriesError = ref('')
 const loading = ref(true)
 const visible = computed(() => repositories.value.filter(repo => `${repo.name} ${repo.canonicalProjectIdentifier || ''}`.toLowerCase().includes(search.value.toLowerCase())))
 async function loadRepositories() {
   loading.value = true
-  error.value = ''
+  repositoriesError.value = ''
   try {
-    const items: Repository[] = []
-    let page = 1
-    while (true) {
-      const result = await api<{ items: Repository[], total: number }>(`/api/v1/repositories?page=${page}&pageSize=100`)
-      items.push(...result.items)
-      if (items.length >= result.total || !result.items.length) break
-      page++
-    }
-    repositories.value = items
-  } catch { error.value = 'Could not load projects. Please retry.' } finally { loading.value = false }
+    repositories.value = []
+    const first = await api<{ items: Repository[], total: number }>('/api/v1/repositories?page=1&pageSize=100')
+    const pages: Repository[][] = [first.items]
+    repositories.value = first.items
+    const remaining = Array.from({ length: Math.max(0, Math.ceil(first.total / 100) - 1) }, (_, index) => index + 2)
+    await mapConcurrent(remaining, 3, async page => {
+      const result = await api<{ items: Repository[] }>(`/api/v1/repositories?page=${page}&pageSize=100`)
+      pages[page - 1] = result.items
+      repositories.value = pages.flat()
+    })
+  } catch { repositoriesError.value = 'Could not load projects. Please retry.' } finally { loading.value = false }
 }
 function select(id: string, checked: boolean) {
   if (checked && !projects.value.some(project => project.repositoryId === id)) projects.value.push({ repositoryId: id, labels: [], description: '' })
@@ -44,12 +47,13 @@ function submit() {
   error.value = ''
   emit('save', parsed.data)
 }
-await loadRepositories()
+onMounted(() => { void loadRepositories() })
 </script>
 
 <template>
   <form class="space-y-5" @submit.prevent="submit">
     <UAlert v-if="error" color="error" :title="error" />
+    <UAlert v-if="repositoriesError" color="error" :title="repositoriesError" />
     <div class="grid gap-4 md:grid-cols-2">
       <label class="space-y-1 text-sm"><span class="block font-medium">Group name</span><UInput v-model="name" placeholder="For example, Avat platform" class="w-full" :maxlength="100" required :disabled="busy" /></label>
       <label class="space-y-1 text-sm"><span class="block font-medium">What does this system do?</span><UTextarea v-model="description" placeholder="A short description to help the AI understand the system" class="w-full" :rows="2" :maxlength="2000" :disabled="busy" /></label>
@@ -67,7 +71,7 @@ await loadRepositories()
         </label>
         <p v-if="!loading && !visible.length" class="text-sm opacity-60">No matching projects. Register projects on the Repositories page first.</p>
       </div>
-      <UButton v-if="error && !repositories.length" variant="soft" @click="loadRepositories">Retry loading projects</UButton>
+      <UButton v-if="repositoriesError" variant="soft" @click="loadRepositories">Retry loading projects</UButton>
     </div>
     <div v-for="project in projects" :key="project.repositoryId" class="space-y-3 rounded-xl border border-[var(--aw-line)] p-4">
       <div class="flex items-center justify-between gap-2">
@@ -82,8 +86,9 @@ await loadRepositories()
       <label class="block space-y-1 text-sm"><span class="block text-xs opacity-60">Describe responsibilities or relationships</span><UTextarea v-model="project.description" class="w-full" placeholder="For example, public API; sends billing events to subscription" :rows="2" :maxlength="1000" :disabled="busy" /></label>
     </div>
     <label class="flex items-start gap-2 text-sm"><input v-model="codegraphEnabled" type="checkbox" class="mt-1" :disabled="busy"><span>Build a CodeGraph index across this group's repositories<span class="block text-xs opacity-60">This group has its own index. Repository worker settings stay separate.</span></span></label>
+    <p class="text-xs opacity-60">Workspace preparation runs in the background after saving. Chat becomes available as soon as project checkouts are ready.</p>
     <div class="flex gap-2">
-      <UButton type="submit" :loading="busy" :disabled="busy || loading || projects.length < 2">Save group & prepare workspace</UButton>
+      <UButton type="submit" :loading="busy" :disabled="busy || projects.length < 2">Save group</UButton>
       <UButton variant="ghost" color="neutral" :disabled="busy" @click="emit('cancel')">Cancel</UButton>
     </div>
   </form>
