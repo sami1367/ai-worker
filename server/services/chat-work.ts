@@ -82,8 +82,11 @@ export function parseChatWorkTasks(raw: string, allowedIds: string[]) {
   try { parsed = extractJsonObject(raw) } catch { throw new AppError(502, 'AI returned invalid task JSON. Generate again.', 'work_plan_invalid') }
   const schema = z.object({ tasks: z.array(workTaskSchema.omit({ id: true })).min(1).max(25) })
   const result = schema.safeParse(parsed)
-  if (!result.success || result.data.tasks.some(task => task.repositoryIds.some(id => !allowedIds.includes(id)))) {
-    throw new AppError(502, 'AI returned an invalid plan or referenced projects outside this chat. Generate again.', 'work_plan_invalid')
+  if (!result.success) {
+    throw new AppError(502, 'AI returned a plan with missing or invalid task fields. Generate again.', 'work_plan_invalid')
+  }
+  if (result.data.tasks.some(task => task.repositoryIds.some(id => !allowedIds.includes(id)))) {
+    throw new AppError(502, 'The generated plan references repositories outside this chat. Check that you selected the correct repositories for this chat, then generate again.', 'work_plan_invalid')
   }
   return result.data.tasks.map(task => ({ ...task, id: randomUUID(), repositoryIds: [...new Set(task.repositoryIds)] }))
 }

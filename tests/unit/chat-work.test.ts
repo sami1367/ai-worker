@@ -62,7 +62,8 @@ describe('local chat work plans', () => {
     expect(mocks.llm).not.toHaveBeenCalled()
   })
   it('only accepts task repository IDs belonging to the chat', () => {
-    expect(() => parseChatWorkTasks(JSON.stringify({ tasks: [{ ...task, repositoryIds: [otherRepo] }] }), [repositoryId])).toThrow('outside this chat')
+    expect(() => parseChatWorkTasks(JSON.stringify({ tasks: [{ ...task, repositoryIds: [otherRepo] }] }), [repositoryId])).toThrow('Check that you selected the correct repositories')
+    expect(() => parseChatWorkTasks(JSON.stringify({ tasks: [{ ...task, title: '' }] }), [repositoryId])).toThrow('missing or invalid task fields')
     expect(() => parseChatWorkTasks('{bad json}', [repositoryId])).toThrow('invalid task JSON')
     expect(parseChatWorkTasks(JSON.stringify({ tasks: [task] }), [repositoryId])[0]!.repositoryIds).toEqual([repositoryId])
   })
