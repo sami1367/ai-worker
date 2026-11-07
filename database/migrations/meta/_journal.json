@@ -92,6 +92,13 @@
       "when": 1792900000000,
       "tag": "0012_project_chat_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0013_microservice_groups",
+      "breakpoints": true
     }
   ]
 }

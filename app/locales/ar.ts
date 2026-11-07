@@ -5,6 +5,8 @@ export const ar: Messages = {
   'nav.dashboard': 'لوحة التحكم',
   'nav.connections': 'الاتصالات',
   'nav.repositories': 'المستودعات',
+  'nav.microservices': 'Microservices',
+  'nav.microserviceChat': 'Group chat',
   'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'المهام',

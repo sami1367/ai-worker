@@ -5,6 +5,8 @@ export const de: Messages = {
   'nav.dashboard': 'Dashboard',
   'nav.connections': 'Verbindungen',
   'nav.repositories': 'Repositories',
+  'nav.microservices': 'Microservices',
+  'nav.microserviceChat': 'Group chat',
   'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'Aufgaben',

@@ -5,6 +5,8 @@ export const tr: Messages = {
   'nav.dashboard': 'Kontrol paneli',
   'nav.connections': 'Bağlantılar',
   'nav.repositories': 'Depolar',
+  'nav.microservices': 'Microservices',
+  'nav.microserviceChat': 'Group chat',
   'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'Görevler',

@@ -101,7 +101,7 @@ async function tryCodegraphSummary(root: string, epicHint: string): Promise<stri
   try {
     const { stdout } = await execFileAsync(
       'codegraph',
-      ['explore', '--json', epicHint.slice(0, 200) || 'project architecture overview modules'],
+      ['explore', epicHint.slice(0, 200) || 'project architecture overview modules'],
       {
         cwd: root,
         timeout: 12_000,

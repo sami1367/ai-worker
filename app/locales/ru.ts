@@ -5,6 +5,8 @@ export const ru: Messages = {
   'nav.dashboard': 'Панель',
   'nav.connections': 'Подключения',
   'nav.repositories': 'Репозитории',
+  'nav.microservices': 'Microservices',
+  'nav.microserviceChat': 'Group chat',
   'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'Задачи',

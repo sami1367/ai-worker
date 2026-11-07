@@ -5,6 +5,8 @@ export const fa: Messages = {
   'nav.dashboard': 'داشبورد',
   'nav.connections': 'اتصالات',
   'nav.repositories': 'مخازن',
+  'nav.microservices': 'Microservices',
+  'nav.microserviceChat': 'Group chat',
   'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'وظایف',

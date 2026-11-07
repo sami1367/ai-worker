@@ -15,6 +15,7 @@ export default defineConfig({
       '#db/schema': resolve(__dirname, 'database/schema/index.ts'),
       '#db': resolve(__dirname, 'database'),
       '#utils': resolve(__dirname, 'server/utils'),
+      '#shared': resolve(__dirname, 'shared'),
       '#services': resolve(__dirname, 'server/services'),
     },
   },

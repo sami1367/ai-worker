@@ -492,3 +492,28 @@ export const projectChatSessions = pgTable('project_chat_sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('project_chat_sessions_owner_repo_idx').on(t.createdByUserId, t.repositoryId)])
+
+export const microserviceGroups = pgTable('microservice_groups', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description').notNull().default(''),
+  projects: jsonb('projects').$type<import('../../shared/microservices').MicroserviceProject[]>().notNull(),
+  codegraphEnabled: boolean('codegraph_enabled').notNull().default(true),
+  workspaceStatus: varchar('workspace_status', { length: 32 }).notNull().default('queued'),
+  codegraphStatus: varchar('codegraph_status', { length: 32 }).notNull().default('pending'),
+  lastError: text('last_error'),
+  preparedAt: timestamp('prepared_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('microservice_groups_owner_idx').on(t.createdByUserId)])
+
+export const microserviceChatSessions = pgTable('microservice_chat_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  groupId: uuid('group_id').notNull().references(() => microserviceGroups.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default('New chat'),
+  messages: jsonb('messages').$type<TaskPlanningMessage[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('microservice_chat_sessions_group_owner_idx').on(t.groupId, t.createdByUserId)])

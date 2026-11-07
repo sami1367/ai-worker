@@ -71,3 +71,31 @@ or unavailable diagrams retain their readable source. Markdown HTML is escaped;
 Mermaid uses strict mode and its SVG output is sanitized. Diagram scripts, click
 handlers, and embedded HTML are not supported. AI prompts describe these formats
 and encourage diagrams when useful for explaining project architecture or flows.
+
+### Microservice groups
+
+**Microservices → Group chat** (`/microservices`) provides named groups of 2–20
+registered repositories. Assign preset or custom role labels and descriptions to
+each project. Groups and their conversations are private to their creator; saved
+conversations can be resumed or a new chat started for the same group.
+
+Apply migration `0013_microservice_groups` with `pnpm db:migrate` before starting
+the updated app. The background preparer uses the existing authenticated clone
+queue for missing source workspaces, then creates independent sibling Git clones
+under `$WORKSPACE_ROOT/microservices-<group-id>/<service-name>/`. Duplicate service
+names receive a repository ID suffix. `services.json` records each project's labels,
+description, and commit. Source worker checkouts are not moved or relinked.
+
+CodeGraph indexes the common group directory, including all selected repositories,
+when enabled in the group settings. This setting controls the separate group index
+and does not change per-repository worker settings. If indexing is unavailable,
+chat remains available with sampled code context from every service. The UI shows
+workspace and CodeGraph status, preparation errors, and the snapshot date.
+
+**Sync workspace** refreshes source repositories through the authenticated workspace
+queue, updates the group clones, and rebuilds its index. The preparer resumes queued
+work after application restarts. Failed clones require an explicit retry. Editing
+group membership or labels rebuilds group context and preserves chat history;
+settings apply to future replies. Chats use the first selected project's preferred
+AI provider, with the existing provider fallback behavior, and include service
+prefixes, labels, descriptions, and a fair context budget for every project.

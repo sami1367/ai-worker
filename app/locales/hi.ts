@@ -5,6 +5,8 @@ export const hi: Messages = {
   'nav.dashboard': 'डैशबोर्ड',
   'nav.connections': 'कनेक्शन',
   'nav.repositories': 'रिपॉज़िटरी',
+  'nav.microservices': 'Microservices',
+  'nav.microserviceChat': 'Group chat',
   'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'कार्य',
