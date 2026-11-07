@@ -91,9 +91,16 @@ describe('microservice chat', () => {
     await expect(postMicroserviceChatMessage('group', 'chat', 'Question', 'owner')).rejects.toThrow('Provider offline')
     expect(mocks.saved).toEqual({})
   })
+  it('keeps an answer when only the background graph status changes', async () => {
+    mocks.rows = [[session]]
+    mocks.owned.mockResolvedValueOnce(group).mockResolvedValueOnce(group)
+      .mockResolvedValueOnce({ ...group, codegraphStatus: 'ready', updatedAt: new Date(group.updatedAt.getTime() + 1000) })
+    await postMicroserviceChatMessage('group', 'chat', 'Question', 'owner')
+    expect(mocks.saved.messages).toHaveLength(2)
+  })
   it('rejects a stale reply if group settings changed during generation', async () => {
     mocks.rows = [[session]]
-    mocks.owned.mockResolvedValueOnce(group).mockResolvedValueOnce(group).mockResolvedValueOnce({ ...group, updatedAt: new Date(group.updatedAt.getTime() + 1000) })
+    mocks.owned.mockResolvedValueOnce(group).mockResolvedValueOnce(group).mockResolvedValueOnce({ ...group, description: 'Changed scope' })
     await expect(postMicroserviceChatMessage('group', 'chat', 'Question', 'owner')).rejects.toThrow('group changed')
     expect(mocks.saved).toEqual({})
   })

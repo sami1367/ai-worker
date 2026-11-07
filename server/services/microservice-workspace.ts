@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { access, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { runCodegraph } from './codegraph-process'
+import { redactSecrets } from '#utils/redact'
 import { managedWorkspacePath } from '#utils/paths'
 import type { MicroserviceProject } from '#shared/microservices'
 
@@ -40,11 +42,16 @@ export async function syncMicroserviceClone(root: string, directory: string, sou
   await mkdir(root, { recursive: true })
   let exists = true
   try { await access(join(target, '.git')) } catch { exists = false }
+  if (exists) {
+    const commit = await git(['rev-parse', `refs/heads/${branch}`], source)
+    const current = await git(['rev-parse', 'HEAD'], target)
+    if (current === commit && !await git(['status', '--porcelain', '--untracked-files=no'], target)) return current
+  }
   if (!exists) {
     const temporary = `${target}.clone`
     await rm(temporary, { recursive: true, force: true })
     try {
-      await git(['clone', '--no-hardlinks', '--single-branch', '--branch', branch, '--', source, temporary])
+      await git(['clone', '--no-checkout', '--no-hardlinks', '--single-branch', '--branch', branch, '--', source, temporary])
       await rename(temporary, target)
     } catch (error) {
       await rm(temporary, { recursive: true, force: true })
@@ -52,8 +59,8 @@ export async function syncMicroserviceClone(root: string, directory: string, sou
     }
   }
   // Fetch the configured source branch explicitly, even when the default branch changed.
-  await git(['fetch', '--no-tags', '--', source, `refs/heads/${branch}`], target)
-  await git(['checkout', '--detach', '--force', 'FETCH_HEAD'], target)
+  if (exists) await git(['fetch', '--no-tags', '--', source, `refs/heads/${branch}`], target)
+  await git(['checkout', '--detach', '--force', exists ? 'FETCH_HEAD' : `refs/heads/${branch}`], target)
   return git(['rev-parse', 'HEAD'], target)
 }
 
@@ -82,10 +89,46 @@ export async function indexMicroserviceWorkspace(root: string, enabled: boolean)
     await rm(join(root, '.codegraph'), { recursive: true, force: true })
     return 'disabled'
   }
-  // Rebuild after sync so removed services and changed branches cannot leave stale graph data.
-  const initialized = (await readdir(root)).includes('.codegraph')
-  await execFileAsync('codegraph', [initialized ? 'index' : 'init', ...(initialized ? [] : ['-y'])], {
-    cwd: root, timeout: 300_000, maxBuffer: 512_000,
-  })
-  return 'ready'
+  await access(root)
+  const diagnostics: string[] = []
+  const run = async (args: string[], timeout?: number) => {
+    try {
+      const result = await runCodegraph(args, root, timeout)
+      diagnostics.push(`$ codegraph ${args.join(' ')}\n${result.stdout}\n${result.stderr}`)
+      return result
+    } catch (error) {
+      diagnostics.push(`$ codegraph ${args.join(' ')}\n${error instanceof Error ? error.message : 'Failed'}`)
+      throw error
+    }
+  }
+  type Status = { initialized?: boolean, lastIndexed?: string | null, projectPath?: string, fileCount?: number, index?: { state?: string | null, pendingRefs?: number } }
+  const status = async (): Promise<Status> => {
+    const result = await run(['status', '--json', root], 30_000)
+    let value: Status
+    try { value = JSON.parse(result.stdout.trim()) as Status } catch { throw new Error('CodeGraph status did not return valid JSON. Check the installed CLI version.') }
+    // The CLI can walk up to a parent's index; that must never count as this group's index.
+    if (value.projectPath && await realpath(value.projectPath) !== await realpath(root)) value.initialized = false
+    return value
+  }
+  const healthy = (value: Status) => value.initialized && Boolean(value.lastIndexed) && !['indexing', 'failed'].includes(value.index?.state || '') && !(value.index?.pendingRefs)
+  try {
+    const initial = await status()
+    if (!initial.initialized) {
+      // A partial .codegraph directory is not a valid initialized database.
+      await run(['init', '-y', root])
+    } else if (!healthy(initial)) { await run(['index', root]) }
+    else {
+      try { await run(['sync', root]) } catch { await run(['index', root]) }
+    }
+    let current = await status()
+    if (!healthy(current)) {
+      await run(['index', root])
+      current = await status()
+    }
+    if (!healthy(current)) throw new Error(`CodeGraph index did not finish successfully (state: ${current.index?.state || 'uninitialized'}). See .codegraph-preparation.log in the group workspace.`)
+    return 'ready'
+  } finally {
+    // Stored beside, not inside, the index so interrupted-init diagnostics remain readable.
+    await writeFile(join(root, '.codegraph-preparation.log'), redactSecrets(diagnostics.join('\n\n').slice(-24_000), 24_000), { mode: 0o600 }).catch(() => {})
+  }
 }

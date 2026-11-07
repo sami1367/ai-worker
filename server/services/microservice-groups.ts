@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import { microserviceGroups, repositories } from '#db/schema'
+import { mapConcurrent } from '#shared/concurrency'
 import { getDb } from '#utils/db'
 import { AppError } from '#utils/errors'
 import { redactSecrets } from '#utils/redact'
@@ -44,7 +45,7 @@ export async function saveMicroserviceGroup(input: MicroserviceGroupInput, actor
   const old = id ? await ownedMicroserviceGroup(id, actor.id) : null
   const rows = await getDb().select().from(repositories).where(inArray(repositories.id, data.projects.map(project => project.repositoryId)))
   if (rows.length !== data.projects.length || rows.some(row => row.isArchived)) throw new AppError(400, 'Choose available repositories', 'validation_error')
-  if (old?.workspaceStatus === 'preparing') throw new AppError(409, 'Wait for workspace preparation to finish before editing', 'workspace_busy')
+  if (old?.workspaceStatus === 'preparing' || ['indexing', 'queued'].includes(old?.codegraphStatus || '')) throw new AppError(409, 'Wait for workspace preparation to finish before editing', 'workspace_busy')
   const directories = projectDirectories(data.projects.map(project => ({ repositoryId: project.repositoryId, name: rows.find(row => row.id === project.repositoryId)!.name })))
   const values = {
     name: data.name, description: data.description, codegraphEnabled: data.codegraphEnabled,
@@ -61,7 +62,7 @@ export async function saveMicroserviceGroup(input: MicroserviceGroupInput, actor
 }
 export async function queueMicroservicePreparation(id: string, actor: Actor) {
   const group = await ownedMicroserviceGroup(id, actor.id)
-  if (['preparing', 'queued', 'waiting'].includes(group.workspaceStatus)) return { group }
+  if (['preparing', 'queued', 'waiting'].includes(group.workspaceStatus) || ['indexing', 'queued'].includes(group.codegraphStatus)) return { group }
   const [claimed] = await getDb().update(microserviceGroups).set({ workspaceStatus: 'preparing', lastError: null, updatedAt: new Date() })
     .where(and(eq(microserviceGroups.id, id), eq(microserviceGroups.updatedAt, group.updatedAt))).returning()
   if (!claimed) throw new AppError(409, 'Group changed. Reload and try again.', 'group_conflict')
@@ -84,6 +85,20 @@ export async function queueMicroservicePreparation(id: string, actor: Actor) {
   }
 }
 
+/** Rebuild only the index; existing checkouts and conversations remain available. */
+export async function retryMicroserviceCodegraph(id: string, userId: string) {
+  const group = await ownedMicroserviceGroup(id, userId)
+  if (!group.codegraphEnabled) throw new AppError(400, 'Enable CodeGraph in the group settings first', 'codegraph_disabled')
+  if (group.workspaceStatus !== 'ready') throw new AppError(409, 'Prepare the repository checkouts first', 'workspace_not_ready')
+  if (['indexing', 'queued'].includes(group.codegraphStatus)) return { group }
+  const [updated] = await getDb().update(microserviceGroups).set({ codegraphStatus: 'queued', lastError: null, updatedAt: new Date() })
+    .where(and(eq(microserviceGroups.id, id), eq(microserviceGroups.updatedAt, group.updatedAt))).returning()
+  if (!updated) throw new AppError(409, 'Group changed. Reload and try again.', 'group_conflict')
+  startMicroserviceWorkspaceWorker()
+  void processMicroserviceWorkspaces()
+  return { group: updated }
+}
+
 let timer: ReturnType<typeof setInterval> | null = null
 let processing = false
 export function startMicroserviceWorkspaceWorker() {
@@ -97,7 +112,8 @@ export async function processMicroserviceWorkspaces() {
   try {
     const rows = await getDb().select().from(microserviceGroups).where(or(
       inArray(microserviceGroups.workspaceStatus, ['queued', 'waiting']),
-      and(eq(microserviceGroups.workspaceStatus, 'preparing'), lt(microserviceGroups.updatedAt, new Date(Date.now() - 20 * 60_000))),
+      and(eq(microserviceGroups.workspaceStatus, 'ready'), eq(microserviceGroups.codegraphStatus, 'queued')),
+      and(or(eq(microserviceGroups.workspaceStatus, 'preparing'), eq(microserviceGroups.codegraphStatus, 'indexing')), lt(microserviceGroups.updatedAt, new Date(Date.now() - 20 * 60_000))),
     )).orderBy(asc(microserviceGroups.updatedAt)).limit(10)
     for (const row of rows) await prepareGroup(row)
   } catch (error) {
@@ -106,13 +122,20 @@ export async function processMicroserviceWorkspaces() {
 }
 async function prepareGroup(group: typeof microserviceGroups.$inferSelect) {
   const db = getDb()
-  const [claimed] = await db.update(microserviceGroups).set({ workspaceStatus: 'preparing', updatedAt: new Date() })
+  const indexOnly = group.workspaceStatus === 'ready' && group.codegraphStatus === 'queued'
+  const [claimed] = await db.update(microserviceGroups).set({ ...(indexOnly ? { codegraphStatus: 'indexing' } : { workspaceStatus: 'preparing' }), updatedAt: new Date() })
     .where(and(eq(microserviceGroups.id, group.id), eq(microserviceGroups.updatedAt, group.updatedAt))).returning()
   if (!claimed) return
   const update = async (values: Partial<typeof microserviceGroups.$inferInsert>) => {
     await db.update(microserviceGroups).set({ ...values, updatedAt: new Date() }).where(eq(microserviceGroups.id, group.id))
   }
   try {
+    if (indexOnly) {
+      const root = microserviceWorkspacePath(group.id)
+      await access(join(root, 'services.json'))
+      await finishCodegraph(group, root, update)
+      return
+    }
     const projects = await microserviceRepositories(group)
     const failed = projects.filter(project => ['failed', 'inaccessible'].includes(project.repository.workspaceStatus))
     // Queue/retry failed sources once per explicit preparation, rather than looping forever.
@@ -139,22 +162,39 @@ async function prepareGroup(group: typeof microserviceGroups.$inferSelect) {
       return
     }
     const root = microserviceWorkspacePath(group.id)
-    const prepared = []
-    for (const project of projects) {
+    const prepared = await mapConcurrent(projects, 3, async project => {
       const repo = project.repository
       const commit = await syncMicroserviceClone(root, project.directory, repo.localPath!, repo.defaultBranch)
-      prepared.push({ repositoryId: repo.id, name: repo.name, directory: project.directory, labels: project.labels, description: project.description, commit })
       await update({ workspaceStatus: 'preparing' })
-    }
+      return { repositoryId: repo.id, name: repo.name, directory: project.directory, labels: project.labels, description: project.description, commit }
+    })
     await writeMicroserviceManifest(root, group.name, group.description, prepared)
-    let codegraphStatus = 'disabled'
-    let warning: string | null = null
-    try { codegraphStatus = await indexMicroserviceWorkspace(root, group.codegraphEnabled) } catch {
-      codegraphStatus = 'unavailable'
-      warning = 'CodeGraph could not index this group. Chat will use repository snapshots. Retry preparation to rebuild the index.'
-    }
-    await update({ workspaceStatus: 'ready', codegraphStatus, lastError: warning, preparedAt: new Date() })
+    // Repository snapshots can answer questions before the graph index finishes.
+    const preparedAt = new Date()
+    if (group.codegraphEnabled) await update({ workspaceStatus: 'ready', codegraphStatus: 'indexing', lastError: null, preparedAt })
+    await finishCodegraph(group, root, update, preparedAt)
   } catch (error) {
-    await update({ workspaceStatus: 'failed', lastError: redactSecrets(error instanceof Error ? error.message : 'Workspace preparation failed').slice(0, 1000) })
+    await update({ workspaceStatus: 'failed', ...(indexOnly ? { codegraphStatus: 'unavailable' } : {}), lastError: redactSecrets(error instanceof Error ? error.message : 'Workspace preparation failed').slice(0, 1000) })
   }
+}
+
+async function finishCodegraph(
+  group: typeof microserviceGroups.$inferSelect,
+  root: string,
+  update: (values: Partial<typeof microserviceGroups.$inferInsert>) => Promise<void>,
+  preparedAt?: Date,
+) {
+  const heartbeat = group.codegraphEnabled ? setInterval(() => {
+    void update({ codegraphStatus: 'indexing' }).catch(() => {})
+  }, 30_000) : null
+  heartbeat?.unref?.()
+  let codegraphStatus: string
+  let warning: string | null = null
+  try { codegraphStatus = await indexMicroserviceWorkspace(root, group.codegraphEnabled) } catch (error) {
+    codegraphStatus = 'unavailable'
+    const detail = redactSecrets(error instanceof Error ? error.message : String(error), 1800)
+    warning = `CodeGraph indexing failed: ${detail} Use Retry CodeGraph to rebuild the index without recloning projects.`
+    console.warn(`[microservices:${group.id}] ${warning}`)
+  } finally { if (heartbeat) clearInterval(heartbeat) }
+  await update({ workspaceStatus: 'ready', codegraphStatus, lastError: warning, ...(preparedAt ? { preparedAt } : {}) })
 }

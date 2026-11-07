@@ -86,6 +86,13 @@ under `$WORKSPACE_ROOT/microservices-<group-id>/<service-name>/`. Duplicate serv
 names receive a repository ID suffix. `services.json` records each project's labels,
 description, and commit. Source worker checkouts are not moved or relinked.
 
+Group forms render without waiting for repository loading and show the first page
+immediately; remaining pages load with bounded concurrency. Group checkouts are
+prepared three at a time, with redundant fetches skipped for unchanged snapshots.
+Once all checkouts are ready, chat is available while CodeGraph finishes indexing.
+Existing group indexes use incremental sync, falling back to a full rebuild only
+if sync fails. Group editing/sync stays locked while indexing is in progress.
+
 CodeGraph indexes the common group directory, including all selected repositories,
 when enabled in the group settings. This setting controls the separate group index
 and does not change per-repository worker settings. If indexing is unavailable,
@@ -176,3 +183,23 @@ from your Redis instance and restart web processes to clear their local caches.
 After applying these source changes, rebuild/redeploy the web image and start the
 Redis service; `docker compose up -d` alone uses the published image unless you
 have built and selected a new `AI_WORKER_IMAGE`.
+
+
+### Repairing a group CodeGraph index
+
+Use **Retry CodeGraph** on the group chat page to rebuild just the index without
+fetching or recloning repositories. The app checks `codegraph status --json` before
+and after indexing: an incomplete `.codegraph/` directory triggers initialization,
+an interrupted build triggers reindexing, and a healthy index uses incremental sync.
+Parent-directory indexes never count as the selected group's index.
+
+Index output is streamed with a bounded diagnostic tail, rather than terminating
+when a buffered output limit is exceeded. The default indexing timeout is 30 minutes
+(`CODEGRAPH_INDEX_TIMEOUT_SECONDS`, range 60–7200 seconds). Active indexing renews
+the group lease while it runs. `CODEGRAPH_BIN` can specify the CLI executable path
+inside the web runtime; the launcher also checks common user/system binary paths.
+
+Failures show the actual sanitized command error on the group page and in the web
+logs. The group workspace retains `.codegraph-preparation.log` with the recent
+index/status output. Missing executables, timeouts, termination signals, and
+incomplete index state are distinguished; `ready` is set only after verification.

@@ -8,6 +8,7 @@ type Detail = {
   projects: Array<MicroserviceProject & { name: string, workspaceStatus: string }>
 }
 const { api } = useApi()
+const { t } = useI18n()
 const route = useRoute()
 const groupId = String(route.params.groupId)
 const base = `/api/v1/microservices/groups/${groupId}`
@@ -20,6 +21,8 @@ const error = ref('')
 const editing = ref(false)
 const showProjects = ref(true)
 const chatEl = ref<HTMLElement | null>(null)
+const workActionsEl = ref<HTMLElement | null>(null)
+const indexing = computed(() => ['indexing', 'queued'].includes(detail.value?.group.codegraphStatus || ''))
 const preparing = computed(() => ['queued', 'waiting', 'preparing'].includes(detail.value?.group.workspaceStatus || ''))
 let poll: ReturnType<typeof setInterval> | null = null
 async function refreshGroup() {
@@ -49,11 +52,31 @@ async function openChat(id: string) {
 }
 async function newChat() {
   const result = await api<{ session: Session }>(`${base}/sessions`, { method: 'POST' })
-  await history()
-  await openChat(result.session.id)
+  session.value = result.session
+  draft.value = ''
+  await Promise.all([history(), navigateTo({ query: { chat: result.session.id } }, { replace: true })])
+  await scroll()
 }
+async function deleteConversation(chat: Summary) {
+  if (busy.value || !confirm(t('chat.deleteConversationConfirm', { title: chat.title }))) return
+  await run(async () => {
+    await api(`${base}/sessions/${chat.id}`, { method: 'DELETE' })
+    chats.value = chats.value.filter(item => item.id !== chat.id)
+    if (session.value?.id === chat.id) {
+      session.value = null
+      draft.value = ''
+      if (chats.value[0]) await openChat(chats.value[0].id)
+      else await navigateTo({ query: {} }, { replace: true })
+    }
+  }, 'delete')
+}
+
 async function prepare() {
   await api(`${base}/prepare`, { method: 'POST' })
+  await refreshGroup()
+}
+async function retryCodegraph() {
+  await api(`${base}/codegraph/retry`, { method: 'POST' })
   await refreshGroup()
 }
 async function save(value: MicroserviceGroupInput) {
@@ -78,8 +101,7 @@ function keydown(event: KeyboardEvent) {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); void send() }
 }
 onMounted(() => { void run(async () => {
-  await refreshGroup()
-  await history()
+  await Promise.all([refreshGroup(), history()])
   const requested = typeof route.query.chat === 'string' ? route.query.chat : ''
   if (requested) await openChat(requested)
   else if (chats.value[0]) await openChat(chats.value[0].id)
@@ -87,7 +109,7 @@ onMounted(() => { void run(async () => {
 }) })
 onMounted(() => {
   poll = setInterval(() => {
-    if (preparing.value && !busy.value) void refreshGroup().catch(() => { error.value = 'Could not refresh workspace status. Reload the page to retry.' })
+    if ((preparing.value || indexing.value) && !busy.value) void refreshGroup().catch(() => { error.value = 'Could not refresh workspace status. Reload the page to retry.' })
   }, 5000)
 })
 onBeforeUnmount(() => { if (poll) clearInterval(poll) })
@@ -108,15 +130,16 @@ onBeforeUnmount(() => { if (poll) clearInterval(poll) })
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <ConversationCopyButton :key="session?.id" :messages="session?.messages || []" :disabled="Boolean(busy)" />
-        <UButton variant="soft" color="neutral" icon="i-lucide-settings-2" :disabled="Boolean(busy) || preparing" @click="editing = !editing">Edit group</UButton>
-        <UButton variant="soft" icon="i-lucide-refresh-cw" :disabled="Boolean(busy) || preparing || !detail" @click="run(prepare, 'prepare')">{{ detail?.group.workspaceStatus === 'failed' ? 'Retry preparation' : 'Sync workspace' }}</UButton>
+        <UButton variant="soft" color="neutral" icon="i-lucide-settings-2" :disabled="Boolean(busy) || preparing || indexing" @click="editing = !editing">Edit group</UButton>
+        <UButton variant="soft" icon="i-lucide-refresh-cw" :disabled="Boolean(busy) || preparing || indexing || !detail" @click="run(prepare, 'prepare')">{{ detail?.group.workspaceStatus === 'failed' ? 'Retry preparation' : 'Sync workspace' }}</UButton>
+        <UButton v-if="detail?.group.codegraphEnabled && detail.group.workspaceStatus === 'ready' && ['unavailable', 'failed'].includes(detail.group.codegraphStatus)" variant="soft" icon="i-lucide-network" :disabled="Boolean(busy) || indexing" @click="run(retryCodegraph, 'codegraph')">Retry CodeGraph</UButton>
         <UButton icon="i-lucide-plus" :disabled="Boolean(busy) || !detail" @click="run(newChat, 'new')">New chat</UButton>
       </div>
     </div>
-    <ChatWorkPanel v-if="session" :key="session.id" scope="microservice" :session-id="session.id" :message-count="session.messages.length" :disabled="Boolean(busy)" :ready="detail?.group.workspaceStatus === 'ready'" />
     <UAlert v-if="error" color="error" :title="error" />
-    <UAlert v-if="detail?.group.lastError" :color="detail.group.workspaceStatus === 'failed' ? 'error' : 'warning'" :title="detail.group.lastError" />
-    <UAlert v-if="preparing" color="info" title="Preparing the group workspace" description="Cloning projects and building repository context in the background. You can read previous chats while preparation runs. This page updates automatically." />
+    <UAlert v-if="detail?.group.lastError" :color="detail.group.workspaceStatus === 'failed' || detail.group.codegraphStatus === 'unavailable' ? 'error' : 'warning'" :title="detail.group.lastError" />
+    <UAlert v-if="indexing && !preparing" color="info" title="Projects are ready — CodeGraph is indexing" description="You can chat now using repository snapshots. CodeGraph context will be added when indexing finishes." />
+    <UAlert v-if="preparing" color="info" title="Preparing the group workspace" description="Preparing project checkouts in the background. You can read previous chats while preparation runs. This page updates automatically." />
     <div v-if="editing && detail" class="aw-panel space-y-4 rounded-xl p-5">
       <p class="text-sm opacity-70">Changes apply to future replies. Your existing conversations stay saved.</p>
       <MicroserviceGroupForm :initial="detail.group" :busy="busy === 'save'" @save="save" @cancel="editing = false" />
@@ -139,17 +162,19 @@ onBeforeUnmount(() => { if (poll) clearInterval(poll) })
     <div class="flex h-[min(70vh,55rem)] min-h-[30rem] flex-col gap-4 md:flex-row">
       <aside class="aw-panel max-h-36 overflow-y-auto rounded-xl p-3 md:max-h-none md:w-56 md:shrink-0" aria-label="Group chat history">
         <h2 class="mb-3 text-sm font-medium">Your conversations</h2>
-        <button v-for="chat in chats" :key="chat.id" class="mb-1 block w-full rounded-lg p-2 text-start text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="session?.id === chat.id ? 'bg-black/5 dark:bg-white/10' : ''" :disabled="Boolean(busy)" @click="run(() => openChat(chat.id))">
-          <span class="block truncate">{{ chat.title }}</span><time class="text-xs opacity-50">{{ new Date(chat.updatedAt).toLocaleDateString() }}</time>
-        </button>
+        <ConversationHistoryItem v-for="chat in chats" :key="chat.id" :title="chat.title" :updated-at="chat.updatedAt" :active="session?.id === chat.id" :disabled="Boolean(busy)" @open="run(() => openChat(chat.id))" @delete="deleteConversation(chat)" />
+        <p v-if="!chats.length && !busy" class="px-2 text-xs opacity-60">{{ t('chat.noConversations') }}</p>
       </aside>
       <div class="aw-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
+        <ChatWorkPanel v-if="session" :key="session.id" scope="microservice" :session-id="session.id" :message-count="session.messages.length" :disabled="Boolean(busy)" :ready="detail?.group.workspaceStatus === 'ready'" embedded :actions-target="workActionsEl" @focus-actions="scroll" />
         <div ref="chatEl" role="log" aria-live="polite" aria-label="Group conversation" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
+          <p v-if="!session && !busy" class="py-10 text-center text-sm opacity-60">{{ t('chat.noConversations') }}</p>
           <div v-if="session && !session.messages.length" class="py-10 text-center text-sm opacity-60"><p>Ask about the whole system.</p><p class="mt-2">For example: “How does a request move between these services?” or “Which projects handle authentication?”</p></div>
           <div v-for="msg in session?.messages || []" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
             <div class="min-w-0 max-w-[92%] rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/5"><div class="mb-2 flex items-center justify-between gap-4"><p class="text-xs opacity-60">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</p><MessageCopyButton :content="msg.content" /></div><ChatMarkdown :content="msg.content" /></div>
           </div>
           <p v-if="busy === 'send'" class="text-sm opacity-60" role="status">Reading group context and answering…</p>
+          <div ref="workActionsEl" />
         </div>
         <form class="flex items-end gap-2 border-t border-[var(--aw-line)] p-4" @submit.prevent="send">
           <UTextarea v-model="draft" aria-label="Message about this group" :placeholder="detail?.group.workspaceStatus === 'ready' ? 'Ask about your services…' : 'Waiting for the workspace to be ready…'" class="w-full" :rows="3" :maxlength="20000" :disabled="Boolean(busy) || !session || detail?.group.workspaceStatus !== 'ready'" @keydown="keydown" />

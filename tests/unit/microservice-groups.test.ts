@@ -64,6 +64,38 @@ describe('microservice groups and preparation', () => {
     expect(mocks.index).toHaveBeenCalledWith('/tmp/group', true)
     expect(mocks.updates.at(-1)).toEqual(expect.objectContaining({ workspaceStatus: 'ready', codegraphStatus: 'ready' }))
   })
+  it('makes repository chat ready before the CodeGraph index finishes', async () => {
+    mocks.selectRows = [[group], repos]
+    let finishIndex!: (value: string) => void
+    mocks.index.mockImplementationOnce(() => new Promise<string>(resolve => { finishIndex = resolve }))
+    const preparing = processMicroserviceWorkspaces()
+    await vi.waitFor(() => expect(mocks.index).toHaveBeenCalled())
+    expect(mocks.updates.at(-1)).toEqual(expect.objectContaining({ workspaceStatus: 'ready', codegraphStatus: 'indexing' }))
+    finishIndex('ready')
+    await preparing
+    expect(mocks.updates.at(-1)).toEqual(expect.objectContaining({ workspaceStatus: 'ready', codegraphStatus: 'ready' }))
+  })
+  it('clones selected projects concurrently rather than waiting for each checkout', async () => {
+    mocks.selectRows = [[group], repos]
+    const complete: Array<(value: string) => void> = []
+    mocks.clone.mockImplementationOnce(() => new Promise<string>(resolve => complete.push(resolve)))
+      .mockImplementationOnce(() => new Promise<string>(resolve => complete.push(resolve)))
+    const preparing = processMicroserviceWorkspaces()
+    await vi.waitFor(() => expect(complete).toHaveLength(2))
+    complete.forEach(resolve => resolve('commit123'))
+    await preparing
+    expect(mocks.updates.at(-1)?.workspaceStatus).toBe('ready')
+  })
+  it('retries only CodeGraph without fetching or recloning any repository', async () => {
+    mocks.selectRows = [[{ ...group, workspaceStatus: 'ready', codegraphStatus: 'queued' }]]
+    await processMicroserviceWorkspaces()
+    expect(mocks.clone).not.toHaveBeenCalled()
+    expect(mocks.ensure).not.toHaveBeenCalled()
+    expect(mocks.queue).not.toHaveBeenCalled()
+    expect(mocks.index).toHaveBeenCalledWith('/tmp/group', true)
+    expect(mocks.updates.at(-1)).toEqual(expect.objectContaining({ workspaceStatus: 'ready', codegraphStatus: 'ready' }))
+    expect(mocks.updates.at(-1)).not.toHaveProperty('preparedAt')
+  })
   it('waits for missing source clones without indexing a partial workspace', async () => {
     mocks.selectRows = [[group], [repos[0], { ...repos[1], workspaceStatus: 'not_cloned', localPath: null }]]
     await processMicroserviceWorkspaces()
@@ -82,7 +114,7 @@ describe('microservice groups and preparation', () => {
     mocks.selectRows = [[group], repos]
     mocks.index.mockRejectedValueOnce(new Error('CodeGraph missing'))
     await processMicroserviceWorkspaces()
-    expect(mocks.updates.at(-1)).toEqual(expect.objectContaining({ workspaceStatus: 'ready', codegraphStatus: 'unavailable', lastError: expect.stringContaining('snapshots') }))
+    expect(mocks.updates.at(-1)).toEqual(expect.objectContaining({ workspaceStatus: 'ready', codegraphStatus: 'unavailable', lastError: expect.stringContaining('CodeGraph missing') }))
   })
   it('stops retrying failed source clones until the user requests another preparation', async () => {
     mocks.selectRows = [[{ ...group, workspaceStatus: 'waiting' }], [repos[0], { ...repos[1], workspaceStatus: 'failed' }]]
