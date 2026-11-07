@@ -18,8 +18,8 @@ async function retry() {
   retrying.value = true
   try { await api(`/api/v1/chat-work/runs/${id}/retry-publish`, { method: 'POST' }); await refresh() } catch { error.value = 'Could not retry publishing. Another run may be active for this chat.' } finally { retrying.value = false }
 }
-await refresh()
-onMounted(() => { timer = setInterval(() => { if (run.value && ACTIVE_WORK_STATUSES.includes(run.value.status)) void refresh() }, 5000) })
+onMounted(() => { void refresh() })
+onMounted(() => { timer = setInterval(() => { if (!document.hidden && run.value && ACTIVE_WORK_STATUSES.includes(run.value.status)) void refresh() }, 5000) })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 

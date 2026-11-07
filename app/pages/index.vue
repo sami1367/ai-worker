@@ -8,11 +8,21 @@ const windowOptions = [
   { label: '7d', value: 168 },
 ]
 
-const { data, pending, error, refresh } = await useAsyncData(
+const { data, pending, error, refresh } = await useLazyAsyncData(
   'dashboard',
   () => api<any>(`/api/v1/dashboard?windowHours=${Number(windowHours.value) || 24}`),
   { watch: [windowHours] },
 )
+
+// Account probes have their own request so they cannot delay task/worker metrics.
+const { data: planSnapshots } = await useLazyAsyncData('provider-plan-snapshots', () =>
+  api<Array<{ providerType: string } & Record<string, unknown>>>('/api/v1/providers/plans'),
+)
+type DashboardService = NonNullable<typeof data.value>['aiServices'][number]
+const aiServices = computed(() => (data.value?.aiServices || []).map((service: DashboardService) => ({
+  ...service,
+  plan: planSnapshots.value?.find(plan => plan.providerType === service.providerType) || service.plan,
+})))
 
 function statusColor(status: string | null | undefined) {
   if (!status) return 'neutral'
@@ -166,7 +176,7 @@ function usageLabel(usage: any): string {
 
         <div class="grid gap-4 lg:grid-cols-2">
           <div
-            v-for="svc in data.aiServices"
+            v-for="svc in aiServices"
             :key="svc.providerType"
             class="aw-panel space-y-4 rounded-xl p-4"
           >

@@ -3,7 +3,7 @@ const route = useRoute()
 const { api } = useApi()
 const id = computed(() => String(route.params.id))
 
-const { data, pending } = await useAsyncData(
+const { data, pending } = await useLazyAsyncData(
   () => `run-${id.value}`,
   () => api<any>(`/api/v1/runs/${id.value}`),
   { watch: [id] },

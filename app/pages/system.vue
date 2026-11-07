@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { api } = useApi()
-const { data, pending, refresh } = await useAsyncData('diagnostics', () => api<any>('/api/v1/system/diagnostics'))
+const { data, pending, refresh } = await useLazyAsyncData('diagnostics', () => api<any>('/api/v1/system/diagnostics'))
 const busy = ref('')
 const message = ref('')
 

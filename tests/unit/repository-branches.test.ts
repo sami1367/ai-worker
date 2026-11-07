@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getDb } from '../../server/utils/db'
+import { getConnectionAccessToken } from '../../server/services/connections'
+import { listGitHubBranches } from '../../server/services/forge-github'
+import { listGitLabBranches } from '../../server/services/forge-gitlab'
+import { listRepositoryBranches } from '../../server/services/repositories'
+import type { AppError } from '../../server/utils/errors'
 
 vi.mock('../../server/utils/db', () => ({
   getDb: vi.fn(),
@@ -16,13 +23,6 @@ vi.mock('../../server/services/forge-github', () => ({
 vi.mock('../../server/services/forge-gitlab', () => ({
   listGitLabBranches: vi.fn(),
 }))
-
-import { getDb } from '../../server/utils/db'
-import { getConnectionAccessToken } from '../../server/services/connections'
-import { listGitHubBranches } from '../../server/services/forge-github'
-import { listGitLabBranches } from '../../server/services/forge-gitlab'
-import { listRepositoryBranches } from '../../server/services/repositories'
-import { AppError } from '../../server/utils/errors'
 
 function mockRepoRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -72,8 +72,13 @@ function mockSelect(row: unknown | null) {
 }
 
 describe('listRepositoryBranches', () => {
+  let clock = Date.now()
+  afterEach(() => vi.useRealTimers())
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
+    clock += 60_000
+    vi.setSystemTime(clock)
   })
 
   it('lists GitHub branches and keeps current default first when missing remotely', async () => {
@@ -182,6 +187,22 @@ describe('listRepositoryBranches', () => {
 
     const result = await listRepositoryBranches('r1')
     expect(result.branches).toEqual(['main', 'feat'])
+  })
+
+  it('reuses branch reads but rechecks connection access and the current default branch', async () => {
+    mockSelect(mockRepoRow())
+    vi.mocked(getConnectionAccessToken).mockResolvedValue({
+      token: 'cache-test-token',
+      row: { provider: 'github', instanceUrl: 'https://github.com' },
+    } as never)
+    vi.mocked(listGitHubBranches).mockResolvedValue(['main'])
+    await listRepositoryBranches('r1')
+    mockSelect(mockRepoRow({ defaultBranch: 'release' }))
+    expect(await listRepositoryBranches('r1')).toEqual({ branches: ['release', 'main'], defaultBranch: 'release' })
+    expect(listGitHubBranches).toHaveBeenCalledTimes(1)
+    expect(getConnectionAccessToken).toHaveBeenCalledTimes(2)
+    vi.mocked(getConnectionAccessToken).mockRejectedValue(new Error('disconnected'))
+    await expect(listRepositoryBranches('r1')).rejects.toThrow('disconnected')
   })
 
   it('throws not_found for missing or archived repos', async () => {

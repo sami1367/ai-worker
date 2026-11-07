@@ -8,6 +8,7 @@
 # (/data/config/app-secrets.env) and the host .env may be removed.
 
 x-env: &env
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
   DATABASE_URL: ${DATABASE_URL:-}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
   NUXT_SESSION_PASSWORD: ${NUXT_SESSION_PASSWORD:-}
@@ -41,6 +42,19 @@ x-app: &app
     - internal
 
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", "", "--appendonly", "no"]
+    networks:
+      - internal
+    mem_limit: 192m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   db:
     image: postgres:16.6-alpine
     restart: unless-stopped

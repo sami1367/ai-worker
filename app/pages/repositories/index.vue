@@ -17,7 +17,7 @@ function isToggling(id: string) {
   return togglingIds.value.has(id)
 }
 
-const { data: connectionsData } = await useAsyncData('connections-for-repo-filter', () =>
+const { data: connectionsData } = await useLazyAsyncData('connections-for-repo-filter', () =>
   api<{ items: Array<{
     id: string
     provider: string
@@ -65,7 +65,7 @@ const query = computed(() => {
   return p.toString()
 })
 
-const { data, pending, refresh } = await useAsyncData(
+const { data, pending, refresh } = await useLazyAsyncData(
   'repos-managed',
   () => api<any>(`/api/v1/repositories?${query.value}`),
   { watch: [query] },

@@ -11,7 +11,6 @@ export type SetupReadiness = {
 
 export function useSetupReadiness() {
   const { api } = useApi()
-  const route = useRoute()
 
   const { data, pending, refresh, error } = useAsyncData(
     'setup-readiness',
@@ -23,14 +22,11 @@ export function useSetupReadiness() {
     },
   )
 
-  watch(() => route.fullPath, () => {
-    void refresh()
-  })
 
   if (import.meta.client) {
     onMounted(() => {
       const timer = setInterval(() => {
-        void refresh()
+        if (!document.hidden) void refresh()
       }, 60_000)
       onUnmounted(() => clearInterval(timer))
     })

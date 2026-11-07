@@ -19,13 +19,13 @@ const query = computed(() => {
   return p.toString()
 })
 
-const { data: connection, refresh: refreshConnection } = await useAsyncData(
+const { data: connection, refresh: refreshConnection } = await useLazyAsyncData(
   () => `connection-${id.value}`,
   () => api<any>(`/api/v1/connections/${id.value}`),
   { watch: [id] },
 )
 
-const { data, pending, refresh } = await useAsyncData(
+const { data, pending, refresh } = await useLazyAsyncData(
   () => `discovered-${id.value}-${query.value}`,
   () => api<any>(`/api/v1/connections/${id.value}/repositories?${query.value}`),
   { watch: [query, id] },

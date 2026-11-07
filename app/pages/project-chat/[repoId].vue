@@ -70,13 +70,13 @@ function keydown(event: KeyboardEvent) {
     void send()
   }
 }
-await run(async () => {
+onMounted(() => { void run(async () => {
   await refreshHistory()
   const requested = typeof route.query.chat === 'string' ? route.query.chat : ''
   if (requested) await open(requested)
   else if (chats.value[0]) await open(chats.value[0].id)
   else await newChat()
-})
+}) })
 onMounted(() => {
   contextTimer = setInterval(() => {
     if (contextAvailable.value || busy.value || refreshingContext || !session.value) return
