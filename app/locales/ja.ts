@@ -5,6 +5,7 @@ export const ja: Messages = {
   'nav.dashboard': 'ダッシュボード',
   'nav.connections': '接続',
   'nav.repositories': 'リポジトリ',
+  'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'タスク',
   'nav.providers': 'プロバイダー',

@@ -5,6 +5,7 @@ export const zh: Messages = {
   'nav.dashboard': '仪表盘',
   'nav.connections': '连接',
   'nav.repositories': '仓库',
+  'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': '任务',
   'nav.providers': '提供商',

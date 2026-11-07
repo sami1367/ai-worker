@@ -5,6 +5,7 @@ export const fr: Messages = {
   'nav.dashboard': 'Tableau de bord',
   'nav.connections': 'Connexions',
   'nav.repositories': 'Dépôts',
+  'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'Tâches',
   'nav.providers': 'Fournisseurs',

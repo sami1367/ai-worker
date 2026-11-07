@@ -481,3 +481,14 @@ export const taskPlanningSessions = pgTable('task_planning_sessions', {
   index('task_planning_sessions_status_idx').on(t.status),
   index('task_planning_sessions_created_idx').on(t.createdAt),
 ])
+
+/** Project conversations are private to their creator and separate from task planning. */
+export const projectChatSessions = pgTable('project_chat_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  repositoryId: uuid('repository_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default('New chat'),
+  messages: jsonb('messages').$type<TaskPlanningMessage[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('project_chat_sessions_owner_repo_idx').on(t.createdByUserId, t.repositoryId)])

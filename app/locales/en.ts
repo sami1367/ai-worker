@@ -3,6 +3,7 @@ export const en = {
   'nav.dashboard': 'Dashboard',
   'nav.connections': 'Connections',
   'nav.repositories': 'Repositories',
+  'nav.projectChat': 'Project chat',
   'nav.createTasks': 'Create tasks',
   'nav.tasks': 'Tasks',
   'nav.providers': 'Providers',
