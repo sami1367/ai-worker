@@ -28,7 +28,7 @@ export async function callCodexPlanning(messages: PlanningLlmMessage[], model: s
       const timer = setTimeout(() => {
         child.kill('SIGKILL')
         reject(new AppError(504, 'Codex planning timed out. Try again.', 'planning_llm_error'))
-      }, 90_000)
+      }, 1_800_000)
       child.stdin.on('error', () => { /* close/error reports a failed process */ })
       child.once('error', () => {
         clearTimeout(timer)
