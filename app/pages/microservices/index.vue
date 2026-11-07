@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { api } = useApi()
-const { data, error, refresh } = await useAsyncData('microservice-groups', () => api<{ items: Array<{
+const { data, error, refresh } = await useLazyAsyncData('microservice-groups', () => api<{ items: Array<{
   id: string, name: string, description: string, projects: Array<{ labels: string[] }>, workspaceStatus: string
 }> }>('/api/v1/microservices/groups'))
 </script>

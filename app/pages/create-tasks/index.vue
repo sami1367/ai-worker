@@ -3,7 +3,7 @@ const { api } = useApi()
 const { t } = useI18n()
 const q = ref('')
 
-const { data, pending } = await useAsyncData('create-tasks-repos', () =>
+const { data, pending } = await useLazyAsyncData('create-tasks-repos', () =>
   api<{ items: Array<{
     id: string
     name: string

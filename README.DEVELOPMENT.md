@@ -142,3 +142,37 @@ The conversation also shows a progress/results link in either mode. You may leav
 the page or return to Chat mode while an approved run continues. Lost worker leases mark runs interrupted; completed code can retry publishing
 without rerunning the AI. Partial publication saves per-repository commits and
 request URLs, so retries reuse the same branch/request and skip successful services.
+
+### UI navigation and read caching
+
+Page data uses Nuxt's lazy loaders so sidebar navigation renders the destination
+while its requests are running. Auth checks are reused for up to 60 seconds within
+the current browser session; API authorization still runs on every request.
+Readiness refreshes after connection/repository/provider edits and once a minute
+while the tab is visible, rather than on every route change.
+
+Docker Compose includes a private, disposable Redis cache (128 MiB, LRU eviction,
+no host port or persistence). For local Nuxt development, optionally set
+`REDIS_URL=redis://127.0.0.1:6379`. Without it, or during Redis outages, the app uses
+process memory capped at 500 entries. Redis failures have short timeouts and do
+not prevent requests from reaching their data source.
+
+- GitHub/GitLab branch lists: 30-second TTL. Repository and connection access are
+  checked before reading the cache; the current default branch is applied live.
+- AI account/CLI snapshots: fresh for 2 minutes, then served for up to 10 more
+  minutes while refreshing in the background. A cold cache returns no account
+  snapshot immediately and fills it in the background. The dashboard loads
+  completed snapshots through a separate lazy request, so account probes cannot
+  delay operational task/queue data.
+- Keys hash the host, project, and credential identity so changing credentials
+  cannot reuse another connection's results. Tokens are never cache values.
+  These caches contain account metadata; keep Redis private.
+- Failed loads are retried on a later request. Concurrent reads within a web
+  process share one in-flight load; separate processes share completed Redis
+  entries. This does not cache AI generation responses or mutation requests.
+
+To clear shared cached reads, delete only keys matching `ai-worker:reads:v1:*`
+from your Redis instance and restart web processes to clear their local caches.
+After applying these source changes, rebuild/redeploy the web image and start the
+Redis service; `docker compose up -d` alone uses the published image unless you
+have built and selected a new `AI_WORKER_IMAGE`.

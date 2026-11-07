@@ -12,7 +12,7 @@ type PromptItem = {
 }
 
 const { api } = useApi()
-const { data, pending, refresh } = await useAsyncData('prompts', () =>
+const { data, pending, refresh } = await useLazyAsyncData('prompts', () =>
   api<{ items: PromptItem[] }>('/api/v1/prompts'),
 )
 
@@ -104,11 +104,11 @@ async function resetToSeed() {
   }
 }
 
-onMounted(async () => {
-  if (items.value.length && !selectedId.value) {
-    await selectPrompt(items.value[0])
+watch(items, (loaded) => {
+  if (import.meta.client && loaded.length && !selectedId.value) {
+    void selectPrompt(loaded[0])
   }
-})
+}, { immediate: true })
 </script>
 
 <template>

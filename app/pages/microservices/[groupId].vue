@@ -77,14 +77,14 @@ async function send() {
 function keydown(event: KeyboardEvent) {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); void send() }
 }
-await run(async () => {
+onMounted(() => { void run(async () => {
   await refreshGroup()
   await history()
   const requested = typeof route.query.chat === 'string' ? route.query.chat : ''
   if (requested) await openChat(requested)
   else if (chats.value[0]) await openChat(chats.value[0].id)
   else await newChat()
-})
+}) })
 onMounted(() => {
   poll = setInterval(() => {
     if (preparing.value && !busy.value) void refreshGroup().catch(() => { error.value = 'Could not refresh workspace status. Reload the page to retry.' })

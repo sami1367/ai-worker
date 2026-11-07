@@ -9,8 +9,8 @@ let timer: ReturnType<typeof setInterval> | null = null
 async function refresh() {
   try { items.value = (await api<{ items: ChatWorkRunView[] }>('/api/v1/chat-work/runs')).items; error.value = '' } catch { error.value = 'Could not load chat work. Please retry.' }
 }
-await refresh()
-onMounted(() => { timer = setInterval(() => { void refresh() }, 5000) })
+onMounted(() => { void refresh() })
+onMounted(() => { timer = setInterval(() => { if (!document.hidden) void refresh() }, 5000) })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 

@@ -2,11 +2,11 @@
 const route = useRoute()
 const { api } = useApi()
 
-const { data, pending, refresh, error } = await useAsyncData('connections', () =>
+const { data, pending, refresh, error } = await useLazyAsyncData('connections', () =>
   api<any>('/api/v1/connections'),
 )
 
-const { data: sshKey } = await useAsyncData('platform-ssh-key', () =>
+const { data: sshKey } = await useLazyAsyncData('platform-ssh-key', () =>
   api<{
     publicKey: string
     fingerprint: string

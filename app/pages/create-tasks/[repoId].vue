@@ -134,7 +134,7 @@ function apiErrorMessage(e: unknown): string {
   return ''
 }
 
-await bootstrap(false)
+onMounted(() => { void bootstrap(false) })
 
 onBeforeUnmount(() => {
   stopContextPoll()

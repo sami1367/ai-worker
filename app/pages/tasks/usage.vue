@@ -41,7 +41,7 @@ type FinishedUsagePage = {
   total: number
 }
 
-const { data, pending, error, refresh } = await useAsyncData(
+const { data, pending, error, refresh } = await useLazyAsyncData(
   'finished-task-usage',
   () => api<FinishedUsagePage>(`/api/v1/runs/finished?${qs.value}`),
   { watch: [qs] },

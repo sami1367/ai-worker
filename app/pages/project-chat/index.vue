@@ -3,7 +3,7 @@ const { api } = useApi()
 const { t } = useI18n()
 const q = ref('')
 
-const { data, pending } = await useAsyncData('project-chat-repos', () =>
+const { data, pending } = await useLazyAsyncData('project-chat-repos', () =>
   api<{ items: Array<{
     id: string
     name: string

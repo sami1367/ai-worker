@@ -1,3 +1,4 @@
+import { cachedRead, readCacheKey } from '#utils/read-cache'
 import { and, count, desc, eq, ilike, isNull, notInArray, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { repositories, taskRuns } from '#db/schema'
@@ -207,9 +208,13 @@ export async function listRepositoryBranches(id: string): Promise<{
   }
 
   const { token, row: connection } = await getConnectionAccessToken(repo.connectionId)
-  const fetched = connection.provider === 'github'
-    ? await listGitHubBranches(token, projectRef)
-    : await listGitLabBranches(connection.instanceUrl, token, projectRef)
+  const fetched = await cachedRead(
+    readCacheKey('branches', [repo.connectionId, connection.provider, connection.instanceUrl, projectRef, token]),
+    () => connection.provider === 'github'
+      ? listGitHubBranches(token, projectRef)
+      : listGitLabBranches(connection.instanceUrl, token, projectRef),
+    { ttlSeconds: 30 },
+  )
 
   const seen = new Set<string>()
   const branches: string[] = []

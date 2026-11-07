@@ -26,6 +26,9 @@ importers:
       highlight.js:
         specifier: ^11.12.0
         version: 11.12.0
+      ioredis:
+        specifier: ^5.8.2
+        version: 5.11.1
       markdown-it:
         specifier: ^15.0.3
         version: 15.0.3

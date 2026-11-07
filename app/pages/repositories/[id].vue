@@ -5,13 +5,13 @@ const route = useRoute()
 const { api } = useApi()
 const id = computed(() => String(route.params.id))
 
-const { data, pending, refresh } = await useAsyncData(
+const { data, pending, refresh } = await useLazyAsyncData(
   () => `repo-${id.value}`,
   () => api<any>(`/api/v1/repositories/${id.value}`),
   { watch: [id] },
 )
 
-const { data: operations, refresh: refreshOps } = await useAsyncData(
+const { data: operations, refresh: refreshOps } = await useLazyAsyncData(
   () => `repo-ops-${id.value}`,
   () => api<any>(`/api/v1/repositories/${id.value}/operations`),
   { watch: [id] },

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { api } = useApi()
 const page = ref(1)
-const { data, pending } = await useAsyncData(
+const { data, pending } = await useLazyAsyncData(
   'audit',
   () => api<any>(`/api/v1/audit-logs?page=${page.value}&pageSize=50`),
   { watch: [page] },

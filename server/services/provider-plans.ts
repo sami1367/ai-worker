@@ -1,3 +1,4 @@
+import { cachedRead, readCacheKey } from '#utils/read-cache'
 import { codexChatgptConnected } from './codex-auth'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -483,14 +484,16 @@ async function fetchCopilotPlan(secrets: ResolvedSecrets): Promise<ProviderPlanS
 }
 
 /** Best-effort plan / account snapshots for each AI provider (parallel, timed). */
-export async function getProviderPlanSnapshots(): Promise<ProviderPlanSnapshot[]> {
+export async function getProviderPlanSnapshots(waitForSnapshot = false): Promise<ProviderPlanSnapshot[]> {
   const secrets = await resolveProviderSecrets()
-  const [cursor, claude, codex, gemini, copilot] = await Promise.all([
-    fetchCursorPlan(secrets),
-    fetchClaudePlan(secrets),
-    fetchCodexPlan(secrets),
-    fetchGeminiPlan(secrets),
-    fetchCopilotPlan(secrets),
-  ])
-  return [cursor, claude, codex, gemini, copilot]
+  return cachedRead(readCacheKey('provider-plans', secrets), async () => {
+    const [cursor, claude, codex, gemini, copilot] = await Promise.all([
+      fetchCursorPlan(secrets),
+      fetchClaudePlan(secrets),
+      fetchCodexPlan(secrets),
+      fetchGeminiPlan(secrets),
+      fetchCopilotPlan(secrets),
+    ])
+    return [cursor, claude, codex, gemini, copilot]
+  }, { ttlSeconds: 120, staleSeconds: 600, ...(waitForSnapshot ? {} : { coldValue: () => [] }) })
 }

@@ -53,11 +53,11 @@ const {
   pending: queuePending,
   refresh: refreshQueue,
   error: queueError,
-} = await useAsyncData('tasks-queue', () => api<any>('/api/v1/tasks/queue'), {
+} = await useLazyAsyncData('tasks-queue', () => api<any>('/api/v1/tasks/queue'), {
   server: false,
 })
 
-const { data: history, pending: historyPending, refresh: refreshHistory } = await useAsyncData(
+const { data: history, pending: historyPending, refresh: refreshHistory } = await useLazyAsyncData(
   'tasks-history',
   () => api<any>(`/api/v1/runs?${qs.value}`),
   { watch: [qs] },

@@ -3,7 +3,7 @@ import { buildProviderToast } from '../utils/provider-toast'
 
 const { api } = useApi()
 const toast = useToast()
-const { data, pending, refresh } = await useAsyncData('providers', () => api<any>('/api/v1/providers'))
+const { data, pending, refresh } = await useLazyAsyncData('providers', () => api<any>('/api/v1/providers'))
 const busy = ref('')
 const showAuthGuide = ref(true)
 
