@@ -201,6 +201,13 @@ when a buffered output limit is exceeded. The default indexing timeout is 30 min
 the group lease while it runs. `CODEGRAPH_BIN` can specify the CLI executable path
 inside the web runtime; the launcher also checks common user/system binary paths.
 
+Group indexing shares the web container memory with the application. Docker Compose
+defaults to a 4 GB web limit (`WEB_MEMORY_LIMIT=4g`). If indexing is killed by
+`SIGKILL`, check OOM logs and increase `WEB_MEMORY_LIMIT` for larger groups, subject
+to available host memory. Apply changes with `docker compose up -d --force-recreate web`,
+then use **Retry CodeGraph**. The memory setting is applied by Compose and does not
+require rebuilding the image.
+
 Failures show the actual sanitized command error on the group page and in the web
 logs. The group workspace retains `.codegraph-preparation.log` with the recent
 index/status output. Missing executables, timeouts, termination signals, and
