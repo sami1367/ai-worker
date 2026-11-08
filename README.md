@@ -9,7 +9,7 @@ AI Worker is designed for teams that want automation **on their own infrastructu
 | | |
 |---|---|
 | Docs | [vibeplus1.com/ai-worker](http://vibeplus1.com/ai-worker) |
-| Image | [`sami1367/ai-worker`](https://hub.docker.com/r/sami1367/ai-worker) |
+| Image | [`sami1367/ai-worker:1.0.0`](https://hub.docker.com/r/sami1367/ai-worker) |
 | Source | [github.com/sami1367/ai-worker](https://github.com/sami1367/ai-worker) |
 | License | [Apache-2.0](LICENSE) (see [third-party notices](THIRD_PARTY_NOTICES.md) and [license audit](docs/LICENSE_AUDIT.md)) |
 
@@ -74,6 +74,8 @@ All four should succeed (versions print; `docker info` reaches the daemon). If a
 ---
 
 ## Quick start
+
+The Compose stack uses `sami1367/ai-worker:1.0.0` by default. To select another image version, set `AI_WORKER_IMAGE` in `.env`.
 
 Run this only after [Requirements](#requirements-before-you-start-the-service) verify. One command — creates the folder, downloads Compose + `.env`, **auto-generates secure secrets**, and starts the stack:
 
@@ -420,7 +422,7 @@ docker compose down
 | `docker: command not found` or `docker compose: command not found` | Install Docker Engine and Compose v2 on the host, then re-check [Requirements](#requirements-before-you-start-the-service). Quick start does not install them. |
 | `Cannot connect to the Docker daemon` / `docker.sock` | Start the Docker daemon, then confirm with `docker info`. |
 | `curl` 404 on GitHub raw URL | Repo must be **public** (Settings → Danger Zone → Change visibility) |
-| Cannot pull image | Is `sami1367/ai-worker:latest` on Hub? Try `docker pull sami1367/ai-worker:latest` |
+| Cannot pull image | Is `sami1367/ai-worker:1.0.0` on Hub? Try `docker pull sami1367/ai-worker:1.0.0` |
 | Secrets missing / insecure | Re-run: `curl -fsSL https://raw.githubusercontent.com/sami1367/ai-worker/main/scripts/generate-env.sh \| bash` |
 | `migrate` fails / CREATE SCHEMA | Password mismatch or old DB volume: see [docs/SECURITY.md](docs/SECURITY.md#migrating-from-older-compose-defaults) |
 | Wrong bootstrap secret | Use the value printed by `generate-env.sh` / in `.env` (not a placeholder) |
