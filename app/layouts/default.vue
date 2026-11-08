@@ -86,13 +86,13 @@ const repositoryWarningDescription = computed(() => (
                 :aria-label="t('setup.nav.needsAttention')"
               />
             </NuxtLink>
-            <div v-if="link.to === '/create-tasks'" class="my-2 border-y border-[var(--aw-line)] py-3">
+            <div v-if="link.to === '/create-tasks'" class="my-2 space-y-1">
               <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
               <NuxtLink
                 v-for="groupLink in microserviceLinks"
                 :key="groupLink.to"
                 :to="groupLink.to"
-                class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
+                class="ms-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
                 :class="isActive(groupLink.to) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
                 @click="mobileOpen = false"
               >
@@ -157,13 +157,13 @@ const repositoryWarningDescription = computed(() => (
                 :aria-label="t('setup.nav.needsAttention')"
               />
             </NuxtLink>
-            <div v-if="link.to === '/create-tasks'" class="my-2 border-y border-[var(--aw-line)] py-3">
+            <div v-if="link.to === '/create-tasks'" class="my-2 space-y-1">
               <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
               <NuxtLink
                 v-for="groupLink in microserviceLinks"
                 :key="groupLink.to"
                 :to="groupLink.to"
-                class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
+                class="ms-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
                 :class="isActive(groupLink.to) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
                 @click="mobileOpen = false"
               >
