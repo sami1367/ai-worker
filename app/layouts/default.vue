@@ -17,7 +17,6 @@ const links = [
   { to: '/repositories', labelKey: 'nav.repositories', icon: 'i-lucide-git-branch' },
   { to: '/project-chat', labelKey: 'nav.projectChat', icon: 'i-lucide-message-circle' },
   { to: '/create-tasks', labelKey: 'nav.createTasks', icon: 'i-lucide-messages-square' },
-  { to: '/chat-work', labelKey: 'nav.chatWork', icon: 'i-lucide-hammer' },
   { to: '/tasks', labelKey: 'nav.tasks', icon: 'i-lucide-list-checks' },
   { to: '/providers', labelKey: 'nav.providers', icon: 'i-lucide-bot' },
   { to: '/prompts', labelKey: 'nav.prompts', icon: 'i-lucide-scroll-text' },
@@ -27,6 +26,15 @@ const links = [
   { to: '/how-it-works', labelKey: 'nav.howItWorks', icon: 'i-lucide-book-open' },
   { to: '/about', labelKey: 'nav.about', icon: 'i-lucide-info' },
 ]
+
+const microserviceLinks = [
+  { to: '/microservices', labelKey: 'nav.microserviceChat', icon: 'i-lucide-network' },
+  { to: '/chat-work', labelKey: 'nav.chatWork', icon: 'i-lucide-hammer' },
+]
+
+function isActive(to: string) {
+  return route.path === to || (to !== '/' && route.path.startsWith(`${to}/`))
+}
 
 async function logout() {
   await api('/api/v1/auth/logout', { method: 'POST' })
@@ -67,7 +75,7 @@ const repositoryWarningDescription = computed(() => (
             <NuxtLink
               :to="link.to"
               class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
-              :class="route.path === link.to || (link.to !== '/' && route.path.startsWith(link.to)) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
+              :class="isActive(link.to) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
             >
               <UIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
               <span class="min-w-0 flex-1 truncate">{{ t(link.labelKey) }}</span>
@@ -78,11 +86,18 @@ const repositoryWarningDescription = computed(() => (
                 :aria-label="t('setup.nav.needsAttention')"
               />
             </NuxtLink>
-            <div v-if="link.to === '/chat-work'" class="my-2 border-y border-[var(--aw-line)] py-3">
+            <div v-if="link.to === '/create-tasks'" class="my-2 border-y border-[var(--aw-line)] py-3">
               <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
-              <NuxtLink to="/microservices" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="route.path.startsWith('/microservices') ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'" @click="mobileOpen = false">
-                <UIcon name="i-lucide-network" class="size-4 shrink-0" aria-hidden="true" />
-                <span>{{ t('nav.microserviceChat') }}</span>
+              <NuxtLink
+                v-for="groupLink in microserviceLinks"
+                :key="groupLink.to"
+                :to="groupLink.to"
+                class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
+                :class="isActive(groupLink.to) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
+                @click="mobileOpen = false"
+              >
+                <UIcon :name="groupLink.icon" class="size-4 shrink-0" aria-hidden="true" />
+                <span class="min-w-0 flex-1 truncate">{{ t(groupLink.labelKey) }}</span>
               </NuxtLink>
             </div>
           </template>
@@ -129,10 +144,12 @@ const repositoryWarningDescription = computed(() => (
           <template v-for="link in links" :key="link.to">
             <NuxtLink
               :to="link.to"
-              class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+              class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
+              :class="isActive(link.to) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
               @click="mobileOpen = false"
             >
-              <span class="min-w-0 flex-1">{{ t(link.labelKey) }}</span>
+              <UIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
+              <span class="min-w-0 flex-1 truncate">{{ t(link.labelKey) }}</span>
               <span
                 v-if="navNeedsAttention(link.to)"
                 class="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]"
@@ -140,11 +157,18 @@ const repositoryWarningDescription = computed(() => (
                 :aria-label="t('setup.nav.needsAttention')"
               />
             </NuxtLink>
-            <div v-if="link.to === '/chat-work'" class="my-2 border-y border-[var(--aw-line)] py-3">
+            <div v-if="link.to === '/create-tasks'" class="my-2 border-y border-[var(--aw-line)] py-3">
               <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider opacity-50">{{ t('nav.microservices') }}</p>
-              <NuxtLink to="/microservices" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5" :class="route.path.startsWith('/microservices') ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'" @click="mobileOpen = false">
-                <UIcon name="i-lucide-network" class="size-4 shrink-0" aria-hidden="true" />
-                <span>{{ t('nav.microserviceChat') }}</span>
+              <NuxtLink
+                v-for="groupLink in microserviceLinks"
+                :key="groupLink.to"
+                :to="groupLink.to"
+                class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-black/5 dark:hover:bg-white/5"
+                :class="isActive(groupLink.to) ? 'bg-black/5 font-medium dark:bg-white/10' : 'opacity-80'"
+                @click="mobileOpen = false"
+              >
+                <UIcon :name="groupLink.icon" class="size-4 shrink-0" aria-hidden="true" />
+                <span class="min-w-0 flex-1 truncate">{{ t(groupLink.labelKey) }}</span>
               </NuxtLink>
             </div>
           </template>
