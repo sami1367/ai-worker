@@ -135,6 +135,8 @@ CLI providers, model settings, and the existing agent credential isolation are
 reused. In bubblewrap mode the sibling repositories' Git metadata is read-only to
 the agent. Chat work has a dedicated consumer slot per platform worker. The default
 agent timeout is two hours (`CHAT_WORK_TIMEOUT_SECONDS` can override it).
+AI API responses for task planning and chat have a five-minute timeout;
+account-authenticated Codex planning has a 30-minute timeout.
 
 The trusted orchestrator commits, pushes the run branch without force, and opens
 one PR/MR for each changed repository covered by the plan. Unchanged repositories

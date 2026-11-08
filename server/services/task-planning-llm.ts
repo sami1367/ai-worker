@@ -30,6 +30,9 @@ type ResolvedCreds = PlanningProvider & {
   anthropicHeaders?: string
 }
 
+// Allow up to five minutes for model responses across planning and all chat entry points.
+const AI_RESPONSE_TIMEOUT_MS = 300_000
+
 const PLANNING_ORDER: Array<'claude' | 'codex' | 'gemini'> = ['claude', 'codex', 'gemini']
 
 function encryptionKey(): string {
@@ -205,7 +208,7 @@ async function callAnthropic(
       system: system || undefined,
       messages: chat,
     }),
-    timeoutMs: 90_000,
+    timeoutMs: AI_RESPONSE_TIMEOUT_MS,
     expectedOrigin: 'https://api.anthropic.com',
   })
 
@@ -246,7 +249,7 @@ async function callOpenAi(
       temperature: 0.3,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
-    timeoutMs: 90_000,
+    timeoutMs: AI_RESPONSE_TIMEOUT_MS,
     expectedOrigin: 'https://api.openai.com',
   })
 
@@ -294,7 +297,7 @@ async function callGemini(
       contents,
       generationConfig: { temperature: 0.3, maxOutputTokens: 4096 },
     }),
-    timeoutMs: 90_000,
+    timeoutMs: AI_RESPONSE_TIMEOUT_MS,
     expectedOrigin: 'https://generativelanguage.googleapis.com',
   })
 
