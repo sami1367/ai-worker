@@ -196,10 +196,16 @@ an interrupted build triggers reindexing, and a healthy index uses incremental s
 Parent-directory indexes never count as the selected group's index.
 
 Index output is streamed with a bounded diagnostic tail, rather than terminating
-when a buffered output limit is exceeded. The default indexing timeout is 30 minutes
+when a buffered output limit is exceeded. The default indexing timeout is 2 hours
 (`CODEGRAPH_INDEX_TIMEOUT_SECONDS`, range 60–7200 seconds). Active indexing renews
 the group lease while it runs. `CODEGRAPH_BIN` can specify the CLI executable path
 inside the web runtime; the launcher also checks common user/system binary paths.
+
+If a large group hits the previous 1800-second timeout, set
+`CODEGRAPH_INDEX_TIMEOUT_SECONDS=7200` in your deployment's `.env`, recreate the web
+container with `docker compose up -d --force-recreate web`, then use **Retry
+CodeGraph**. Existing explicit timeout values override the new default. A timeout
+is a wall-clock limit, so it can stop an index that is still making progress.
 
 Group indexing shares the web container memory with the application. Docker Compose
 defaults to a 4 GB web limit (`WEB_MEMORY_LIMIT=4g`). If indexing is killed by

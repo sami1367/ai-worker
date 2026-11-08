@@ -10,8 +10,8 @@ export function codegraphProcessEnv(): NodeJS.ProcessEnv {
   ].filter(Boolean).join(delimiter) }
 }
 export function codegraphIndexTimeoutMs() {
-  const seconds = Number(process.env.CODEGRAPH_INDEX_TIMEOUT_SECONDS || 1800)
-  return (Number.isFinite(seconds) ? Math.min(7200, Math.max(60, seconds)) : 1800) * 1000
+  const seconds = Number(process.env.CODEGRAPH_INDEX_TIMEOUT_SECONDS || 7200)
+  return (Number.isFinite(seconds) ? Math.min(7200, Math.max(60, seconds)) : 7200) * 1000
 }
 
 /** Stream output with a bounded diagnostic tail; verbose indexers must not hit execFile's maxBuffer. */

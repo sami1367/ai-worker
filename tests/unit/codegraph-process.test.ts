@@ -3,12 +3,20 @@ import { tmpdir } from 'node:os'
 import { codegraphIndexTimeoutMs, codegraphProcessEnv, runCodegraph } from '../../server/services/codegraph-process'
 afterEach(() => { vi.unstubAllEnvs() })
 describe('CodeGraph process execution', () => {
-  it('allows large groups more than the old five-minute indexing limit', () => {
+  it('allows large groups two hours by default and respects explicit timeouts', () => {
     vi.stubEnv('CODEGRAPH_INDEX_TIMEOUT_SECONDS', '')
-    expect(codegraphIndexTimeoutMs()).toBe(1_800_000)
+    expect(codegraphIndexTimeoutMs()).toBe(7_200_000)
     vi.stubEnv('CODEGRAPH_INDEX_TIMEOUT_SECONDS', '2400')
     expect(codegraphIndexTimeoutMs()).toBe(2_400_000)
     expect(codegraphProcessEnv().PATH).toContain('.local')
+  })
+  it('falls back for invalid timeouts and clamps configured limits', () => {
+    vi.stubEnv('CODEGRAPH_INDEX_TIMEOUT_SECONDS', 'invalid')
+    expect(codegraphIndexTimeoutMs()).toBe(7_200_000)
+    vi.stubEnv('CODEGRAPH_INDEX_TIMEOUT_SECONDS', '30')
+    expect(codegraphIndexTimeoutMs()).toBe(60_000)
+    vi.stubEnv('CODEGRAPH_INDEX_TIMEOUT_SECONDS', '10800')
+    expect(codegraphIndexTimeoutMs()).toBe(7_200_000)
   })
   it('streams more than the previous output limit without killing indexing', async () => {
     vi.stubEnv('CODEGRAPH_BIN', process.execPath)
