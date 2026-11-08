@@ -99,7 +99,8 @@ services:
       retries: 10
       start_period: 40s
     stop_grace_period: 30s
-    mem_limit: 1g
+    # Group CodeGraph indexing runs alongside the web app.
+    mem_limit: ${WEB_MEMORY_LIMIT:-4g}
 
   worker:
     <<: *app
